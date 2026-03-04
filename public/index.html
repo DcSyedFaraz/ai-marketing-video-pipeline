@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Runware Video Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d0f; --surface: #161618; --surface2: #1e1e22; --border: #2a2a30;
+      --accent: #7c3aed; --accent-h: #6d28d9; --accent2: #06b6d4; --accent2-h: #0891b2;
+      --green: #10b981; --red: #ef4444; --yellow: #f59e0b; --orange: #f97316;
+      --text: #f1f1f3; --muted: #8a8a9a; --r: 12px; --rs: 8px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Header */
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+    .logo { width: 34px; height: 34px; background: linear-gradient(135deg,var(--accent),var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    header h1 { font-size: 17px; font-weight: 700; }
+    header .sub { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+    /* Layout */
+    .main { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+
+    /* Top nav tabs */
+    .nav-tabs { display: flex; gap: 4px; background: var(--surface); border-radius: var(--r); padding: 4px; width: fit-content; margin-bottom: 24px; }
+    .nav-tab { padding: 8px 18px; border-radius: var(--rs); border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; background: transparent; color: var(--muted); }
+    .nav-tab.active { background: var(--accent); color: #fff; }
+    .nav-tab:not(.active):hover { background: var(--surface2); color: var(--text); }
+
+    /* Page sections */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Grid */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width:760px){ .grid2 { grid-template-columns: 1fr; } }
+
+    /* Card */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 22px; }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+    .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+    .badge-pro { background: linear-gradient(135deg,var(--accent),var(--accent2)); color: #fff; }
+    .badge-new { background: var(--green); color: #fff; }
+    .badge-std { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+    /* Form */
+    .fg { margin-bottom: 14px; }
+    label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+    label .req { color: var(--red); }
+    input[type=text], textarea, select {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs);
+      color: var(--text); font-size: 13px; padding: 9px 12px; outline: none; font-family: inherit; transition: border-color .15s;
+    }
+    input[type=text]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 80px; }
+
+    /* Model selector cards */
+    .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .model-card {
+      border: 2px solid var(--border); border-radius: var(--rs); padding: 10px 12px; cursor: pointer;
+      transition: all .15s; background: var(--surface2); position: relative;
+    }
+    .model-card:hover { border-color: var(--accent); }
+    .model-card.selected { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+    .model-card input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+    .model-card-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; display: flex; align-items: center; gap: 5px; }
+    .model-card-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .model-card-cost { font-size: 10px; color: var(--accent2); margin-top: 3px; font-weight: 500; }
+    .model-card-provider { font-size: 10px; color: var(--muted); position: absolute; top: 8px; right: 10px; }
+
+    /* Dropzone */
+    .dropzone { border: 2px dashed var(--border); border-radius: var(--rs); padding: 18px 12px; text-align: center; cursor: pointer; transition: all .15s; position: relative; }
+    .dropzone:hover, .dropzone.over { border-color: var(--accent); background: rgba(124,58,237,.05); }
+    .dropzone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .dz-icon { font-size: 24px; margin-bottom: 4px; }
+    .dz-text { font-size: 12px; color: var(--muted); }
+    .dz-text strong { color: var(--accent); }
+    .dz-hint { font-size: 10px; color: var(--muted); opacity: .7; margin-top: 2px; }
+    .file-pill { display: none; align-items: center; gap: 8px; margin-top: 8px; background: var(--surface2); border-radius: var(--rs); padding: 7px 10px; }
+    .file-pill.show { display: flex; }
+    .file-pill-thumb { width: 36px; height: 36px; border-radius: 5px; object-fit: cover; background: var(--border); flex-shrink: 0; }
+    .file-pill-info { flex: 1; min-width: 0; }
+    .file-pill-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-pill-size { font-size: 10px; color: var(--muted); }
+    .file-pill-rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; transition: color .15s; }
+    .file-pill-rm:hover { color: var(--red); }
+
+    /* Row */
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Buttons */
+    .btn { width: 100%; padding: 11px 20px; border: none; border-radius: var(--rs); font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 7px; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+    .btn-purple { background: linear-gradient(135deg,var(--accent),#9333ea); color: #fff; }
+    .btn-purple:hover:not(:disabled) { background: linear-gradient(135deg,var(--accent-h),#7e22ce); transform: translateY(-1px); }
+    .btn-cyan { background: linear-gradient(135deg,var(--accent2),#3b82f6); color: #fff; }
+    .btn-cyan:hover:not(:disabled) { background: linear-gradient(135deg,var(--accent2-h),#2563eb); transform: translateY(-1px); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); border-radius: var(--rs); background: var(--surface2); color: var(--text); cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm.green { border-color: var(--green); color: var(--green); }
+    .btn-sm.green:hover { background: rgba(16,185,129,.1); }
+    .btn-sm.red { border-color: var(--red); color: var(--red); }
+    .btn-sm.red:hover { background: rgba(239,68,68,.1); }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Status */
+    .status-box { background: var(--surface2); border-radius: var(--rs); padding: 10px 12px; font-size: 12px; margin-top: 10px; display: none; border-left: 3px solid var(--border); }
+    .status-box.show { display: block; }
+    .status-box.loading { border-left-color: var(--accent); }
+    .status-box.success { border-left-color: var(--green); }
+    .status-box.error { border-left-color: var(--red); }
+    .status-box.pending { border-left-color: var(--yellow); }
+    .status-text { color: var(--muted); }
+    .status-box.error .status-text { color: var(--red); }
+    .prog-wrap { height: 2px; background: var(--border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+    .prog-bar { height: 100%; background: linear-gradient(90deg,var(--accent),var(--accent2)); animation: indeterminate 1.5s ease infinite; }
+    @keyframes indeterminate { 0%{transform:translateX(-100%);width:50%} 100%{transform:translateX(250%);width:50%} }
+
+    /* Result video */
+    .result-wrap { margin-top: 10px; display: none; }
+    .result-wrap.show { display: block; }
+    .result-wrap video { width: 100%; border-radius: var(--rs); background: #000; max-height: 280px; }
+    .result-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .cost-note { font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+    /* ── History page ── */
+    .history-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+    .history-controls h2 { font-size: 16px; font-weight: 700; flex: 1; }
+    .filter-tabs { display: flex; gap: 3px; background: var(--surface); border-radius: var(--rs); padding: 3px; }
+    .filter-tab { padding: 5px 12px; border-radius: 5px; border: none; cursor: pointer; font-size: 12px; font-weight: 500; background: transparent; color: var(--muted); transition: all .15s; }
+    .filter-tab.active { background: var(--surface2); color: var(--text); }
+    .auto-poll-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+    .toggle { position: relative; width: 34px; height: 18px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 18px; cursor: pointer; transition: .2s; }
+    .toggle-slider:before { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider:before { transform: translateX(16px); }
+
+    .history-list { display: flex; flex-direction: column; gap: 10px; }
+    .history-empty { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r); }
+
+    .hist-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; transition: border-color .15s; }
+    .hist-item:hover { border-color: var(--border); }
+    .hist-item.completed { border-left: 3px solid var(--green); }
+    .hist-item.pending { border-left: 3px solid var(--yellow); }
+    .hist-item.failed { border-left: 3px solid var(--red); }
+
+    .hist-header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .hist-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-completed { background: var(--green); }
+    .dot-pending { background: var(--yellow); animation: pulse 1.5s ease infinite; }
+    .dot-failed { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .hist-info { flex: 1; min-width: 0; }
+    .hist-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hist-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .hist-badges { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+    .hist-type-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+    .htb-avatar { background: rgba(124,58,237,.2); color: var(--accent); }
+    .htb-veo { background: rgba(6,182,212,.2); color: var(--accent2); }
+    .hist-chevron { color: var(--muted); font-size: 12px; transition: transform .2s; flex-shrink: 0; }
+    .hist-item.open .hist-chevron { transform: rotate(90deg); }
+
+    .hist-body { display: none; padding: 0 16px 14px; border-top: 1px solid var(--border); }
+    .hist-item.open .hist-body { display: block; }
+    .hist-body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+    @media(max-width:600px){ .hist-body-grid { grid-template-columns: 1fr; } }
+    .hist-detail { font-size: 12px; color: var(--muted); line-height: 1.8; }
+    .hist-detail strong { color: var(--text); }
+    .hist-video-wrap video { width: 100%; border-radius: var(--rs); background: #000; max-height: 200px; margin-top: 8px; }
+    .hist-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .hist-error { font-size: 12px; color: var(--red); background: rgba(239,68,68,.08); border-radius: var(--rs); padding: 8px 10px; margin-top: 8px; }
+    .pending-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+    .checking-indicator { font-size: 11px; color: var(--yellow); display: flex; align-items: center; gap: 4px; }
+
+    /* Gallery */
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 14px; margin-top: 20px; }
+    .gal-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; transition: border-color .15s; }
+    .gal-item:hover { border-color: var(--accent); }
+    .gal-item video { width: 100%; display: block; background: #000; max-height: 130px; object-fit: cover; }
+    .gal-info { padding: 8px 10px; display: flex; align-items: center; gap: 4px; }
+    .gal-name { font-size: 11px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gal-type { font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px; flex-shrink: 0; }
+    .gal-actions { display: flex; gap: 3px; flex-shrink: 0; }
+    .btn-icon { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 3px; transition: color .15s; }
+    .btn-icon:hover { color: var(--text); }
+    .btn-icon.del:hover { color: var(--red); }
+
+    .section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .section-hdr h2 { font-size: 15px; font-weight: 700; }
+    hr.div { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    /* Tips */
+    .tips { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 18px; margin-top: 20px; }
+    .tips h3 { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .tips ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 5px; }
+    .tips li { font-size: 12px; color: var(--muted); display: flex; gap: 5px; }
+    .tips li::before { content: '›'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎬</div>
+  <h1>Runware Video Generator</h1>
+  <span class="sub">KlingAI · OmniHuman · Google Veo 3.1</span>
+</header>
+
+<div class="main">
+
+  <!-- Nav -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('avatar')">🧑‍💼 Avatar</button>
+    <button class="nav-tab" onclick="showPage('veo')">🎥 Text-to-Video</button>
+    <button class="nav-tab" onclick="showPage('history')">📋 History <span id="pending-badge" style="display:none;background:var(--yellow);color:#000;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:3px"></span></button>
+    <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
+  </div>
+
+  <!-- ═══ AVATAR PAGE ═══ -->
+  <div id="page-avatar" class="page active">
+    <div class="grid2">
+
+      <div class="card">
+        <div class="card-title">🧑‍💼 Avatar Video Generation</div>
+
+        <!-- Model selector -->
+        <div class="fg">
+          <label>AI Model <span class="req">*</span></label>
+          <div class="model-grid" id="model-grid">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <!-- Image -->
+        <div class="fg">
+          <label>Portrait Image <span class="req">*</span></label>
+          <div class="dropzone" id="img-dz">
+            <input type="file" id="img-input" accept=".jpg,.jpeg,.png,.webp" />
+            <div class="dz-icon">🖼️</div>
+            <div class="dz-text">Drop image or <strong>click to browse</strong></div>
+            <div class="dz-hint">JPG, PNG, WEBP · min 300×300 · max 10 MB</div>
+          </div>
+          <div class="file-pill" id="img-pill">
+            <img class="file-pill-thumb" id="img-thumb" src="" alt="" />
+            <div class="file-pill-info">
+              <div class="file-pill-name" id="img-name"></div>
+              <div class="file-pill-size" id="img-size"></div>
+            </div>
+            <button class="file-pill-rm" onclick="clearFile('img')">✕</button>
+          </div>
+        </div>
+
+        <!-- Audio -->
+        <div class="fg">
+          <label>Audio Track <span class="req">*</span></label>
+          <div class="dropzone" id="aud-dz">
+            <input type="file" id="aud-input" accept=".mp3,.wav,.m4a,.aac,.ogg" />
+            <div class="dz-icon">🎙️</div>
+            <div class="dz-text">Drop audio or <strong>click to browse</strong></div>
+            <div class="dz-hint">MP3, WAV, M4A, AAC · 2–300 sec · max 5 MB</div>
+          </div>
+          <div class="file-pill" id="aud-pill">
+            <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎵</span>
+            <div class="file-pill-info">
+              <div class="file-pill-name" id="aud-name"></div>
+              <div class="file-pill-size" id="aud-size"></div>
+            </div>
+            <button class="file-pill-rm" onclick="clearFile('aud')">✕</button>
+          </div>
+        </div>
+
+        <!-- Prompt -->
+        <div class="fg">
+          <label>Style Prompt <small style="font-weight:400">(optional)</small></label>
+          <textarea id="avatar-prompt" placeholder="e.g. Speak with enthusiasm and warmth, maintain natural eye contact..."></textarea>
+        </div>
+
+        <button class="btn btn-purple" id="btn-avatar" onclick="submitAvatar()">
+          <span class="spinner" id="avatar-spinner"></span>
+          <span id="avatar-btn-text">✨ Generate Avatar Video</span>
+        </button>
+
+        <div class="status-box" id="avatar-status">
+          <div class="status-text" id="avatar-status-text"></div>
+          <div class="prog-wrap" id="avatar-prog"><div class="prog-bar"></div></div>
+        </div>
+
+        <div class="result-wrap" id="avatar-result">
+          <video id="avatar-video" controls playsinline></video>
+          <div class="result-actions">
+            <a class="btn-sm green" id="avatar-dl" href="#" download>⬇ Download</a>
+            <button class="btn-sm" onclick="document.getElementById('avatar-video').requestFullscreen?.()">⛶ Fullscreen</button>
+          </div>
+          <div class="cost-note" id="avatar-cost"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📋 Model Guide</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">🏆 KlingAI Avatar 2.0 Pro</div>
+              <div>Best quality, smoothest motion. Ideal for professional content, presentations, marketing videos. Higher cost per second.</div>
+              <div style="color:var(--accent2);margin-top:3px;font-size:11px">$0.087/sec · up to 5 min</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">⚡ KlingAI Avatar 2.0 Standard</div>
+              <div>Fast, economical. Good quality lip-sync. Great for longer content or high-volume generation.</div>
+              <div style="color:var(--accent2);margin-top:3px;font-size:11px">$0.044/sec · up to 5 min</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">🆕 OmniHuman 1.5</div>
+              <div>ByteDance model. High fidelity, context-aware gestures, supports multi-subject and long videos.</div>
+              <div style="color:var(--accent2);margin-top:3px;font-size:11px">~$0.13/sec · up to 10 sec</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">🔬 OmniHuman 1</div>
+              <div>Research model. Strong generalization — works on portraits, cartoons, full-body, stylized avatars.</div>
+              <div style="color:var(--accent2);margin-top:3px;font-size:11px">~$0.10/sec</div>
+            </div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px">📐 Requirements</div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div>🖼 Image: JPG/PNG/WEBP · min 300×300 · max 10 MB</div>
+            <div>🎵 Audio: MP3/WAV/M4A/AAC/OGG · 2–300 sec · max 5 MB</div>
+            <div>📝 Prompt: optional, 1–2 sentences about tone/style</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ VEO PAGE ═══ -->
+  <div id="page-veo" class="page">
+    <div class="grid2">
+
+      <div class="card">
+        <div class="card-title">🎥 Text-to-Video (Veo 3.1)</div>
+
+        <div class="fg">
+          <label>Prompt <span class="req">*</span></label>
+          <textarea id="veo-prompt" style="min-height:100px" placeholder="Describe your video scene...&#10;e.g. A serene mountain lake at sunrise, mist rising from the water, cinematic 4K"></textarea>
+        </div>
+        <div class="fg">
+          <label>Model</label>
+          <select id="veo-model">
+            <option value="google/veo-3.1">Google Veo 3.1 (High Quality)</option>
+            <option value="google/veo-3.1-fast">Google Veo 3.1 Fast</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div class="fg">
+            <label>Duration</label>
+            <select id="veo-duration">
+              <option value="7">7 seconds</option>
+              <option value="14">14 seconds</option>
+              <option value="21">21 seconds</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Orientation</label>
+            <select id="veo-orient" onchange="updateOrient()">
+              <option value="landscape">Landscape (1280×720)</option>
+              <option value="portrait">Portrait (720×1280)</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-cyan" id="btn-veo" onclick="submitVeo()">
+          <span class="spinner" id="veo-spinner"></span>
+          <span id="veo-btn-text">🎬 Generate Video</span>
+        </button>
+
+        <div class="status-box" id="veo-status">
+          <div class="status-text" id="veo-status-text"></div>
+          <div class="prog-wrap" id="veo-prog"><div class="prog-bar"></div></div>
+        </div>
+
+        <div class="result-wrap" id="veo-result">
+          <video id="veo-video" controls playsinline></video>
+          <div class="result-actions">
+            <a class="btn-sm green" id="veo-dl" href="#" download>⬇ Download</a>
+            <button class="btn-sm" onclick="document.getElementById('veo-video').requestFullscreen?.()">⛶ Fullscreen</button>
+          </div>
+          <div class="cost-note" id="veo-cost"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">💡 Prompt Tips</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          <div style="margin-bottom:8px"><strong style="color:var(--text)">Structure:</strong></div>
+          <div style="background:var(--surface2);border-radius:var(--rs);padding:8px 10px;font-family:monospace;font-size:11px;margin-bottom:12px">[Subject] [Action], [Setting], [Style], [Lighting], [Camera]</div>
+          <div style="margin-bottom:6px"><strong style="color:var(--text)">Examples:</strong></div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:8px 10px;font-size:11px;cursor:pointer" onclick="setVeoPrompt(this)">A golden retriever running on a beach at sunset, slow motion, cinematic, warm lighting</div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:8px 10px;font-size:11px;cursor:pointer" onclick="setVeoPrompt(this)">Aerial view of a city at night, rain-slicked streets reflecting neon lights, drone shot, 4K</div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:8px 10px;font-size:11px;cursor:pointer" onclick="setVeoPrompt(this)">Close-up of coffee being poured into a white cup, steam rising, macro lens, natural light</div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+          <div><strong style="color:var(--text)">Pricing:</strong> ~$0.20/sec · min 7s · multiples of 7</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ HISTORY PAGE ═══ -->
+  <div id="page-history" class="page">
+
+    <div class="history-controls">
+      <h2>📋 Generation History</h2>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterHistory('all',this)">All</button>
+        <button class="filter-tab" onclick="filterHistory('pending',this)">⏳ Pending</button>
+        <button class="filter-tab" onclick="filterHistory('completed',this)">✅ Completed</button>
+        <button class="filter-tab" onclick="filterHistory('failed',this)">❌ Failed</button>
+      </div>
+      <div class="auto-poll-row">
+        <label class="toggle">
+          <input type="checkbox" id="auto-poll-toggle" onchange="toggleAutoPoll()" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span>Auto-check pending every 5s</span>
+      </div>
+      <button class="btn-sm" onclick="loadHistory()">↺ Refresh</button>
+    </div>
+
+    <div class="history-list" id="history-list">
+      <div class="history-empty">No generations yet. Submit a task above!</div>
+    </div>
+  </div>
+
+  <!-- ═══ GALLERY PAGE ═══ -->
+  <div id="page-gallery" class="page">
+    <div class="section-hdr">
+      <h2>🗂 Generated Videos</h2>
+      <button class="btn-sm" onclick="loadGallery()">↺ Refresh</button>
+    </div>
+    <div class="gallery" id="gallery">
+      <div class="history-empty" style="grid-column:1/-1">No videos yet.</div>
+    </div>
+
+    <div class="tips">
+      <h3>Quick Tips</h3>
+      <ul>
+        <li>Avatar videos length = audio length — longer audio → longer video</li>
+        <li>Use clear, well-lit front-facing portrait for best results</li>
+        <li>Style prompt refines emotion/tone only, not appearance</li>
+        <li>Veo 3.1 minimum is 7s; use multiples of 7</li>
+        <li>All videos saved in output/ folder locally</li>
+        <li>Check History tab to monitor pending generations</li>
+      </ul>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ══════ State ══════
+let selectedModel = 'klingai:avatar@2.0-pro';
+let veoW = 1280, veoH = 720;
+let historyFilter = 'all';
+let autoPollInterval = null;
+let models = [];
+
+// ══════ Init ══════
+async function init() {
+  await loadModels();
+  await loadHistory();
+  await loadGallery();
+}
+
+// ══════ Models ══════
+async function loadModels() {
+  try {
+    const res = await fetch('/api/models');
+    const data = await res.json();
+    models = data.models;
+    renderModelGrid();
+  } catch {}
+}
+
+function renderModelGrid() {
+  const grid = document.getElementById('model-grid');
+  grid.innerHTML = models.map(m => `
+    <label class="model-card ${m.id === selectedModel ? 'selected' : ''}" onclick="selectModel('${m.id}')">
+      <input type="radio" name="model" value="${m.id}" ${m.id === selectedModel ? 'checked' : ''} />
+      ${m.provider !== 'KlingAI' ? `<div class="model-card-provider">${m.provider}</div>` : `<div class="model-card-provider">${m.provider}</div>`}
+      <div class="model-card-name">
+        ${m.label.replace(m.provider + ' ', '')}
+        ${m.badge ? `<span class="badge ${m.badge === 'PRO' ? 'badge-pro' : m.badge === 'NEW' ? 'badge-new' : 'badge-std'}">${m.badge}</span>` : ''}
+      </div>
+      <div class="model-card-desc">${m.description}</div>
+      <div class="model-card-cost">${m.cost}</div>
+    </label>
+  `).join('');
+}
+
+function selectModel(id) {
+  selectedModel = id;
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+// ══════ Pages ══════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'history') loadHistory();
+  if (name === 'gallery') loadGallery();
+}
+
+// ══════ Dropzones ══════
+function setupDropzone(inputId, dzId, pillId, nameId, sizeId, thumbId, type) {
+  const input = document.getElementById(inputId);
+  const dz = document.getElementById(dzId);
+  input.addEventListener('change', () => handleFile(input, pillId, nameId, sizeId, thumbId, type));
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    if (e.dataTransfer.files[0]) { input.files = e.dataTransfer.files; handleFile(input, pillId, nameId, sizeId, thumbId, type); }
+  });
+}
+
+function handleFile(input, pillId, nameId, sizeId, thumbId, type) {
+  const file = input.files[0]; if (!file) return;
+  document.getElementById(nameId).textContent = file.name;
+  document.getElementById(sizeId).textContent = fmtSize(file.size);
+  document.getElementById(pillId).classList.add('show');
+  if (thumbId) { const r = new FileReader(); r.onload = e => document.getElementById(thumbId).src = e.target.result; r.readAsDataURL(file); }
+}
+
+function clearFile(prefix) {
+  document.getElementById(`${prefix}-input`).value = '';
+  document.getElementById(`${prefix}-pill`).classList.remove('show');
+  if (prefix === 'img') document.getElementById('img-thumb').src = '';
+}
+
+function fmtSize(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
+
+// ══════ Avatar submit ══════
+async function submitAvatar() {
+  const img = document.getElementById('img-input').files[0];
+  const aud = document.getElementById('aud-input').files[0];
+  const prompt = document.getElementById('avatar-prompt').value.trim();
+  if (!img) { setStatus('avatar','error','⚠ Please select a portrait image.'); return; }
+  if (!aud) { setStatus('avatar','error','⚠ Please select an audio file.'); return; }
+
+  setBtnLoading('avatar', true);
+  setStatus('avatar','loading','⏳ Uploading and submitting...');
+  hideResult('avatar');
+
+  const fd = new FormData();
+  fd.append('image', img);
+  fd.append('audio', aud);
+  fd.append('model', selectedModel);
+  if (prompt) fd.append('prompt', prompt);
+
+  try {
+    const res = await fetch('/api/generate-avatar', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submission failed.');
+
+    setStatus('avatar', 'pending',
+      `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 Generation running in background — check History tab for progress.`);
+    document.getElementById('avatar-prog').style.display = 'none';
+
+    // refresh history badge
+    setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+
+  } catch (err) {
+    setStatus('avatar','error',`❌ ${err.message}`);
+  } finally {
+    setBtnLoading('avatar', false);
+  }
+}
+
+// ══════ Veo submit ══════
+async function submitVeo() {
+  const prompt = document.getElementById('veo-prompt').value.trim();
+  if (!prompt) { setStatus('veo','error','⚠ Please enter a prompt.'); return; }
+
+  setBtnLoading('veo', true);
+  setStatus('veo','loading','⏳ Submitting to Runware API...');
+  hideResult('veo');
+
+  try {
+    const res = await fetch('/api/generate-veo', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ prompt, duration: document.getElementById('veo-duration').value, width: veoW, height: veoH, model: document.getElementById('veo-model').value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submission failed.');
+
+    setStatus('veo', 'pending',
+      `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 Generation running in background — check History tab for progress.`);
+    document.getElementById('veo-prog').style.display = 'none';
+
+    setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+
+  } catch (err) {
+    setStatus('veo','error',`❌ ${err.message}`);
+  } finally {
+    setBtnLoading('veo', false);
+  }
+}
+
+function updateOrient() {
+  const v = document.getElementById('veo-orient').value;
+  veoW = v === 'portrait' ? 720 : 1280;
+  veoH = v === 'portrait' ? 1280 : 720;
+}
+
+function setVeoPrompt(el) { document.getElementById('veo-prompt').value = el.textContent.trim(); }
+
+// ══════ UI helpers ══════
+function setBtnLoading(type, on) {
+  const btn = document.getElementById(`btn-${type}`);
+  const sp = document.getElementById(`${type}-spinner`);
+  const tx = document.getElementById(`${type}-btn-text`);
+  btn.disabled = on;
+  sp.style.display = on ? 'block' : 'none';
+  tx.textContent = on ? 'Submitting...' : (type === 'avatar' ? '✨ Generate Avatar Video' : '🎬 Generate Video');
+}
+
+function setStatus(type, state, msg) {
+  const box = document.getElementById(`${type}-status`);
+  const txt = document.getElementById(`${type}-status-text`);
+  box.className = `status-box show ${state}`;
+  txt.textContent = msg;
+  const prog = document.getElementById(`${type}-prog`);
+  if (prog) prog.style.display = state === 'loading' ? 'block' : 'none';
+}
+
+function hideResult(type) { document.getElementById(`${type}-result`).classList.remove('show'); }
+
+function showResult(type, videoUrl, cost) {
+  const wrap = document.getElementById(`${type}-result`);
+  const vid = document.getElementById(`${type}-video`);
+  const dl = document.getElementById(`${type}-dl`);
+  vid.src = videoUrl;
+  dl.href = videoUrl;
+  dl.download = videoUrl.split('/').pop();
+  wrap.classList.add('show');
+  vid.play();
+  document.getElementById(`${type}-cost`).textContent = cost ? `Cost: $${parseFloat(cost).toFixed(4)}` : '';
+}
+
+// ══════ History ══════
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    renderHistory(data.history);
+    updatePendingBadge(data.history);
+  } catch {}
+}
+
+function updatePendingBadge(history) {
+  if (!history) return;
+  const count = history.filter(h => h.status === 'pending').length;
+  const badge = document.getElementById('pending-badge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline' : 'none';
+}
+
+function filterHistory(f, el) {
+  historyFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadHistory();
+}
+
+function renderHistory(history) {
+  const list = document.getElementById('history-list');
+  let items = history;
+  if (historyFilter !== 'all') items = history.filter(h => h.status === historyFilter);
+
+  if (!items.length) {
+    list.innerHTML = `<div class="history-empty">${historyFilter === 'all' ? 'No generations yet.' : `No ${historyFilter} tasks.`}</div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(h => {
+    const isAvatar = h.type === 'avatar';
+    const date = new Date(h.submittedAt).toLocaleString();
+    const title = isAvatar
+      ? `${h.modelLabel} · ${h.imageName || 'image'} + ${h.audioName || 'audio'}`
+      : `${h.modelLabel} · "${(h.prompt||'').slice(0,60)}${h.prompt?.length>60?'…':''}"`;
+
+    const metaParts = [`${isAvatar ? '🧑‍💼' : '🎥'} ${h.type.toUpperCase()}`, date];
+    if (h.cost) metaParts.push(`$${parseFloat(h.cost).toFixed(4)}`);
+
+    const dotClass = h.status === 'completed' ? 'dot-completed' : h.status === 'pending' ? 'dot-pending' : 'dot-failed';
+
+    let bodyContent = '';
+    if (h.status === 'completed' && h.videoUrl) {
+      bodyContent = `
+        <div class="hist-body-grid">
+          <div>
+            <div class="hist-detail">
+              <div><strong>Model:</strong> ${h.modelLabel}</div>
+              <div><strong>Provider:</strong> ${h.provider || '—'}</div>
+              ${h.prompt ? `<div><strong>Prompt:</strong> ${h.prompt}</div>` : ''}
+              ${isAvatar ? `<div><strong>Image:</strong> ${h.imageName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
+              ${h.duration ? `<div><strong>Duration:</strong> ${h.duration}s (${h.width}×${h.height})</div>` : ''}
+              <div><strong>Submitted:</strong> ${date}</div>
+              ${h.completedAt ? `<div><strong>Completed:</strong> ${new Date(h.completedAt).toLocaleString()}</div>` : ''}
+              ${h.cost ? `<div><strong>Cost:</strong> $${parseFloat(h.cost).toFixed(4)}</div>` : ''}
+              <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
+            </div>
+            <div class="hist-actions">
+              <a class="btn-sm green" href="${h.videoUrl}" download>⬇ Download</a>
+              <button class="btn-sm" onclick="playInGallery('${h.videoUrl}')">▶ Play</button>
+              <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
+            </div>
+          </div>
+          <div class="hist-video-wrap">
+            <video src="${h.videoUrl}" controls playsinline></video>
+          </div>
+        </div>`;
+    } else if (h.status === 'pending') {
+      bodyContent = `
+        <div class="hist-detail" style="margin-top:10px">
+          <div><strong>Model:</strong> ${h.modelLabel}</div>
+          ${h.prompt ? `<div><strong>Prompt:</strong> ${h.prompt}</div>` : ''}
+          ${isAvatar ? `<div><strong>Image:</strong> ${h.imageName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
+          <div><strong>Submitted:</strong> ${date}</div>
+          <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
+        </div>
+        <div class="pending-actions">
+          <button class="btn-sm green" onclick="manualCheck('${h.taskUUID}', this)">🔍 Check Now</button>
+          <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
+          <span class="checking-indicator" id="checking-${h.taskUUID}" style="display:none">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);animation:pulse 1s infinite"></span>
+            Checking...
+          </span>
+        </div>`;
+    } else { // failed
+      bodyContent = `
+        <div class="hist-detail" style="margin-top:10px">
+          <div><strong>Model:</strong> ${h.modelLabel}</div>
+          <div><strong>Submitted:</strong> ${date}</div>
+          <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
+        </div>
+        ${h.error ? `<div class="hist-error">❌ ${h.error}</div>` : ''}
+        <div class="hist-actions" style="margin-top:8px">
+          <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
+        </div>`;
+    }
+
+    return `
+      <div class="hist-item ${h.status}" id="hist-${h.taskUUID}">
+        <div class="hist-header" onclick="toggleHist('${h.taskUUID}')">
+          <span class="hist-status-dot ${dotClass}"></span>
+          <div class="hist-info">
+            <div class="hist-title">${title}</div>
+            <div class="hist-meta">${metaParts.join(' · ')}</div>
+          </div>
+          <div class="hist-badges">
+            <span class="hist-type-badge ${isAvatar ? 'htb-avatar' : 'htb-veo'}">${h.type.toUpperCase()}</span>
+            <span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;background:${h.status==='completed'?'rgba(16,185,129,.15)':h.status==='pending'?'rgba(245,158,11,.15)':'rgba(239,68,68,.15)'};color:${h.status==='completed'?'var(--green)':h.status==='pending'?'var(--yellow)':'var(--red)'}">
+              ${h.status === 'completed' ? '✅ Done' : h.status === 'pending' ? '⏳ Pending' : '❌ Failed'}
+            </span>
+          </div>
+          <span class="hist-chevron">›</span>
+        </div>
+        <div class="hist-body">${bodyContent}</div>
+      </div>`;
+  }).join('');
+}
+
+function toggleHist(uuid) {
+  const el = document.getElementById(`hist-${uuid}`);
+  el.classList.toggle('open');
+}
+
+async function manualCheck(taskUUID, btn) {
+  const indicator = document.getElementById(`checking-${taskUUID}`);
+  if (indicator) indicator.style.display = 'flex';
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/check/${taskUUID}`, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.status === 'completed') {
+      await loadHistory();
+      await loadGallery();
+      updatePendingBadge(await (await fetch('/api/history')).json().then(d => d.history));
+    } else if (data.status === 'failed') {
+      await loadHistory();
+    } else {
+      // still pending
+      if (indicator) indicator.style.display = 'none';
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Check Now (still pending)'; }
+    }
+  } catch (err) {
+    if (indicator) indicator.style.display = 'none';
+    if (btn) { btn.disabled = false; }
+    console.error('Check error:', err);
+  }
+}
+
+async function deleteHistory(taskUUID) {
+  if (!confirm('Remove this entry from history?')) return;
+  await fetch(`/api/history/${taskUUID}`, { method: 'DELETE' });
+  await loadHistory();
+  updatePendingBadge((await (await fetch('/api/history')).json()).history);
+}
+
+function toggleAutoPoll() {
+  const on = document.getElementById('auto-poll-toggle').checked;
+  if (on) {
+    autoPollInterval = setInterval(async () => {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      const pending = data.history.filter(h => h.status === 'pending');
+      if (pending.length > 0) {
+        renderHistory(data.history);
+        updatePendingBadge(data.history);
+        // auto-check each pending one
+        for (const p of pending) {
+          const checkRes = await fetch(`/api/check/${p.taskUUID}`, { method: 'POST' });
+          const checkData = await checkRes.json();
+          if (checkData.status === 'completed' || checkData.status === 'failed') {
+            await loadHistory();
+            await loadGallery();
+          }
+        }
+      }
+    }, 5000);
+  } else {
+    clearInterval(autoPollInterval);
+    autoPollInterval = null;
+  }
+}
+
+// ══════ Gallery ══════
+async function loadGallery() {
+  try {
+    const res = await fetch('/api/videos');
+    const data = await res.json();
+    renderGallery(data.videos);
+  } catch {}
+}
+
+function renderGallery(videos) {
+  const gal = document.getElementById('gallery');
+  if (!videos.length) {
+    gal.innerHTML = '<div class="history-empty" style="grid-column:1/-1">No videos yet.</div>';
+    return;
+  }
+  gal.innerHTML = videos.map(v => `
+    <div class="gal-item">
+      <video src="${v.url}" muted preload="metadata" controls></video>
+      <div class="gal-info">
+        <span class="gal-type ${v.type === 'avatar' ? 'htb-avatar' : 'htb-veo'}">${v.type.toUpperCase()}</span>
+        <span class="gal-name">${v.filename}</span>
+        <div class="gal-actions">
+          <a class="btn-icon" href="${v.url}" download="${v.filename}" title="Download">⬇</a>
+          <button class="btn-icon del" onclick="deleteVideo('${v.filename}',this)" title="Delete">🗑</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function deleteVideo(filename, btn) {
+  if (!confirm(`Delete "${filename}"?`)) return;
+  const res = await fetch(`/api/videos/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+  if (res.ok) { btn.closest('.gal-item').remove(); }
+}
+
+function playInGallery(url) {
+  showPage2('gallery');
+  setTimeout(() => {
+    const vids = document.querySelectorAll('#gallery video');
+    for (const v of vids) { if (v.src.includes(url.split('/').pop())) { v.scrollIntoView({behavior:'smooth'}); v.play(); break; } }
+  }, 100);
+}
+
+function showPage2(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => { if (t.textContent.toLowerCase().includes(name)) t.classList.add('active'); });
+}
+
+// ══════ Start ══════
+setupDropzone('img-input','img-dz','img-pill','img-name','img-size','img-thumb','image');
+setupDropzone('aud-input','aud-dz','aud-pill','aud-name','aud-size',null,'audio');
+init();
+</script>
+</body>
+</html>

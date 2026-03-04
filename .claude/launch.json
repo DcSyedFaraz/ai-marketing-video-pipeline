@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "GUI Server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "port": 3000
+    },
+    {
+      "name": "Remotion Studio",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["remotion", "studio"],
+      "port": 3001
+    }
+  ]
+}

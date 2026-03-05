@@ -34,6 +34,7 @@ export const AVATAR_MODELS = [
     provider: 'KlingAI',
     description: 'Highest fidelity, smoothest motion, production-ready',
     cost: '$0.087/sec',
+    costPerSec: 0.087,
     badge: 'PRO',
   },
   {
@@ -42,6 +43,7 @@ export const AVATAR_MODELS = [
     provider: 'KlingAI',
     description: 'Faster, more economical, great for longer content',
     cost: '$0.044/sec',
+    costPerSec: 0.044,
     badge: 'STANDARD',
   },
   {
@@ -50,6 +52,7 @@ export const AVATAR_MODELS = [
     provider: 'ByteDance',
     description: 'High fidelity, multi-subject, context-aware gestures',
     cost: '~$0.13/sec',
+    costPerSec: 0.13,
     badge: 'NEW',
   },
   {
@@ -58,9 +61,16 @@ export const AVATAR_MODELS = [
     provider: 'ByteDance',
     description: 'Strong generalization across portraits, cartoons, full body',
     cost: '~$0.10/sec',
+    costPerSec: 0.10,
     badge: null,
   },
 ];
+
+// Cost-per-sec for Veo models
+const VEO_COST = {
+  'google/veo-3.1': 0.20,
+  'google/veo-3.1-fast': 0.15,
+};
 
 // ---- Setup directories ----
 await mkdir('output', { recursive: true });
@@ -161,9 +171,9 @@ async function submitAndPoll(runware, payload, label, taskUUID) {
   const POLL_INTERVAL_MS = 3000;
   const MAX_WAIT_MS = 10 * 60 * 1000;
 
-  console.log(`\n[${label}] Submitting task ${taskUUID} (async, skipResponse)...`);
+  console.log(`\n[${label}] Submitting task ${taskUUID} (async, skipResponse, includeCost)...`);
   const submitStart = Date.now();
-  await runware.videoInference({ ...payload, skipResponse: true });
+  await runware.videoInference({ ...payload, includeCost: true, skipResponse: true });
   console.log(`[${label}] Task submitted OK. Polling every ${POLL_INTERVAL_MS / 1000}s...`);
 
   let attempt = 0;
@@ -180,17 +190,13 @@ async function submitAndPoll(runware, payload, label, taskUUID) {
 
       if (responses?.length) {
         for (const r of responses) {
-          console.log(`[${label}] Poll #${attempt} | item:`, JSON.stringify({
-            taskUUID: r.taskUUID,
-            status: r.status,
-            videoURL: r.videoURL || null,
-            error: r.error || null,
-            cost: r.cost || null,
-          }));
+          // Log full raw response to see all available fields
+          console.log(`[${label}] Poll #${attempt} | raw:`, JSON.stringify(r));
           if (r.error) throw new Error(`API error: ${JSON.stringify(r.error)}`);
           if (r.status === 'success' && r.videoURL) {
-            console.log(`[${label}] ✅ SUCCESS after ${elapsed}s — ${r.videoURL}`);
-            return r;
+            const cost = r.cost ?? r.taskCost ?? r.inferCost ?? null;
+            console.log(`[${label}] ✅ SUCCESS after ${elapsed}s | cost: ${cost !== null ? '$'+cost : 'not returned by API'} | URL: ${r.videoURL}`);
+            return { ...r, cost };
           }
         }
         console.log(`[${label}] Poll #${attempt} | not ready yet...`);
@@ -266,6 +272,7 @@ app.post('/api/generate-avatar', upload.fields([
     prompt: prompt || null,
     imageName: imageFile.originalname,
     audioName: audioFile.originalname,
+    audioSize: audioFile.size,
     status: 'pending',
     submittedAt: new Date().toISOString(),
     completedAt: null,
@@ -313,13 +320,17 @@ app.post('/api/generate-avatar', upload.fields([
       await downloadVideo(result.videoURL, outputPath);
       console.log(`[Avatar] ✅ Download complete: ${outputPath}`);
 
+      const resolvedCost = result.cost ?? null;
+      console.log(`[Avatar] Final cost: ${resolvedCost !== null ? '$'+resolvedCost : 'not returned by API'}`);
+
       updateHistoryEntry(taskUUID, {
         status: 'completed',
         completedAt: new Date().toISOString(),
         videoUrl: `/output/${filename}`,
         videoURL: result.videoURL,
         filename,
-        cost: result.cost || null,
+        cost: resolvedCost,
+        costSource: resolvedCost !== null ? 'api' : null,
       });
       console.log(`[Avatar] History updated → COMPLETED`);
 
@@ -396,13 +407,17 @@ app.post('/api/generate-veo', async (req, res) => {
       await downloadVideo(result.videoURL, outputPath);
       console.log(`[Veo] ✅ Download complete: ${outputPath}`);
 
+      const resolvedCost = result.cost ?? null;
+      console.log(`[Veo] Final cost: ${resolvedCost !== null ? '$'+resolvedCost : 'not returned by API'}`);
+
       updateHistoryEntry(taskUUID, {
         status: 'completed',
         completedAt: new Date().toISOString(),
         videoUrl: `/output/${filename}`,
         videoURL: result.videoURL,
         filename,
-        cost: result.cost || null,
+        cost: resolvedCost,
+        costSource: resolvedCost !== null ? 'api' : null,
       });
       console.log(`[Veo] History updated → COMPLETED`);
 
@@ -444,13 +459,17 @@ app.post('/api/check/:taskUUID', async (req, res) => {
     await downloadVideo(result.videoURL, outputPath);
     console.log(`[Check] ✅ Download complete`);
 
+    const resolvedCost = result.cost ?? null;
+    console.log(`[Check] Final cost: ${resolvedCost !== null ? '$'+resolvedCost : 'not returned by API'}`);
+
     const updated = updateHistoryEntry(taskUUID, {
       status: 'completed',
       completedAt: new Date().toISOString(),
       videoUrl: `/output/${filename}`,
       videoURL: result.videoURL,
       filename,
-      cost: result.cost || null,
+      cost: resolvedCost,
+      costSource: resolvedCost !== null ? 'api' : null,
     });
 
     res.json({ status: 'completed', entry: updated });

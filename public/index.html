@@ -699,8 +699,9 @@ function renderHistory(history) {
       ? `${h.modelLabel} · ${h.imageName || 'image'} + ${h.audioName || 'audio'}`
       : `${h.modelLabel} · "${(h.prompt||'').slice(0,60)}${h.prompt?.length>60?'…':''}"`;
 
+    const costStr = h.cost != null ? `$${parseFloat(h.cost).toFixed(4)}` : null;
     const metaParts = [`${isAvatar ? '🧑‍💼' : '🎥'} ${h.type.toUpperCase()}`, date];
-    if (h.cost) metaParts.push(`$${parseFloat(h.cost).toFixed(4)}`);
+    if (costStr) metaParts.push(costStr);
 
     const dotClass = h.status === 'completed' ? 'dot-completed' : h.status === 'pending' ? 'dot-pending' : 'dot-failed';
 
@@ -717,7 +718,7 @@ function renderHistory(history) {
               ${h.duration ? `<div><strong>Duration:</strong> ${h.duration}s (${h.width}×${h.height})</div>` : ''}
               <div><strong>Submitted:</strong> ${date}</div>
               ${h.completedAt ? `<div><strong>Completed:</strong> ${new Date(h.completedAt).toLocaleString()}</div>` : ''}
-              ${h.cost ? `<div><strong>Cost:</strong> $${parseFloat(h.cost).toFixed(4)}</div>` : ''}
+              ${h.cost != null ? `<div><strong>Cost:</strong> $${parseFloat(h.cost).toFixed(4)}</div>` : ''}
               <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
             </div>
             <div class="hist-actions">

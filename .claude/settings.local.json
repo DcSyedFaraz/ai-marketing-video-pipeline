@@ -9,7 +9,11 @@
       "Bash(npx remotion --help:*)",
       "Bash(npx remotion render:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\fluent-ffmpeg\")",
+      "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\ffmpeg-static\")",
+      "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\@ffmpeg\\\\ffmpeg\")",
+      "Bash(taskkill /F /IM node.exe)"
     ]
   }
 }

@@ -162,6 +162,9 @@
     .hist-type-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
     .htb-avatar { background: rgba(124,58,237,.2); color: var(--accent); }
     .htb-veo { background: rgba(6,182,212,.2); color: var(--accent2); }
+    .htb-bridge { background: rgba(249,115,22,.2); color: var(--orange); }
+    .htb-lipsync { background: rgba(236,72,153,.2); color: #ec4899; }
+    .check-logs { display:none; margin-top:10px; background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:var(--rs); padding:8px 10px; font-family:monospace; font-size:11px; color:var(--muted); white-space:pre-wrap; line-height:1.6; max-height:200px; overflow-y:auto; }
     .hist-chevron { color: var(--muted); font-size: 12px; transition: transform .2s; flex-shrink: 0; }
     .hist-item.open .hist-chevron { transform: rotate(90deg); }
 
@@ -217,6 +220,9 @@
     <button class="nav-tab active" onclick="showPage('avatar')">🧑‍💼 Avatar</button>
     <button class="nav-tab" onclick="showPage('veo')">🎥 Text-to-Video</button>
     <button class="nav-tab" onclick="showPage('history')">📋 History <span id="pending-badge" style="display:none;background:var(--yellow);color:#000;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:3px"></span></button>
+    <button class="nav-tab" onclick="showPage('lipsync')">👄 LipSync</button>
+    <button class="nav-tab" onclick="showPage('bridge')">🔗 CTA Bridge</button>
+    <button class="nav-tab" onclick="showPage('combine')">⛓ Combine</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
   </div>
 
@@ -352,16 +358,16 @@
           <label>Model</label>
           <select id="veo-model">
             <option value="google/veo-3.1">Google Veo 3.1 (High Quality)</option>
-            <option value="google/veo-3.1-fast">Google Veo 3.1 Fast</option>
+            <option value="google:3@3">Google Veo 3.1 Fast</option>
           </select>
         </div>
         <div class="row2">
           <div class="fg">
             <label>Duration</label>
             <select id="veo-duration">
-              <option value="7">7 seconds</option>
-              <option value="14">14 seconds</option>
-              <option value="21">21 seconds</option>
+              <option value="4">4 seconds</option>
+              <option value="6" selected>6 seconds</option>
+              <option value="8">8 seconds</option>
             </select>
           </div>
           <div class="fg">
@@ -438,6 +444,243 @@
     </div>
   </div>
 
+  <!-- ═══ LIPSYNC PAGE ═══ -->
+  <div id="page-lipsync" class="page">
+    <div class="grid2">
+      <div>
+        <h2 style="margin-bottom:4px">👄 PixVerse LipSync</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Upload a video and a new audio track — PixVerse will re-lip-sync the speaker to match.</p>
+
+        <div class="fg">
+          <label>Video <span class="req">*</span></label>
+          <div class="dropzone" id="ls-vid-dz" onclick="document.getElementById('ls-vid-input').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event,'ls-vid-input','ls-vid-dz','ls-vid-pill','ls-vid-name','ls-vid-size',null,'video')">
+            <input type="file" id="ls-vid-input" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="display:none" onchange="handleFileSelect(this,'ls-vid-dz','ls-vid-pill','ls-vid-name','ls-vid-size',null,'video')">
+            <span class="dz-icon">🎬</span>
+            <div>Drop video or <strong>click to browse</strong></div>
+            <div class="dz-hint">MP4, WEBM, MOV · max 15 MB</div>
+          </div>
+          <div class="file-pill" id="ls-vid-pill" style="display:none">
+            <span id="ls-vid-name"></span><span class="file-size" id="ls-vid-size"></span>
+            <button onclick="clearFile('ls-vid-input','ls-vid-dz','ls-vid-pill',null)">✕</button>
+          </div>
+        </div>
+
+        <div class="fg">
+          <label>Audio <span class="req">*</span></label>
+          <div class="dropzone" id="ls-aud-dz" onclick="document.getElementById('ls-aud-input').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event,'ls-aud-input','ls-aud-dz','ls-aud-pill','ls-aud-name','ls-aud-size',null,'audio')">
+            <input type="file" id="ls-aud-input" accept="audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac" style="display:none" onchange="handleFileSelect(this,'ls-aud-dz','ls-aud-pill','ls-aud-name','ls-aud-size',null,'audio')">
+            <span class="dz-icon">🎙️</span>
+            <div>Drop audio or <strong>click to browse</strong></div>
+            <div class="dz-hint">MP3, WAV, M4A, AAC · max 5 MB</div>
+          </div>
+          <div class="file-pill" id="ls-aud-pill" style="display:none">
+            <span id="ls-aud-name"></span><span class="file-size" id="ls-aud-size"></span>
+            <button onclick="clearFile('ls-aud-input','ls-aud-dz','ls-aud-pill',null)">✕</button>
+          </div>
+        </div>
+
+        <button class="btn" id="lipsync-btn" onclick="submitLipSync()">👄 Generate LipSync Video</button>
+        <div id="lipsync-status" class="status-box" style="display:none"></div>
+        <div class="result-wrap" id="lipsync-result">
+          <video id="lipsync-video" controls playsinline></video>
+          <div class="result-actions">
+            <a class="btn-sm green" id="lipsync-dl" href="#" download>⬇ Download</a>
+            <button class="btn-sm" onclick="document.getElementById('lipsync-video').requestFullscreen?.()">⛶ Fullscreen</button>
+          </div>
+          <div class="cost-note" id="lipsync-cost"></div>
+        </div>
+      </div>
+      <div class="tips">
+        <h3>PixVerse LipSync</h3>
+        <ul>
+          <li>Model: <code>pixverse:lipsync@1</code></li>
+          <li>Upload a video of a person speaking</li>
+          <li>Upload any audio track to replace their voice</li>
+          <li>The model re-animates lip movements to match the new audio</li>
+          <li>Best results with clear frontal face, minimal occlusion</li>
+          <li>Video max ~15 MB · Audio max 5 MB</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CTA BRIDGE PAGE ═══ -->
+  <div id="page-bridge" class="page">
+    <div class="grid2">
+
+      <div class="card">
+        <div class="card-title">🔗 CTA Bridge Generator</div>
+
+        <!-- Model selector -->
+        <div class="fg">
+          <label>AI Model <span class="req">*</span></label>
+          <div class="model-grid" id="bridge-model-grid">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <!-- Original video -->
+        <div class="fg">
+          <label>Original Video <span class="req">*</span></label>
+          <div class="dropzone" id="bvid-dz">
+            <input type="file" id="bvid-input" accept=".mp4,.webm,.mov,.mkv,.avi" />
+            <div class="dz-icon">🎬</div>
+            <div class="dz-text">Drop video or <strong>click to browse</strong></div>
+            <div class="dz-hint">MP4, WEBM, MOV · max 500 MB</div>
+          </div>
+          <div class="file-pill" id="bvid-pill">
+            <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎬</span>
+            <div class="file-pill-info">
+              <div class="file-pill-name" id="bvid-name"></div>
+              <div class="file-pill-size" id="bvid-size"></div>
+            </div>
+            <button class="file-pill-rm" onclick="clearFile('bvid')">✕</button>
+          </div>
+        </div>
+
+        <!-- CTA image -->
+        <div class="fg">
+          <label>CTA Frame Image <span class="req">*</span> <small style="font-weight:400">(your call-to-action last frame)</small></label>
+          <div class="dropzone" id="bcta-dz">
+            <input type="file" id="bcta-input" accept=".jpg,.jpeg,.png,.webp" />
+            <div class="dz-icon">🖼️</div>
+            <div class="dz-text">Drop CTA image or <strong>click to browse</strong></div>
+            <div class="dz-hint">JPG, PNG, WEBP · This becomes the final frame of the bridge</div>
+          </div>
+          <div class="file-pill" id="bcta-pill">
+            <img class="file-pill-thumb" id="bcta-thumb" src="" alt="" />
+            <div class="file-pill-info">
+              <div class="file-pill-name" id="bcta-name"></div>
+              <div class="file-pill-size" id="bcta-size"></div>
+            </div>
+            <button class="file-pill-rm" onclick="clearFile('bcta')">✕</button>
+          </div>
+        </div>
+
+        <!-- Prompt -->
+        <div class="fg">
+          <label>Transition Prompt <small style="font-weight:400">(optional)</small></label>
+          <textarea id="bridge-prompt" placeholder="e.g. Smooth cinematic zoom-out transition, warm lighting..."></textarea>
+        </div>
+
+        <!-- Bridge duration -->
+        <div class="fg">
+          <label>Bridge Video Duration</label>
+          <select id="bridge-duration">
+            <option value="4">4 seconds</option>
+            <option value="6" selected>6 seconds</option>
+            <option value="8">8 seconds</option>
+          </select>
+        </div>
+
+        <button class="btn btn-purple" id="btn-bridge" onclick="submitBridge()" style="background:linear-gradient(135deg,var(--orange),#ef4444)">
+          <span class="spinner" id="bridge-spinner"></span>
+          <span id="bridge-btn-text">🔗 Generate CTA Bridge</span>
+        </button>
+
+        <div class="status-box" id="bridge-status">
+          <div class="status-text" id="bridge-status-text"></div>
+          <div class="prog-wrap" id="bridge-prog"><div class="prog-bar"></div></div>
+        </div>
+
+        <div class="result-wrap" id="bridge-result">
+          <video id="bridge-video" controls playsinline></video>
+          <div class="result-actions">
+            <a class="btn-sm green" id="bridge-dl" href="#" download>⬇ Download Combined Video</a>
+            <button class="btn-sm" onclick="document.getElementById('bridge-video').requestFullscreen?.()">⛶ Fullscreen</button>
+          </div>
+          <div class="cost-note" id="bridge-cost"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">💡 How It Works</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">① Upload Original Video</div>
+              <div>Your existing video — the last frame will be automatically extracted as the bridge starting point.</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">② Upload CTA Frame</div>
+              <div>Your call-to-action image (e.g. a product shot, logo, or offer screen) — this becomes the final frame of the generated bridge.</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">③ AI Generates Bridge</div>
+              <div>The AI model generates a smooth transition video from the last frame of your video to your CTA frame.</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">④ Auto-Concatenation</div>
+              <div>Your original video + generated bridge are stitched together automatically into one final MP4 for download.</div>
+            </div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div>🎬 Video: MP4/WEBM/MOV · up to 500 MB</div>
+            <div>🖼 CTA Image: JPG/PNG/WEBP · any size</div>
+            <div>⏱ Generation takes 5–15 min depending on model</div>
+            <div>📥 Final output: single combined MP4</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ COMBINE PAGE ═══ -->
+  <div id="page-combine" class="page">
+    <div class="grid2">
+      <div>
+        <h2 style="margin-bottom:16px">⛓ Combine Videos</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Concatenate any two videos into one MP4. Use generated videos or upload your own.</p>
+
+        <!-- Slot 1 -->
+        <div class="fg" style="margin-bottom:4px">
+          <label>First Video <span class="req">*</span></label>
+          <select id="combine-v1" style="width:100%" onchange="document.getElementById('combine-upload1').value=''">
+            <option value="">— select from output —</option>
+          </select>
+        </div>
+        <div style="text-align:center;font-size:11px;color:var(--muted);margin:4px 0">— or upload —</div>
+        <div class="fg" style="margin-bottom:16px">
+          <input type="file" id="combine-upload1" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;color:var(--text);font-size:12px" onchange="if(this.value) document.getElementById('combine-v1').value=''">
+        </div>
+
+        <!-- Slot 2 -->
+        <div class="fg" style="margin-bottom:4px">
+          <label>Second Video <span class="req">*</span></label>
+          <select id="combine-v2" style="width:100%" onchange="document.getElementById('combine-upload2').value=''">
+            <option value="">— select from output —</option>
+          </select>
+        </div>
+        <div style="text-align:center;font-size:11px;color:var(--muted);margin:4px 0">— or upload —</div>
+        <div class="fg" style="margin-bottom:16px">
+          <input type="file" id="combine-upload2" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;color:var(--text);font-size:12px" onchange="if(this.value) document.getElementById('combine-v2').value=''">
+        </div>
+
+        <button class="btn" id="combine-btn" onclick="submitCombine()" style="margin-top:4px">⛓ Combine Videos</button>
+        <div id="combine-status" style="margin-top:12px;font-size:13px"></div>
+        <div class="result-wrap" id="combine-result" style="margin-top:16px">
+          <video id="combine-video" controls playsinline></video>
+          <div class="result-actions">
+            <a class="btn-sm green" id="combine-dl" href="#" download>⬇ Download Combined</a>
+          </div>
+        </div>
+      </div>
+      <div class="tips">
+        <h3>About Combine</h3>
+        <ul>
+          <li>Select from generated output <strong>or</strong> upload any video file</li>
+          <li>Upload takes priority if both are provided for a slot</li>
+          <li>Both are re-encoded to 1280×720 H.264 for compatibility</li>
+          <li>First video plays first, second video plays second</li>
+          <li>Result saved as <code>combined_*.mp4</code> in output folder</li>
+          <li>Use this to re-combine if a bridge run succeeded but concat failed</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ GALLERY PAGE ═══ -->
   <div id="page-gallery" class="page">
     <div class="section-hdr">
@@ -466,16 +709,26 @@
 <script>
 // ══════ State ══════
 let selectedModel = 'klingai:avatar@2.0-pro';
+let selectedBridgeModel = 'google/veo-3.1';
 let veoW = 1280, veoH = 720;
 let historyFilter = 'all';
 let autoPollInterval = null;
 let models = [];
 
+const BRIDGE_MODELS = [
+  { id: 'google/veo-3.1', label: 'Google Veo 3.1', provider: 'Google', description: 'Best quality, cinematic transitions', cost: '~$0.20/sec', badge: 'BEST' },
+  { id: 'google:3@3', label: 'Google Veo 3.1 Fast', provider: 'Google', description: 'Faster, slightly lower quality', cost: '~$0.15/sec', badge: null },
+  { id: 'klingai:avatar@2.0-pro', label: 'KlingAI 2.0 Pro', provider: 'KlingAI', description: 'Smooth motion, high fidelity', cost: '$0.087/sec', badge: 'PRO' },
+  { id: 'klingai:avatar@2.0-standard', label: 'KlingAI 2.0 Standard', provider: 'KlingAI', description: 'Economical, good quality', cost: '$0.044/sec', badge: null },
+];
+
 // ══════ Init ══════
 async function init() {
   await loadModels();
+  renderBridgeModelGrid();
   await loadHistory();
   await loadGallery();
+  await loadCombineVideos();
 }
 
 // ══════ Models ══════
@@ -506,7 +759,29 @@ function renderModelGrid() {
 
 function selectModel(id) {
   selectedModel = id;
-  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('#model-grid .model-card').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function renderBridgeModelGrid() {
+  const grid = document.getElementById('bridge-model-grid');
+  grid.innerHTML = BRIDGE_MODELS.map(m => `
+    <label class="model-card ${m.id === selectedBridgeModel ? 'selected' : ''}" onclick="selectBridgeModel('${m.id}')">
+      <input type="radio" name="bridge-model" value="${m.id}" ${m.id === selectedBridgeModel ? 'checked' : ''} />
+      <div class="model-card-provider">${m.provider}</div>
+      <div class="model-card-name">
+        ${m.label.replace(m.provider + ' ', '')}
+        ${m.badge ? `<span class="badge ${m.badge === 'BEST' ? 'badge-pro' : m.badge === 'PRO' ? 'badge-pro' : 'badge-std'}">${m.badge}</span>` : ''}
+      </div>
+      <div class="model-card-desc">${m.description}</div>
+      <div class="model-card-cost">${m.cost}</div>
+    </label>
+  `).join('');
+}
+
+function selectBridgeModel(id) {
+  selectedBridgeModel = id;
+  document.querySelectorAll('#bridge-model-grid .model-card').forEach(c => c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
 }
 
@@ -516,6 +791,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`page-${name}`).classList.add('active');
   event.target.classList.add('active');
+  if (name === 'combine') loadCombineVideos();
   if (name === 'history') loadHistory();
   if (name === 'gallery') loadGallery();
 }
@@ -586,6 +862,77 @@ async function submitAvatar() {
   }
 }
 
+// ══════ LipSync submit ══════
+async function submitLipSync() {
+  const vid = document.getElementById('ls-vid-input').files[0];
+  const aud = document.getElementById('ls-aud-input').files[0];
+  const status = document.getElementById('lipsync-status');
+
+  if (!vid) { status.style.display='block'; status.className='status-box error'; status.textContent='⚠ Please select a video file.'; return; }
+  if (!aud) { status.style.display='block'; status.className='status-box error'; status.textContent='⚠ Please select an audio file.'; return; }
+
+  const btn = document.getElementById('lipsync-btn');
+  btn.disabled = true; btn.textContent = '⏳ Submitting…';
+  status.style.display = 'block'; status.className = 'status-box loading';
+  status.textContent = '⏳ Uploading and submitting…';
+  document.getElementById('lipsync-result').classList.remove('show');
+
+  const fd = new FormData();
+  fd.append('video', vid);
+  fd.append('audio', aud);
+
+  try {
+    const res = await fetch('/api/generate-lipsync', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submission failed.');
+    status.className = 'status-box pending';
+    status.textContent = `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 Processing — check History tab for progress.`;
+    setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+  } catch (err) {
+    status.className = 'status-box error'; status.textContent = `❌ ${err.message}`;
+  } finally {
+    btn.disabled = false; btn.textContent = '👄 Generate LipSync Video';
+  }
+}
+
+// ══════ Bridge submit ══════
+async function submitBridge() {
+  const vid = document.getElementById('bvid-input').files[0];
+  const cta = document.getElementById('bcta-input').files[0];
+  const prompt = document.getElementById('bridge-prompt').value.trim();
+  const duration = document.getElementById('bridge-duration').value;
+  if (!vid) { setStatus('bridge','error','⚠ Please select a video file.'); return; }
+  if (!cta) { setStatus('bridge','error','⚠ Please select a CTA image.'); return; }
+
+  setBtnLoading('bridge', true);
+  setStatus('bridge','loading','⏳ Uploading files and submitting...');
+  hideResult('bridge');
+
+  const fd = new FormData();
+  fd.append('video', vid);
+  fd.append('ctaImage', cta);
+  fd.append('model', selectedBridgeModel);
+  fd.append('duration', duration);
+  if (prompt) fd.append('prompt', prompt);
+
+  try {
+    const res = await fetch('/api/generate-bridge', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submission failed.');
+
+    setStatus('bridge', 'pending',
+      `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 Extracting frame, generating bridge & concatenating — check History tab for progress.`);
+    document.getElementById('bridge-prog').style.display = 'none';
+
+    setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+
+  } catch (err) {
+    setStatus('bridge','error',`❌ ${err.message}`);
+  } finally {
+    setBtnLoading('bridge', false);
+  }
+}
+
 // ══════ Veo submit ══════
 async function submitVeo() {
   const prompt = document.getElementById('veo-prompt').value.trim();
@@ -631,7 +978,7 @@ function setBtnLoading(type, on) {
   const tx = document.getElementById(`${type}-btn-text`);
   btn.disabled = on;
   sp.style.display = on ? 'block' : 'none';
-  tx.textContent = on ? 'Submitting...' : (type === 'avatar' ? '✨ Generate Avatar Video' : '🎬 Generate Video');
+  tx.textContent = on ? 'Submitting...' : (type === 'avatar' ? '✨ Generate Avatar Video' : type === 'bridge' ? '🔗 Generate CTA Bridge' : '🎬 Generate Video');
 }
 
 function setStatus(type, state, msg) {
@@ -694,16 +1041,24 @@ function renderHistory(history) {
 
   list.innerHTML = items.map(h => {
     const isAvatar = h.type === 'avatar';
+    const isBridge = h.type === 'bridge';
+    const isLipSync = h.type === 'lipsync';
     const date = new Date(h.submittedAt).toLocaleString();
     const title = isAvatar
       ? `${h.modelLabel} · ${h.imageName || 'image'} + ${h.audioName || 'audio'}`
-      : `${h.modelLabel} · "${(h.prompt||'').slice(0,60)}${h.prompt?.length>60?'…':''}"`;
+      : isBridge
+        ? `Bridge · ${h.videoName || 'video'} → ${h.ctaImageName || 'CTA'}`
+        : isLipSync
+          ? `LipSync · ${h.videoName || 'video'} + ${h.audioName || 'audio'}`
+          : `${h.modelLabel} · "${(h.prompt||'').slice(0,60)}${h.prompt?.length>60?'…':''}"`;
 
     const costStr = h.cost != null ? `$${parseFloat(h.cost).toFixed(4)}` : null;
-    const metaParts = [`${isAvatar ? '🧑‍💼' : '🎥'} ${h.type.toUpperCase()}`, date];
+    const typeIcon = isAvatar ? '🧑‍💼' : isBridge ? '🔗' : isLipSync ? '👄' : '🎥';
+    const metaParts = [`${typeIcon} ${h.type.toUpperCase()}`, date];
     if (costStr) metaParts.push(costStr);
 
     const dotClass = h.status === 'completed' ? 'dot-completed' : h.status === 'pending' ? 'dot-pending' : 'dot-failed';
+    const typeBadgeClass = isAvatar ? 'htb-avatar' : isBridge ? 'htb-bridge' : isLipSync ? 'htb-lipsync' : 'htb-veo';
 
     let bodyContent = '';
     if (h.status === 'completed' && h.videoUrl) {
@@ -715,15 +1070,18 @@ function renderHistory(history) {
               <div><strong>Provider:</strong> ${h.provider || '—'}</div>
               ${h.prompt ? `<div><strong>Prompt:</strong> ${h.prompt}</div>` : ''}
               ${isAvatar ? `<div><strong>Image:</strong> ${h.imageName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
-              ${h.duration ? `<div><strong>Duration:</strong> ${h.duration}s (${h.width}×${h.height})</div>` : ''}
+              ${isBridge ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div><div><strong>CTA Image:</strong> ${h.ctaImageName || '—'}</div>` : ''}
+              ${isLipSync ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
+              ${h.duration && !isBridge && !isLipSync ? `<div><strong>Duration:</strong> ${h.duration}s (${h.width}×${h.height})</div>` : ''}
               <div><strong>Submitted:</strong> ${date}</div>
               ${h.completedAt ? `<div><strong>Completed:</strong> ${new Date(h.completedAt).toLocaleString()}</div>` : ''}
               ${h.cost != null ? `<div><strong>Cost:</strong> $${parseFloat(h.cost).toFixed(4)}</div>` : ''}
               <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
             </div>
             <div class="hist-actions">
-              <a class="btn-sm green" href="${h.videoUrl}" download>⬇ Download</a>
+              <a class="btn-sm green" href="${h.videoUrl}" download>${isBridge ? '⬇ Download Combined' : '⬇ Download'}</a>
               <button class="btn-sm" onclick="playInGallery('${h.videoUrl}')">▶ Play</button>
+              ${h.filename ? `<button class="btn-sm" onclick="openCombineWith('${h.filename}')">⛓ Combine</button>` : ''}
               <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
             </div>
           </div>
@@ -737,6 +1095,8 @@ function renderHistory(history) {
           <div><strong>Model:</strong> ${h.modelLabel}</div>
           ${h.prompt ? `<div><strong>Prompt:</strong> ${h.prompt}</div>` : ''}
           ${isAvatar ? `<div><strong>Image:</strong> ${h.imageName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
+          ${isBridge ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div><div><strong>CTA Image:</strong> ${h.ctaImageName || '—'}</div>` : ''}
+          ${isLipSync ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
           <div><strong>Submitted:</strong> ${date}</div>
           <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
         </div>
@@ -747,7 +1107,8 @@ function renderHistory(history) {
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);animation:pulse 1s infinite"></span>
             Checking...
           </span>
-        </div>`;
+        </div>
+        <div class="check-logs" id="check-logs-${h.taskUUID}"></div>`;
     } else { // failed
       bodyContent = `
         <div class="hist-detail" style="margin-top:10px">
@@ -770,7 +1131,7 @@ function renderHistory(history) {
             <div class="hist-meta">${metaParts.join(' · ')}</div>
           </div>
           <div class="hist-badges">
-            <span class="hist-type-badge ${isAvatar ? 'htb-avatar' : 'htb-veo'}">${h.type.toUpperCase()}</span>
+            <span class="hist-type-badge ${typeBadgeClass}">${h.type.toUpperCase()}</span>
             <span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;background:${h.status==='completed'?'rgba(16,185,129,.15)':h.status==='pending'?'rgba(245,158,11,.15)':'rgba(239,68,68,.15)'};color:${h.status==='completed'?'var(--green)':h.status==='pending'?'var(--yellow)':'var(--red)'}">
               ${h.status === 'completed' ? '✅ Done' : h.status === 'pending' ? '⏳ Pending' : '❌ Failed'}
             </span>
@@ -789,12 +1150,19 @@ function toggleHist(uuid) {
 
 async function manualCheck(taskUUID, btn) {
   const indicator = document.getElementById(`checking-${taskUUID}`);
+  const logBox = document.getElementById(`check-logs-${taskUUID}`);
   if (indicator) indicator.style.display = 'flex';
   if (btn) btn.disabled = true;
+  if (logBox) { logBox.style.display = 'block'; logBox.textContent = '⏳ Checking…'; }
 
   try {
     const res = await fetch(`/api/check/${taskUUID}`, { method: 'POST' });
     const data = await res.json();
+
+    // Show logs in the UI
+    if (logBox && data.logs?.length) {
+      logBox.textContent = data.logs.join('\n');
+    }
 
     if (data.status === 'completed') {
       await loadHistory();
@@ -805,11 +1173,12 @@ async function manualCheck(taskUUID, btn) {
     } else {
       // still pending
       if (indicator) indicator.style.display = 'none';
-      if (btn) { btn.disabled = false; btn.textContent = '🔍 Check Now (still pending)'; }
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Check Again'; }
     }
   } catch (err) {
     if (indicator) indicator.style.display = 'none';
     if (btn) { btn.disabled = false; }
+    if (logBox) logBox.textContent = `❌ Error: ${err.message}`;
     console.error('Check error:', err);
   }
 }
@@ -867,7 +1236,7 @@ function renderGallery(videos) {
     <div class="gal-item">
       <video src="${v.url}" muted preload="metadata" controls></video>
       <div class="gal-info">
-        <span class="gal-type ${v.type === 'avatar' ? 'htb-avatar' : 'htb-veo'}">${v.type.toUpperCase()}</span>
+        <span class="gal-type ${v.type === 'avatar' ? 'htb-avatar' : v.type === 'bridge' || v.type === 'combined' ? 'htb-bridge' : 'htb-veo'}">${v.type.toUpperCase()}</span>
         <span class="gal-name">${v.filename}</span>
         <div class="gal-actions">
           <a class="btn-icon" href="${v.url}" download="${v.filename}" title="Download">⬇</a>
@@ -898,9 +1267,83 @@ function showPage2(name) {
   document.querySelectorAll('.nav-tab').forEach(t => { if (t.textContent.toLowerCase().includes(name)) t.classList.add('active'); });
 }
 
+// ══════ Combine ══════
+async function loadCombineVideos() {
+  try {
+    const res = await fetch('/api/videos');
+    const data = await res.json();
+    const v1 = document.getElementById('combine-v1');
+    const v2 = document.getElementById('combine-v2');
+    const opts = data.videos.map(v => `<option value="${v.filename}">${v.filename}</option>`).join('');
+    v1.innerHTML = '<option value="">— select video —</option>' + opts;
+    v2.innerHTML = '<option value="">— select video —</option>' + opts;
+  } catch {}
+}
+
+function openCombineWith(filename) {
+  showPage2('combine');
+  loadCombineVideos().then(() => {
+    const v1 = document.getElementById('combine-v1');
+    v1.value = filename;
+  });
+}
+
+async function submitCombine() {
+  const v1 = document.getElementById('combine-v1').value;
+  const v2 = document.getElementById('combine-v2').value;
+  const upload1 = document.getElementById('combine-upload1').files[0];
+  const upload2 = document.getElementById('combine-upload2').files[0];
+  const status = document.getElementById('combine-status');
+  const result = document.getElementById('combine-result');
+
+  const has1 = v1 || upload1;
+  const has2 = v2 || upload2;
+  if (!has1) { status.textContent = '⚠ Please select or upload the first video.'; status.style.color = 'var(--yellow)'; return; }
+  if (!has2) { status.textContent = '⚠ Please select or upload the second video.'; status.style.color = 'var(--yellow)'; return; }
+
+  const btn = document.getElementById('combine-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Combining…';
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Re-encoding and concatenating…';
+  result.classList.remove('show');
+
+  try {
+    const fd = new FormData();
+    if (upload1) fd.append('upload1', upload1);
+    else fd.append('video1', v1);
+    if (upload2) fd.append('upload2', upload2);
+    else fd.append('video2', v2);
+
+    const res = await fetch('/api/combine', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Combine failed.');
+    status.style.color = 'var(--green)';
+    status.textContent = `✅ Done! Saved as ${data.filename}`;
+    const vid = document.getElementById('combine-video');
+    const dl = document.getElementById('combine-dl');
+    vid.src = data.url;
+    dl.href = data.url;
+    dl.download = data.filename;
+    result.classList.add('show');
+    vid.play();
+    loadCombineVideos();
+  } catch (err) {
+    status.style.color = 'var(--red)';
+    status.textContent = `❌ ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⛓ Combine Videos';
+  }
+}
+
 // ══════ Start ══════
 setupDropzone('img-input','img-dz','img-pill','img-name','img-size','img-thumb','image');
 setupDropzone('aud-input','aud-dz','aud-pill','aud-name','aud-size',null,'audio');
+setupDropzone('bvid-input','bvid-dz','bvid-pill','bvid-name','bvid-size',null,'video');
+setupDropzone('bcta-input','bcta-dz','bcta-pill','bcta-name','bcta-size','bcta-thumb','image');
+setupDropzone('ls-vid-input','ls-vid-dz','ls-vid-pill','ls-vid-name','ls-vid-size',null,'video');
+setupDropzone('ls-aud-input','ls-aud-dz','ls-aud-pill','ls-aud-name','ls-aud-size',null,'audio');
 init();
 </script>
 </body>

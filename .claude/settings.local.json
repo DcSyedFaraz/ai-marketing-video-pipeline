@@ -13,7 +13,10 @@
       "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\fluent-ffmpeg\")",
       "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\ffmpeg-static\")",
       "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\@ffmpeg\\\\ffmpeg\")",
-      "Bash(taskkill /F /IM node.exe)"
+      "Bash(taskkill /F /IM node.exe)",
+      "WebFetch(domain:docs.sync.so)",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess\")",
+      "Bash(powershell -Command \"Start-Sleep 3; \\(Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess\")"
     ]
   }
 }

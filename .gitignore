@@ -34,3 +34,4 @@ yarn-error.*
 *.tsbuildinfo
 uploads/*
 output/*
+nul

@@ -223,6 +223,7 @@
     <button class="nav-tab" onclick="showPage('lipsync')">👄 LipSync</button>
     <button class="nav-tab" onclick="showPage('bridge')">🔗 CTA Bridge</button>
     <button class="nav-tab" onclick="showPage('combine')">⛓ Combine</button>
+    <button class="nav-tab" onclick="showPage('ctaframe')">🖼 CTA Frame</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
   </div>
 
@@ -448,8 +449,13 @@
   <div id="page-lipsync" class="page">
     <div class="grid2">
       <div>
-        <h2 style="margin-bottom:4px">👄 PixVerse LipSync</h2>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Upload a video and a new audio track — PixVerse will re-lip-sync the speaker to match.</p>
+        <h2 style="margin-bottom:4px">👄 LipSync</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Upload a video and a new audio track — AI will re-lip-sync the speaker to match.</p>
+
+        <div class="fg" style="margin-bottom:16px">
+          <label>Model <span class="req">*</span></label>
+          <div class="model-grid" id="lipsync-model-grid"></div>
+        </div>
 
         <div class="fg">
           <label>Video <span class="req">*</span></label>
@@ -491,9 +497,10 @@
         </div>
       </div>
       <div class="tips">
-        <h3>PixVerse LipSync</h3>
+        <h3>LipSync Models</h3>
         <ul>
-          <li>Model: <code>pixverse:lipsync@1</code></li>
+          <li><strong>PixVerse:</strong> <code>pixverse:lipsync@1</code> — fast, reliable</li>
+          <li><strong>Sync Pro:</strong> <code>sync:lipsync-2-pro@1</code> — studio-grade, 4K, preserves teeth/beard detail, auto detects active speaker</li>
           <li>Upload a video of a person speaking</li>
           <li>Upload any audio track to replace their voice</li>
           <li>The model re-animates lip movements to match the new audio</li>
@@ -681,6 +688,56 @@
     </div>
   </div>
 
+  <!-- ═══ CTA FRAME PAGE ═══ -->
+  <div id="page-ctaframe" class="page">
+    <div class="grid2">
+      <div>
+        <h2 style="margin-bottom:16px">🖼 CTA Frame Generator</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Upload a video — extracts the last frame and generates a CTA image with your logo overlay using Nano Bana 2.</p>
+
+        <div class="fg" style="margin-bottom:16px">
+          <label>Video <span class="req">*</span></label>
+          <div class="dropzone" id="ctaframe-video-zone" onclick="document.getElementById('ctaframe-video-input').click()" ondragover="event.preventDefault()" ondrop="handleCtaFrameDrop(event,'ctaframe-video-input','ctaframe-video-zone','ctaframe-video-name')">
+            <input type="file" id="ctaframe-video-input" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="display:none" onchange="showDropName(this,'ctaframe-video-name')">
+            <span style="font-size:28px">🎬</span>
+            <div>Drop video or <strong>click to browse</strong></div>
+            <div style="font-size:11px;color:var(--muted)">MP4, WEBM, MOV · max 500 MB</div>
+            <div id="ctaframe-video-name" style="font-size:12px;color:var(--green);margin-top:4px"></div>
+          </div>
+        </div>
+
+        <button class="btn" id="ctaframe-btn" onclick="submitCtaFrame()">🖼 Generate CTA Frame</button>
+        <div id="ctaframe-status" style="margin-top:12px;font-size:13px"></div>
+
+        <div id="ctaframe-result" class="result-wrap" style="margin-top:16px;display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Last Frame</div>
+              <img id="ctaframe-lastframe-img" src="" style="width:100%;border-radius:6px;border:1px solid var(--border)">
+              <a class="btn-sm" id="ctaframe-lastframe-dl" href="#" download style="margin-top:6px;display:inline-block">⬇ Last Frame</a>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">CTA Frame</div>
+              <img id="ctaframe-cta-img" src="" style="width:100%;border-radius:6px;border:1px solid var(--border)">
+              <a class="btn-sm green" id="ctaframe-cta-dl" href="#" download style="margin-top:6px;display:inline-block">⬇ CTA Frame</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tips">
+        <h3>How it works</h3>
+        <ul>
+          <li>Upload any video file (avatar, lipsync, or raw footage)</li>
+          <li>The last frame is extracted precisely</li>
+          <li>Nano Bana 2 (Google) overlays your logo from <code>reference.jpg</code></li>
+          <li>Both the last frame and CTA frame are saved to <code>output/cta_frames/</code></li>
+          <li>Use the CTA frame as input to the CTA Bridge tab</li>
+          <li>Logo is preserved exactly from the reference image</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ GALLERY PAGE ═══ -->
   <div id="page-gallery" class="page">
     <div class="section-hdr">
@@ -710,6 +767,7 @@
 // ══════ State ══════
 let selectedModel = 'klingai:avatar@2.0-pro';
 let selectedBridgeModel = 'google/veo-3.1';
+let selectedLipSyncModel = 'pixverse:lipsync@1';
 let veoW = 1280, veoH = 720;
 let historyFilter = 'all';
 let autoPollInterval = null;
@@ -722,10 +780,16 @@ const BRIDGE_MODELS = [
   { id: 'klingai:avatar@2.0-standard', label: 'KlingAI 2.0 Standard', provider: 'KlingAI', description: 'Economical, good quality', cost: '$0.044/sec', badge: null },
 ];
 
+const LIPSYNC_MODELS = [
+  { id: 'pixverse:lipsync@1', label: 'PixVerse LipSync', provider: 'PixVerse', description: 'Fast, reliable lip-sync', cost: '~$0.05/sec', badge: null },
+  { id: 'sync:lipsync-2-pro@1', label: 'Sync LipSync 2 Pro', provider: 'Sync', description: 'Studio-grade, 4K, preserves facial details', cost: '$0.073/sec', badge: 'PRO' },
+];
+
 // ══════ Init ══════
 async function init() {
   await loadModels();
   renderBridgeModelGrid();
+  renderLipSyncModelGrid();
   await loadHistory();
   await loadGallery();
   await loadCombineVideos();
@@ -782,6 +846,28 @@ function renderBridgeModelGrid() {
 function selectBridgeModel(id) {
   selectedBridgeModel = id;
   document.querySelectorAll('#bridge-model-grid .model-card').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function renderLipSyncModelGrid() {
+  const grid = document.getElementById('lipsync-model-grid');
+  grid.innerHTML = LIPSYNC_MODELS.map(m => `
+    <label class="model-card ${m.id === selectedLipSyncModel ? 'selected' : ''}" onclick="selectLipSyncModel('${m.id}')">
+      <input type="radio" name="lipsync-model" value="${m.id}" ${m.id === selectedLipSyncModel ? 'checked' : ''} />
+      <div class="model-card-provider">${m.provider}</div>
+      <div class="model-card-name">
+        ${m.label.replace(m.provider + ' ', '')}
+        ${m.badge ? `<span class="badge badge-pro">${m.badge}</span>` : ''}
+      </div>
+      <div class="model-card-desc">${m.description}</div>
+      <div class="model-card-cost">${m.cost}</div>
+    </label>
+  `).join('');
+}
+
+function selectLipSyncModel(id) {
+  selectedLipSyncModel = id;
+  document.querySelectorAll('#lipsync-model-grid .model-card').forEach(c => c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
 }
 
@@ -880,6 +966,7 @@ async function submitLipSync() {
   const fd = new FormData();
   fd.append('video', vid);
   fd.append('audio', aud);
+  fd.append('model', selectedLipSyncModel);
 
   try {
     const res = await fetch('/api/generate-lipsync', { method: 'POST', body: fd });
@@ -1043,6 +1130,7 @@ function renderHistory(history) {
     const isAvatar = h.type === 'avatar';
     const isBridge = h.type === 'bridge';
     const isLipSync = h.type === 'lipsync';
+    const isCtaFrame = h.type === 'cta-frame';
     const date = new Date(h.submittedAt).toLocaleString();
     const title = isAvatar
       ? `${h.modelLabel} · ${h.imageName || 'image'} + ${h.audioName || 'audio'}`
@@ -1050,18 +1138,39 @@ function renderHistory(history) {
         ? `Bridge · ${h.videoName || 'video'} → ${h.ctaImageName || 'CTA'}`
         : isLipSync
           ? `LipSync · ${h.videoName || 'video'} + ${h.audioName || 'audio'}`
+          : isCtaFrame
+            ? `CTA Frame · ${h.videoName || 'video'}`
           : `${h.modelLabel} · "${(h.prompt||'').slice(0,60)}${h.prompt?.length>60?'…':''}"`;
 
     const costStr = h.cost != null ? `$${parseFloat(h.cost).toFixed(4)}` : null;
-    const typeIcon = isAvatar ? '🧑‍💼' : isBridge ? '🔗' : isLipSync ? '👄' : '🎥';
+    const typeIcon = isAvatar ? '🧑‍💼' : isBridge ? '🔗' : isLipSync ? '👄' : isCtaFrame ? '🖼' : '🎥';
     const metaParts = [`${typeIcon} ${h.type.toUpperCase()}`, date];
     if (costStr) metaParts.push(costStr);
 
     const dotClass = h.status === 'completed' ? 'dot-completed' : h.status === 'pending' ? 'dot-pending' : 'dot-failed';
-    const typeBadgeClass = isAvatar ? 'htb-avatar' : isBridge ? 'htb-bridge' : isLipSync ? 'htb-lipsync' : 'htb-veo';
+    const typeBadgeClass = isAvatar ? 'htb-avatar' : isBridge ? 'htb-bridge' : isLipSync ? 'htb-lipsync' : isCtaFrame ? 'htb-lipsync' : 'htb-veo';
 
     let bodyContent = '';
-    if (h.status === 'completed' && h.videoUrl) {
+    if (h.status === 'completed' && isCtaFrame) {
+      // CTA Frame entry — no video, just images
+      bodyContent = `
+        <div class="hist-detail" style="margin-top:8px">
+          <div><strong>Video:</strong> ${h.videoName || '—'}</div>
+          <div><strong>Submitted:</strong> ${date}</div>
+          ${h.completedAt ? `<div><strong>Completed:</strong> ${new Date(h.completedAt).toLocaleString()}</div>` : ''}
+          ${h.cost != null ? `<div><strong>Cost:</strong> $${parseFloat(h.cost).toFixed(4)}</div>` : ''}
+          <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
+        </div>
+        <div class="hist-actions" style="margin-top:8px">
+          ${h.lastFrameUrl ? `<a class="btn-sm" href="${h.lastFrameUrl}" download="last_frame.jpg">🖼 Last Frame</a>` : ''}
+          ${h.ctaImageUrl ? `<a class="btn-sm" href="${h.ctaImageUrl}" download="cta_frame.jpg" style="background:rgba(236,72,153,.2);color:#ec4899">🎯 CTA Image</a>` : ''}
+          <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
+        </div>
+        ${h.ctaImageUrl ? `<div style="margin-top:12px;display:flex;gap:12px;align-items:flex-start">
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Last Frame</div><img src="${h.lastFrameUrl}" style="width:140px;border-radius:6px;border:1px solid var(--border)"></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">CTA Frame</div><img src="${h.ctaImageUrl}" style="width:140px;border-radius:6px;border:2px solid #ec4899"></div>
+        </div>` : ''}`;
+    } else if (h.status === 'completed' && h.videoUrl) {
       bodyContent = `
         <div class="hist-body-grid">
           <div>
@@ -1082,8 +1191,11 @@ function renderHistory(history) {
               <a class="btn-sm green" href="${h.videoUrl}" download>${isBridge ? '⬇ Download Combined' : '⬇ Download'}</a>
               <button class="btn-sm" onclick="playInGallery('${h.videoUrl}')">▶ Play</button>
               ${h.filename ? `<button class="btn-sm" onclick="openCombineWith('${h.filename}')">⛓ Combine</button>` : ''}
+              ${isLipSync && h.lastFrameUrl ? `<a class="btn-sm" href="${h.lastFrameUrl}" download="last_frame.jpg">🖼 Last Frame</a>` : ''}
+              ${isLipSync && h.ctaImageUrl ? `<a class="btn-sm" href="${h.ctaImageUrl}" download="cta_frame.jpg" style="background:rgba(236,72,153,.2);color:#ec4899">🎯 CTA Image</a>` : ''}
               <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
             </div>
+            ${(isLipSync) && h.ctaImageUrl ? `<div style="margin-top:10px;display:flex;gap:10px;align-items:flex-start"><div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Last Frame</div><img src="${h.lastFrameUrl}" style="width:120px;border-radius:6px;border:1px solid var(--border)"></div><div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">CTA Frame</div><img src="${h.ctaImageUrl}" style="width:120px;border-radius:6px;border:1px solid #ec4899"></div></div>` : ''}
           </div>
           <div class="hist-video-wrap">
             <video src="${h.videoUrl}" controls playsinline></video>
@@ -1092,11 +1204,12 @@ function renderHistory(history) {
     } else if (h.status === 'pending') {
       bodyContent = `
         <div class="hist-detail" style="margin-top:10px">
-          <div><strong>Model:</strong> ${h.modelLabel}</div>
+          ${!isCtaFrame ? `<div><strong>Model:</strong> ${h.modelLabel}</div>` : ''}
           ${h.prompt ? `<div><strong>Prompt:</strong> ${h.prompt}</div>` : ''}
           ${isAvatar ? `<div><strong>Image:</strong> ${h.imageName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
           ${isBridge ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div><div><strong>CTA Image:</strong> ${h.ctaImageName || '—'}</div>` : ''}
           ${isLipSync ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div><div><strong>Audio:</strong> ${h.audioName || '—'}</div>` : ''}
+          ${isCtaFrame ? `<div><strong>Video:</strong> ${h.videoName || '—'}</div>` : ''}
           <div><strong>Submitted:</strong> ${date}</div>
           <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
         </div>
@@ -1159,10 +1272,16 @@ async function manualCheck(taskUUID, btn) {
     const res = await fetch(`/api/check/${taskUUID}`, { method: 'POST' });
     const data = await res.json();
 
-    // Show logs in the UI
-    if (logBox && data.logs?.length) {
-      logBox.textContent = data.logs.join('\n');
+    // Build log output: server logs + full raw response
+    if (logBox) {
+      const logLines = [];
+      if (data.logs?.length) logLines.push(...data.logs);
+      logLines.push('');
+      logLines.push('─── Raw Response ───');
+      logLines.push(JSON.stringify(data, null, 2));
+      logBox.textContent = logLines.join('\n');
     }
+    console.log(`[Check ${taskUUID}] Raw response:`, data);
 
     if (data.status === 'completed') {
       await loadHistory();
@@ -1178,7 +1297,7 @@ async function manualCheck(taskUUID, btn) {
   } catch (err) {
     if (indicator) indicator.style.display = 'none';
     if (btn) { btn.disabled = false; }
-    if (logBox) logBox.textContent = `❌ Error: ${err.message}`;
+    if (logBox) logBox.textContent = `❌ Error: ${err.message}\n\n─── Raw Error ───\n${JSON.stringify(err, null, 2)}`;
     console.error('Check error:', err);
   }
 }
@@ -1286,6 +1405,84 @@ function openCombineWith(filename) {
     const v1 = document.getElementById('combine-v1');
     v1.value = filename;
   });
+}
+
+function handleCtaFrameDrop(event, inputId, zoneId, nameId) {
+  event.preventDefault();
+  const file = event.dataTransfer.files[0];
+  if (!file) return;
+  const input = document.getElementById(inputId);
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  const nameEl = document.getElementById(nameId);
+  if (nameEl) nameEl.textContent = file.name;
+}
+
+async function submitCtaFrame() {
+  const videoInput = document.getElementById('ctaframe-video-input');
+  const status = document.getElementById('ctaframe-status');
+  const result = document.getElementById('ctaframe-result');
+  const btn = document.getElementById('ctaframe-btn');
+
+  if (!videoInput.files[0]) {
+    status.style.color = 'var(--yellow)';
+    status.textContent = '⚠ Please select a video file.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing…';
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Uploading and extracting last frame…';
+  result.style.display = 'none';
+
+  try {
+    const fd = new FormData();
+    fd.append('video', videoInput.files[0]);
+
+    const res = await fetch('/api/generate-cta-frame', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed.');
+
+    status.style.color = 'var(--green)';
+    status.textContent = `✅ Submitted (taskUUID: ${data.taskUUID}) — generating CTA image in background…`;
+
+    // Poll for completion by checking history
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      try {
+        const hr = await fetch('/api/history');
+        const hd = await hr.json();
+        const entry = (hd.history || []).find(h => h.taskUUID === data.taskUUID);
+        if (entry && entry.status === 'completed') {
+          clearInterval(poll);
+          status.textContent = '✅ CTA Frame generated!';
+          document.getElementById('ctaframe-lastframe-img').src = entry.lastFrameUrl + '?t=' + Date.now();
+          document.getElementById('ctaframe-cta-img').src = entry.ctaImageUrl + '?t=' + Date.now();
+          document.getElementById('ctaframe-lastframe-dl').href = entry.lastFrameUrl;
+          document.getElementById('ctaframe-cta-dl').href = entry.ctaImageUrl;
+          result.style.display = 'block';
+        } else if (entry && entry.status === 'failed') {
+          clearInterval(poll);
+          status.style.color = 'var(--red)';
+          status.textContent = `❌ Failed: ${entry.error}`;
+        } else if (attempts > 60) {
+          clearInterval(poll);
+          status.style.color = 'var(--yellow)';
+          status.textContent = '⚠ Taking longer than expected — check History tab.';
+        }
+      } catch {}
+    }, 3000);
+
+  } catch (err) {
+    status.style.color = 'var(--red)';
+    status.textContent = `❌ ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🖼 Generate CTA Frame';
+  }
 }
 
 async function submitCombine() {

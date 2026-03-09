@@ -1,38 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:runware.ai)",
-      "Bash(curl:*)",
-      "Bash(npm install:*)",
-      "Bash(node -e:*)",
-      "Bash(npx remotion --version)",
-      "Bash(npx remotion --help:*)",
-      "Bash(npx remotion render:*)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "mcp__Claude_Preview__preview_start",
-      "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\fluent-ffmpeg\")",
-      "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\ffmpeg-static\")",
-      "Bash(test -d \"E:\\\\laragon\\\\www\\\\runware checking\\\\node_modules\\\\@ffmpeg\\\\ffmpeg\")",
-      "Bash(taskkill /F /IM node.exe)",
-      "WebFetch(domain:docs.sync.so)",
-      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess\")",
-      "Bash(powershell -Command \"Start-Sleep 3; \\(Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess\")",
-      "Bash(node --check server.js)",
-      "Bash(node --check routes/story.js)",
-      "Bash(node --check lib/gemini.js)",
-      "Bash(node --check lib/storyHistory.js)",
-      "Bash(node --check lib/ffmpeg.js)",
-      "Bash(node --check lib/models.js)",
-      "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force\")",
-      "Bash(timeout 6 node server.js)",
-      "Bash(timeout 5 node server.js)",
-      "Bash(powershell -Command \"Get-Content ''E:\\\\laragon\\\\www\\\\runware checking\\\\.env''\")",
-      "Bash(node -c routes/story.js)",
-      "Bash(node -c lib/gemini.js)",
-      "Bash(node -c lib/runware.js)",
-      "Bash(xargs grep -l \"xfade\\\\|crossfade\")",
-      "Bash(xargs grep -n \"concat\\\\|filter\\\\|complexFilter\")",
-      "Bash(node -c lib/ffmpeg.js)"
+      "Bash(*)",
+      "WebFetch(*)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

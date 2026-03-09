@@ -1955,18 +1955,26 @@ function renderStoryProgress(entry) {
     }
   } else {
     tracker.innerHTML = entry.scenes.map((s, i) => {
-      const imgClass = `ss-${s.imageStatus}`;
       const vidClass = `ss-${s.videoStatus}`;
-      const imgIcon = s.imageStatus === 'completed' ? '✅' : s.imageStatus === 'generating' ? '⏳' : s.imageStatus === 'failed' ? '❌' : '—';
       const vidIcon = s.videoStatus === 'completed' ? '✅' : s.videoStatus === 'generating' ? '⏳' : s.videoStatus === 'failed' ? '❌' : '—';
 
-      // CTA image status for last scene
+      const isFirstScene = (i === 0);
       const isLastScene = (i === entry.scenes.length - 1);
       const hasCTA = isLastScene && s.ctaImagePrompt;
+      const hasImgB = isFirstScene && s.imageBPrompt;
+
+      // Image A / main image status (not shown for last scene)
+      const imgClass = `ss-${s.imageStatus}`;
+      const imgIcon = s.imageStatus === 'completed' ? '✅' : s.imageStatus === 'generating' ? '⏳' : s.imageStatus === 'failed' ? '❌' : '—';
+
+      // Image B status (first scene only)
+      const imgBIcon = hasImgB ? (s.imageBStatus === 'completed' ? '✅' : s.imageBStatus === 'generating' ? '⏳' : s.imageBStatus === 'failed' ? '❌' : '—') : '';
+
+      // CTA image status (last scene only)
       const ctaIcon = hasCTA ? (s.ctaImageStatus === 'completed' ? '✅' : s.ctaImageStatus === 'generating' ? '⏳' : s.ctaImageStatus === 'failed' ? '❌' : '—') : '';
 
       const isActive = entry.currentSceneIndex === i && entry.status === 'processing';
-      const isFailed = s.imageStatus === 'failed' || s.videoStatus === 'failed' || (hasCTA && s.ctaImageStatus === 'failed');
+      const isFailed = (!isLastScene && s.imageStatus === 'failed') || s.videoStatus === 'failed' || (hasCTA && s.ctaImageStatus === 'failed') || (hasImgB && s.imageBStatus === 'failed');
       const rowClass = isActive ? 'active' : isFailed ? 'failed' : (s.videoStatus === 'completed' ? 'completed' : '');
 
       let actions = '';
@@ -1975,9 +1983,15 @@ function renderStoryProgress(entry) {
           <button class="btn-sm" onclick="openEditModal(${i})" title="Edit prompt">✏️</button>
           <button class="btn-sm green" onclick="retryScene(${i})" title="Retry">🔄</button>`;
       }
-      if (s.imageStatus === 'completed' && s.imageUrl) {
-        actions += `<img class="scene-thumb" src="${s.imageUrl}?t=${Date.now()}" onclick="window.open('${s.imageUrl}','_blank')" title="View scene image" />`;
+      // Image A thumbnail (not for last scene)
+      if (!isLastScene && s.imageStatus === 'completed' && s.imageUrl) {
+        actions += `<img class="scene-thumb" src="${s.imageUrl}?t=${Date.now()}" onclick="window.open('${s.imageUrl}','_blank')" title="View frame A image" />`;
       }
+      // Image B thumbnail (first scene only)
+      if (hasImgB && s.imageBStatus === 'completed' && s.imageBUrl) {
+        actions += `<img class="scene-thumb" src="${s.imageBUrl}?t=${Date.now()}" onclick="window.open('${s.imageBUrl}','_blank')" title="View frame B image" style="border:2px solid #4ecdc4" />`;
+      }
+      // CTA thumbnail (last scene only)
       if (hasCTA && s.ctaImageStatus === 'completed' && s.ctaImageUrl) {
         actions += `<img class="scene-thumb" src="${s.ctaImageUrl}?t=${Date.now()}" onclick="window.open('${s.ctaImageUrl}','_blank')" title="View CTA image" style="border:2px solid var(--accent)" />`;
       }
@@ -1985,7 +1999,7 @@ function renderStoryProgress(entry) {
         actions += `<button class="btn-sm" onclick="window.open('${s.videoUrl}','_blank')" title="Preview video">▶</button>`;
       }
 
-      const errorMsg = s.imageError || s.videoError || (hasCTA && s.ctaImageError) || '';
+      const errorMsg = s.imageError || (hasImgB && s.imageBError) || s.videoError || (hasCTA && s.ctaImageError) || '';
 
       // Reference image badges
       let refBadges = '';
@@ -1993,16 +2007,37 @@ function renderStoryProgress(entry) {
       if (s.useBgRef) refBadges += '<span class="ref-badge bg" title="BG reference">🏞</span>';
       if (isLastScene) refBadges += '<span class="ref-badge cta" title="CTA frame">🎯</span>';
 
+      // Build status badges based on scene type
+      let statusBadges = '';
+      if (isFirstScene) {
+        // Scene 1: Img A, Img B, Vid
+        statusBadges = `
+            <span class="scene-step ${imgClass}" title="Image A (opening frame)">${imgIcon} Img A</span>
+            ${hasImgB ? `<span class="scene-step ss-${s.imageBStatus || 'pending'}" title="Image B (end frame)">${imgBIcon} Img B</span>` : ''}
+            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
+      } else if (isLastScene) {
+        // Last scene: CTA, Vid (no Img badge)
+        statusBadges = `
+            ${hasCTA ? `<span class="scene-step ss-${s.ctaImageStatus || 'pending'}" title="CTA Image">${ctaIcon} CTA</span>` : ''}
+            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
+      } else {
+        // Middle scenes: Img, Vid
+        statusBadges = `
+            <span class="scene-step ${imgClass}" title="Image (end frame)">${imgIcon} Img</span>
+            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
+      }
+
+      // Prompt preview — show most relevant prompt
+      const promptPreview = isLastScene ? (s.ctaImagePrompt || '') : (s.imagePrompt || '');
+
       return `
         <div class="scene-row ${rowClass}">
           <span class="scene-num">${s.sceneNumber}</span>
           <div class="scene-statuses">
-            <span class="scene-step ${imgClass}" title="Image">${imgIcon} Img</span>
-            ${hasCTA ? `<span class="scene-step ss-${s.ctaImageStatus || 'pending'}" title="CTA Image">${ctaIcon} CTA</span>` : ''}
-            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>
+            ${statusBadges}
             ${refBadges ? `<span class="scene-refs">${refBadges}</span>` : ''}
           </div>
-          <span class="scene-prompt" title="${(s.imagePrompt||'').replace(/"/g,'&quot;')}">${(s.imagePrompt||'').slice(0,50)}...</span>
+          <span class="scene-prompt" title="${promptPreview.replace(/"/g,'&quot;')}">${promptPreview.slice(0,50)}...</span>
           <div class="scene-actions">${actions}</div>
         </div>
         ${errorMsg ? `<div class="scene-error" style="margin-left:32px;margin-top:-4px;margin-bottom:4px">❌ ${errorMsg}</div>` : ''}`;

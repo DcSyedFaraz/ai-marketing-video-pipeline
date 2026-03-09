@@ -21,7 +21,7 @@ if (!API_KEY || API_KEY === 'your_api_key_here') {
 
 // ---------- Config ----------
 const CONFIG = {
-  model: 'google/veo-3.1',
+  model: 'google:3@2',
   prompt: 'A serene mountain lake at sunrise, mist rising from the water, pine trees reflected on the surface, golden hour light, cinematic 4K',
   duration: 7,          // seconds (7 is the minimum / extension unit)
   width: 1280,

@@ -9,6 +9,7 @@
  *   routes/combine.js   — ⛓ Combine tab
  *   routes/ctaFrame.js  — 🖼 CTA Frame tab
  *   routes/history.js   — 📋 History tab + 🗂 Gallery + manual check
+ *   routes/story.js     — 📖 Story to Video pipeline
  *
  * Shared libraries:
  *   lib/models.js   — AVATAR_MODELS, VEO_COST, LIPSYNC_MODELS
@@ -17,6 +18,8 @@
  *   lib/history.js  — loadHistory, saveHistory, addHistoryEntry, updateHistoryEntry
  *   lib/runware.js  — submitAndPoll, checkOnce
  *   lib/multer.js   — upload (small files), uploadBridge (large video files)
+ *   lib/gemini.js   — planScenes (Gemini AI scene planner)
+ *   lib/storyHistory.js — loadStoryHistory, addStoryEntry, updateStoryEntry, updateSceneInStory
  */
 
 import 'dotenv/config';
@@ -30,6 +33,7 @@ import lipsyncRouter  from './routes/lipsync.js';
 import combineRouter  from './routes/combine.js';
 import ctaFrameRouter from './routes/ctaFrame.js';
 import historyRouter  from './routes/history.js';
+import storyRouter    from './routes/story.js';
 
 const API_KEY = process.env.RUNWARE_API_KEY;
 const PORT = process.env.PORT || 3000;
@@ -41,6 +45,7 @@ if (!API_KEY || API_KEY === 'your_api_key_here') {
 
 // Ensure output/upload directories exist
 await mkdir('output', { recursive: true });
+await mkdir('output/stories', { recursive: true });
 await mkdir('uploads', { recursive: true });
 await mkdir('public', { recursive: true });
 
@@ -57,6 +62,7 @@ app.use(lipsyncRouter);
 app.use(combineRouter);
 app.use(ctaFrameRouter);
 app.use(historyRouter);
+app.use(storyRouter);
 
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════════╗');

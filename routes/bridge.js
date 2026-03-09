@@ -26,7 +26,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   const videoFile = req.files?.video?.[0];
   const ctaFile = req.files?.ctaImage?.[0];
   const prompt = (req.body.prompt || '').trim().slice(0, 2500);
-  const model = req.body.model || 'google/veo-3.1';
+  const model = req.body.model || 'google:3@2';
   const bridgeDuration = parseInt(req.body.duration || '7');
 
   const modelInfo = AVATAR_MODELS.find(m => m.id === model);

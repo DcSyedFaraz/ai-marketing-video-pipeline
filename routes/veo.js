@@ -14,7 +14,7 @@ const router = Router();
 const API_KEY = process.env.RUNWARE_API_KEY;
 
 router.post('/api/generate-veo', async (req, res) => {
-  const { prompt, duration = 7, width = 1280, height = 720, model = 'google/veo-3.1' } = req.body;
+  const { prompt, duration = 7, width = 1280, height = 720, model = 'google:3@2' } = req.body;
 
   if (!prompt?.trim()) return res.status(400).json({ error: 'A prompt is required.' });
 

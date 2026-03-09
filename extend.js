@@ -71,13 +71,13 @@ async function extendVideo() {
     console.log(`Extending video: ${inputVideoPath}`);
     console.log(`  Extension prompt : "${extensionPrompt}"`);
     console.log(`  Extension length : 7 seconds (fixed by API)`);
-    console.log(`  Model            : google/veo-3.1\n`);
+    console.log(`  Model            : google:3@2\n`);
 
     // The SDK accepts a local file path or a URL for inputs.video.
     // We pass the local file path directly; the SDK handles the upload.
     const [result] = await runware.videoInference({
       taskUUID: randomUUID(),
-      model: 'google/veo-3.1',
+      model: 'google:3@2',
       positivePrompt: extensionPrompt,
       duration: 7,              // Extension is always 7 seconds
       // Do NOT pass width/height when extending — API requirement

@@ -102,7 +102,7 @@ node extend.js path/to/video.mp4 "Your extension prompt here"
 
 | Setting | Options |
 |---------|---------|
-| `model` | `google/veo-3.1` or `google:3@3` |
+| `model` | `google:3@2` or `google:3@3` |
 | `duration` | 7, 14, 21 seconds (multiples of 7) |
 | `resolution` | 1280×720 (landscape) or 720×1280 (portrait) |
 | Cost | ~$0.20 / second (720p) |

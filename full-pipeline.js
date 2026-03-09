@@ -29,7 +29,7 @@ if (!API_KEY || API_KEY === 'your_api_key_here') {
 // CONFIGURATION — edit these to customise your videos
 // ============================================================
 const PIPELINE = {
-  model: 'google/veo-3.1',
+  model: 'google:3@2',
 
   // Step 1 — initial video
   video1: {

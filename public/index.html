@@ -203,6 +203,46 @@
     .tips ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 5px; }
     .tips li { font-size: 12px; color: var(--muted); display: flex; gap: 5px; }
     .tips li::before { content: '›'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+    /* ── Story tab ── */
+    .htb-story { background: linear-gradient(135deg,rgba(124,58,237,.2),rgba(6,182,212,.2)); color: var(--accent); }
+    .scene-tracker { display: flex; flex-direction: column; gap: 8px; }
+    .scene-row { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs); padding: 10px 12px; display: flex; align-items: center; gap: 10px; transition: border-color .15s; }
+    .scene-row.active { border-color: var(--accent); }
+    .scene-row.failed { border-color: var(--red); }
+    .scene-row.completed { border-color: var(--green); }
+    .scene-num { font-size: 12px; font-weight: 700; color: var(--accent2); width: 22px; text-align: center; flex-shrink: 0; }
+    .scene-statuses { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+    .scene-step { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+    .ss-pending { background: var(--surface); color: var(--muted); }
+    .ss-generating { background: rgba(245,158,11,.15); color: var(--yellow); animation: pulse 1.5s ease infinite; }
+    .ss-completed { background: rgba(16,185,129,.15); color: var(--green); }
+    .ss-failed { background: rgba(239,68,68,.15); color: var(--red); }
+    .scene-prompt { font-size: 11px; color: var(--muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .scene-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .scene-thumb { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0; cursor: pointer; }
+    .scene-error { font-size: 10px; color: var(--red); margin-top: 4px; }
+    .scene-refs { display: inline-flex; gap: 2px; margin-left: 2px; }
+    .ref-badge { font-size: 10px; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 3px; }
+    .ref-badge.hero { background: rgba(124,58,237,.15); }
+    .ref-badge.bg { background: rgba(6,182,212,.15); }
+    .ref-badge.cta { background: rgba(249,115,22,.15); }
+    .story-phase-bar { display: flex; gap: 4px; margin-bottom: 14px; }
+    .phase-step { flex: 1; text-align: center; padding: 6px 0; border-radius: var(--rs); font-size: 11px; font-weight: 600; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .phase-step.active { background: rgba(124,58,237,.15); color: var(--accent); border-color: var(--accent); }
+    .phase-step.done { background: rgba(16,185,129,.1); color: var(--green); border-color: var(--green); }
+    .story-final { margin-top: 16px; background: var(--surface); border: 2px solid var(--green); border-radius: var(--r); padding: 16px; }
+    .story-final video { width: 100%; border-radius: var(--rs); max-height: 300px; background: #000; margin-top: 8px; }
+    .story-resume-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; padding: 10px 14px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); border-radius: var(--rs); }
+    .story-resume-bar .resume-text { flex: 1; font-size: 12px; color: var(--yellow); }
+
+    /* Edit prompt modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; width: 90%; max-width: 560px; max-height: 80vh; overflow-y: auto; }
+    .modal-box h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .modal-box .fg { margin-bottom: 12px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
   </style>
 </head>
 <body>
@@ -224,6 +264,7 @@
     <button class="nav-tab" onclick="showPage('bridge')">🔗 CTA Bridge</button>
     <button class="nav-tab" onclick="showPage('combine')">⛓ Combine</button>
     <button class="nav-tab" onclick="showPage('ctaframe')">🖼 CTA Frame</button>
+    <button class="nav-tab" onclick="showPage('story')">📖 Story</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
   </div>
 
@@ -358,7 +399,7 @@
         <div class="fg">
           <label>Model</label>
           <select id="veo-model">
-            <option value="google/veo-3.1">Google Veo 3.1 (High Quality)</option>
+            <option value="google:3@2">Google Veo 3.1 (High Quality)</option>
             <option value="google:3@3">Google Veo 3.1 Fast</option>
           </select>
         </div>
@@ -574,8 +615,8 @@
         <div class="fg">
           <label>Bridge Video Duration</label>
           <select id="bridge-duration">
-            <option value="4">4 seconds</option>
-            <option value="6" selected>6 seconds</option>
+            <option value="4" selected>4 seconds</option>
+            <option value="6" >6 seconds</option>
             <option value="8">8 seconds</option>
           </select>
         </div>
@@ -738,6 +779,172 @@
     </div>
   </div>
 
+  <!-- ═══ STORY PAGE ═══ -->
+  <div id="page-story" class="page">
+    <div class="grid2">
+      <!-- Left: Form -->
+      <div class="card">
+        <div class="card-title">📖 Story to Video Pipeline</div>
+
+        <div class="fg">
+          <label>Story / Script <span class="req">*</span></label>
+          <textarea id="story-text" style="min-height:120px" placeholder="Write your story here... Each scene will be auto-planned by AI.&#10;e.g. A brave warrior discovers a magical sword in a dark cave. She uses it to defeat the dragon and save her kingdom..."></textarea>
+        </div>
+
+        <div class="row2">
+          <div class="fg">
+            <label>Number of Scenes</label>
+            <select id="story-scene-count">
+              <option value="3" selected>3 scenes</option>
+              <option value="5" >5 scenes</option>
+              <option value="7">7 scenes</option>
+              <option value="10">10 scenes</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Video Model</label>
+            <select id="story-video-model"></select>
+          </div>
+        </div>
+
+        <div class="fg">
+          <label>Game / Brand Context <small style="font-weight:400">(optional)</small></label>
+          <textarea id="story-game-context" style="min-height:60px" placeholder="Loading default..."></textarea>
+        </div>
+
+        <div class="fg">
+          <label>Hero Character Description <small style="font-weight:400">(optional)</small></label>
+          <textarea id="story-hero-desc" style="min-height:50px" placeholder="e.g. A female warrior in golden armor with flowing red hair, carrying a glowing blue sword. Stylized 3D art, epic fantasy proportions."></textarea>
+        </div>
+
+        <!-- Hero + Background reference image uploads -->
+        <div class="row2" style="margin-bottom:14px">
+          <div class="fg" style="margin-bottom:0">
+            <label>Hero Reference Image <small style="font-weight:400">(optional)</small></label>
+            <div class="dropzone" id="dz-story-hero" onclick="document.getElementById('story-hero-image').click()">
+              <input type="file" id="story-hero-image" accept="image/*" onchange="handleStoryImagePick(this,'hero')" />
+              <div class="dz-icon">🦸</div>
+              <div class="dz-text">Drop hero image or <strong>browse</strong></div>
+              <div class="dz-hint">Gemini sees this to keep hero consistent</div>
+            </div>
+            <div class="file-pill" id="pill-story-hero">
+              <img class="file-pill-thumb" id="thumb-story-hero" />
+              <div class="file-pill-info">
+                <div class="file-pill-name" id="name-story-hero"></div>
+                <div class="file-pill-size" id="size-story-hero"></div>
+              </div>
+              <button class="file-pill-rm" onclick="clearStoryImage('hero')">✕</button>
+            </div>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Background Reference Image <small style="font-weight:400">(optional)</small></label>
+            <div class="dropzone" id="dz-story-bg" onclick="document.getElementById('story-bg-image').click()">
+              <input type="file" id="story-bg-image" accept="image/*" onchange="handleStoryImagePick(this,'bg')" />
+              <div class="dz-icon">🏞</div>
+              <div class="dz-text">Drop background or <strong>browse</strong></div>
+              <div class="dz-hint">Gemini sees this for environment style</div>
+            </div>
+            <div class="file-pill" id="pill-story-bg">
+              <img class="file-pill-thumb" id="thumb-story-bg" />
+              <div class="file-pill-info">
+                <div class="file-pill-name" id="name-story-bg"></div>
+                <div class="file-pill-size" id="size-story-bg"></div>
+              </div>
+              <button class="file-pill-rm" onclick="clearStoryImage('bg')">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="fg">
+          <label>Voice Description <small style="font-weight:400">(for consistent narration)</small></label>
+          <input type="text" id="story-voice-desc" placeholder="e.g. Male, 30s, deep warm baritone, calm and authoritative pacing" />
+        </div>
+
+        <button class="btn btn-purple" id="btn-story" onclick="submitStory()">
+          <span class="spinner" id="story-spinner"></span>
+          <span id="story-btn-text">📖 Generate Story Video</span>
+        </button>
+
+        <div class="status-box" id="story-status">
+          <div class="status-text" id="story-status-text"></div>
+          <div class="prog-wrap" id="story-prog"><div class="prog-bar"></div></div>
+        </div>
+      </div>
+
+      <!-- Right: Scene Tracker -->
+      <div class="card">
+        <div class="card-title">🎬 Scene Progress</div>
+
+        <!-- Phase bar -->
+        <div class="story-phase-bar" id="story-phase-bar">
+          <div class="phase-step" data-phase="planning">🤖 Planning</div>
+          <div class="phase-step" data-phase="images">🖼 Images</div>
+          <div class="phase-step" data-phase="videos">🎥 Videos</div>
+          <div class="phase-step" data-phase="concat">⛓ Concat</div>
+          <div class="phase-step" data-phase="done">✅ Done</div>
+        </div>
+
+        <!-- Resume bar (shown when paused) -->
+        <div class="story-resume-bar" id="story-resume-bar" style="display:none">
+          <span class="resume-text">⚠ Pipeline paused — fix the error below and resume</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-sm green" onclick="resumeStory()">▶ Resume All</button>
+            <button class="btn-sm" id="btn-resubmit-images" onclick="resubmitAllImages()" title="Re-submit all pending/failed image tasks from scratch">🔁 Re-submit All Images</button>
+            <button class="btn-sm" id="btn-resubmit-videos" onclick="resubmitAllVideos()" title="Re-submit all pending/failed video tasks from scratch">🔁 Re-submit All Videos</button>
+          </div>
+        </div>
+
+        <!-- Voice-over info (shown after Gemini planning) -->
+        <div id="story-voice-info" style="display:none;font-size:12px;color:var(--accent2);background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:var(--rs);padding:8px 12px;margin-bottom:10px"></div>
+
+        <!-- Scene list -->
+        <div class="scene-tracker" id="scene-tracker">
+          <div class="history-empty" style="padding:24px 12px">Submit a story to see scene progress here.</div>
+        </div>
+
+        <!-- Final video (shown when complete) -->
+        <div class="story-final" id="story-final" style="display:none">
+          <div style="font-size:14px;font-weight:700;color:var(--green)">✅ Final Video Ready</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px" id="story-total-cost"></div>
+          <video id="story-final-video" controls playsinline></video>
+          <div class="result-actions" style="margin-top:8px">
+            <a class="btn-sm green" id="story-final-dl" href="#" download>⬇ Download Final Video</a>
+          </div>
+        </div>
+
+        <!-- Story history list -->
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:600">📋 Story History</div>
+            <button class="btn-sm" onclick="loadStoryHistoryList()">↺ Refresh</button>
+          </div>
+          <div id="story-history-list" class="history-list">
+            <div class="history-empty">No stories yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Prompt Modal -->
+  <div class="modal-overlay" id="edit-prompt-modal">
+    <div class="modal-box">
+      <h3>✏️ Edit Scene <span id="edit-modal-scene-num"></span> Prompts</h3>
+      <div class="fg">
+        <label>Image Prompt</label>
+        <textarea id="edit-modal-img-prompt" style="min-height:80px"></textarea>
+      </div>
+      <div class="fg">
+        <label>Video Prompt</label>
+        <textarea id="edit-modal-vid-prompt" style="min-height:80px"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-purple" style="flex:1" onclick="saveAndRetryScene()">🔄 Retry with Changes</button>
+        <button class="btn-sm" onclick="closeEditModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ GALLERY PAGE ═══ -->
   <div id="page-gallery" class="page">
     <div class="section-hdr">
@@ -766,15 +973,20 @@
 <script>
 // ══════ State ══════
 let selectedModel = 'klingai:avatar@2.0-pro';
-let selectedBridgeModel = 'google/veo-3.1';
+let selectedBridgeModel = 'google:3@2';
 let selectedLipSyncModel = 'pixverse:lipsync@1';
+let selectedStoryModel = 'google:3@2';
 let veoW = 1280, veoH = 720;
 let historyFilter = 'all';
 let autoPollInterval = null;
+let storyPollInterval = null;
+let activeStoryUUID = null;
+let editingSceneIndex = null;
 let models = [];
+let storyModels = [];
 
 const BRIDGE_MODELS = [
-  { id: 'google/veo-3.1', label: 'Google Veo 3.1', provider: 'Google', description: 'Best quality, cinematic transitions', cost: '~$0.20/sec', badge: 'BEST' },
+  { id: 'google:3@2', label: 'Google Veo 3.1', provider: 'Google', description: 'Best quality, cinematic transitions', cost: '~$0.20/sec', badge: 'BEST' },
   { id: 'google:3@3', label: 'Google Veo 3.1 Fast', provider: 'Google', description: 'Faster, slightly lower quality', cost: '~$0.15/sec', badge: null },
   { id: 'klingai:avatar@2.0-pro', label: 'KlingAI 2.0 Pro', provider: 'KlingAI', description: 'Smooth motion, high fidelity', cost: '$0.087/sec', badge: 'PRO' },
   { id: 'klingai:avatar@2.0-standard', label: 'KlingAI 2.0 Standard', provider: 'KlingAI', description: 'Economical, good quality', cost: '$0.044/sec', badge: null },
@@ -790,9 +1002,12 @@ async function init() {
   await loadModels();
   renderBridgeModelGrid();
   renderLipSyncModelGrid();
+  await loadStoryModels();
+  await loadStoryGameContext();
   await loadHistory();
   await loadGallery();
   await loadCombineVideos();
+  await loadStoryHistoryList();
 }
 
 // ══════ Models ══════
@@ -880,6 +1095,7 @@ function showPage(name) {
   if (name === 'combine') loadCombineVideos();
   if (name === 'history') loadHistory();
   if (name === 'gallery') loadGallery();
+  if (name === 'story') loadStoryHistoryList();
 }
 
 // ══════ Dropzones ══════
@@ -1532,6 +1748,447 @@ async function submitCombine() {
     btn.disabled = false;
     btn.textContent = '⛓ Combine Videos';
   }
+}
+
+// ══════ Story Pipeline ══════
+async function loadStoryModels() {
+  try {
+    const res = await fetch('/api/story-models');
+    const data = await res.json();
+    storyModels = data.models || [];
+    const sel = document.getElementById('story-video-model');
+    sel.innerHTML = storyModels.map(m =>
+      `<option value="${m.id}" ${m.id === selectedStoryModel ? 'selected' : ''}>${m.label} (${m.cost})</option>`
+    ).join('');
+  } catch {}
+}
+
+async function loadStoryGameContext() {
+  try {
+    const res = await fetch('/game-context.txt');
+    if (res.ok) {
+      const text = await res.text();
+      document.getElementById('story-game-context').value = text;
+    }
+  } catch {}
+}
+
+// ── Story hero/background image upload helpers ──
+let storyHeroFile = null;
+let storyBgFile = null;
+
+function handleStoryImagePick(input, type) {
+  const file = input.files[0];
+  if (!file) return;
+  if (type === 'hero') storyHeroFile = file;
+  else storyBgFile = file;
+
+  const pill = document.getElementById(`pill-story-${type}`);
+  const thumb = document.getElementById(`thumb-story-${type}`);
+  const name = document.getElementById(`name-story-${type}`);
+  const size = document.getElementById(`size-story-${type}`);
+  const dz = document.getElementById(`dz-story-${type}`);
+
+  thumb.src = URL.createObjectURL(file);
+  name.textContent = file.name;
+  size.textContent = (file.size / 1024).toFixed(0) + ' KB';
+  pill.classList.add('show');
+  dz.style.display = 'none';
+}
+
+function clearStoryImage(type) {
+  if (type === 'hero') { storyHeroFile = null; document.getElementById('story-hero-image').value = ''; }
+  else { storyBgFile = null; document.getElementById('story-bg-image').value = ''; }
+
+  document.getElementById(`pill-story-${type}`).classList.remove('show');
+  document.getElementById(`dz-story-${type}`).style.display = '';
+}
+
+// Drag-and-drop for story image dropzones
+['hero', 'bg'].forEach(type => {
+  const dz = document.getElementById(`dz-story-${type}`);
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const input = document.getElementById(type === 'hero' ? 'story-hero-image' : 'story-bg-image');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      handleStoryImagePick(input, type);
+    }
+  });
+});
+
+async function submitStory() {
+  const storyText = document.getElementById('story-text').value.trim();
+  const sceneCount = document.getElementById('story-scene-count').value;
+  const videoModel = document.getElementById('story-video-model').value;
+  const gameContext = document.getElementById('story-game-context').value.trim();
+  const heroDesc = document.getElementById('story-hero-desc').value.trim();
+  const voiceDesc = document.getElementById('story-voice-desc').value.trim();
+
+  if (!storyText) {
+    setStatus('story', 'error', '⚠ Please enter a story or script.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-story');
+  const btnText = document.getElementById('story-btn-text');
+  const spinner = document.getElementById('story-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Submitting...';
+  setStatus('story', 'loading', 'Submitting story to AI pipeline...');
+
+  try {
+    // Use FormData for multipart upload (hero/bg images + text fields)
+    const fd = new FormData();
+    fd.append('storyText', storyText);
+    fd.append('sceneCount', sceneCount);
+    fd.append('videoModel', videoModel);
+    fd.append('gameContext', gameContext);
+    fd.append('heroDesc', heroDesc);
+    fd.append('voiceDesc', voiceDesc);
+    if (storyHeroFile) fd.append('heroImage', storyHeroFile);
+    if (storyBgFile) fd.append('bgImage', storyBgFile);
+
+    const res = await fetch('/api/generate-story', {
+      method: 'POST',
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submit failed.');
+
+    activeStoryUUID = data.taskUUID;
+    setStatus('story', 'success', `✅ Pipeline started (UUID: ${data.taskUUID}). Watch progress →`);
+    startStoryPolling(data.taskUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '📖 Generate Story Video';
+  }
+}
+
+function startStoryPolling(taskUUID) {
+  stopStoryPolling();
+  pollStoryDetail(taskUUID); // immediate first poll
+  storyPollInterval = setInterval(() => pollStoryDetail(taskUUID), 3000);
+}
+
+function stopStoryPolling() {
+  if (storyPollInterval) { clearInterval(storyPollInterval); storyPollInterval = null; }
+}
+
+async function pollStoryDetail(taskUUID) {
+  try {
+    const res = await fetch(`/api/story-history/${taskUUID}`);
+    const data = await res.json();
+    if (!data.entry) return;
+    renderStoryProgress(data.entry);
+
+    // Stop polling if done or paused
+    if (data.entry.status === 'completed' || data.entry.status === 'paused' || data.entry.status === 'failed') {
+      stopStoryPolling();
+    }
+  } catch {}
+}
+
+function renderStoryProgress(entry) {
+  activeStoryUUID = entry.taskUUID;
+
+  // Phase bar
+  const phases = ['planning', 'images', 'videos', 'concat', 'done'];
+  const currentIdx = phases.indexOf(entry.currentPhase || 'planning');
+  document.querySelectorAll('#story-phase-bar .phase-step').forEach((el, i) => {
+    el.classList.remove('active', 'done');
+    if (i < currentIdx) el.classList.add('done');
+    else if (i === currentIdx) el.classList.add('active');
+  });
+
+  // Resume bar
+  const resumeBar = document.getElementById('story-resume-bar');
+  const btnResubmitImg = document.getElementById('btn-resubmit-images');
+  const btnResubmitVid = document.getElementById('btn-resubmit-videos');
+  if (entry.status === 'paused') {
+    resumeBar.style.display = 'flex';
+    resumeBar.querySelector('.resume-text').textContent = `⚠ ${entry.error || 'Pipeline paused'}`;
+    // Show resubmit-images button only during image phase
+    if (btnResubmitImg) {
+      btnResubmitImg.style.display = (entry.currentPhase === 'images') ? '' : 'none';
+      btnResubmitImg.disabled = false;
+      btnResubmitImg.textContent = '🔁 Re-submit All Images';
+    }
+    // Show resubmit-videos button only during video phase
+    if (btnResubmitVid) {
+      btnResubmitVid.style.display = (entry.currentPhase === 'videos') ? '' : 'none';
+      btnResubmitVid.disabled = false;
+      btnResubmitVid.textContent = '🔁 Re-submit All Videos';
+    }
+  } else {
+    resumeBar.style.display = 'none';
+    if (btnResubmitImg) { btnResubmitImg.disabled = false; btnResubmitImg.textContent = '🔁 Re-submit All Images'; }
+    if (btnResubmitVid) { btnResubmitVid.disabled = false; btnResubmitVid.textContent = '🔁 Re-submit All Videos'; }
+  }
+
+  // Voice-over characteristics (auto-generated or user-provided)
+  const voiceInfoEl = document.getElementById('story-voice-info');
+  if (entry.voiceOverCharacteristics) {
+    voiceInfoEl.style.display = 'block';
+    voiceInfoEl.innerHTML = `<strong>🎙 Voice-over:</strong> ${entry.voiceOverCharacteristics}`;
+  } else {
+    voiceInfoEl.style.display = 'none';
+  }
+
+  // Scene tracker
+  const tracker = document.getElementById('scene-tracker');
+  if (!entry.scenes || entry.scenes.length === 0) {
+    if (entry.currentPhase === 'planning' && entry.status === 'processing') {
+      tracker.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px"><div style="font-size:24px;margin-bottom:6px">🤖</div>AI is planning scenes...</div>';
+    } else {
+      tracker.innerHTML = '<div class="history-empty" style="padding:20px">No scenes yet.</div>';
+    }
+  } else {
+    tracker.innerHTML = entry.scenes.map((s, i) => {
+      const imgClass = `ss-${s.imageStatus}`;
+      const vidClass = `ss-${s.videoStatus}`;
+      const imgIcon = s.imageStatus === 'completed' ? '✅' : s.imageStatus === 'generating' ? '⏳' : s.imageStatus === 'failed' ? '❌' : '—';
+      const vidIcon = s.videoStatus === 'completed' ? '✅' : s.videoStatus === 'generating' ? '⏳' : s.videoStatus === 'failed' ? '❌' : '—';
+
+      // CTA image status for last scene
+      const isLastScene = (i === entry.scenes.length - 1);
+      const hasCTA = isLastScene && s.ctaImagePrompt;
+      const ctaIcon = hasCTA ? (s.ctaImageStatus === 'completed' ? '✅' : s.ctaImageStatus === 'generating' ? '⏳' : s.ctaImageStatus === 'failed' ? '❌' : '—') : '';
+
+      const isActive = entry.currentSceneIndex === i && entry.status === 'processing';
+      const isFailed = s.imageStatus === 'failed' || s.videoStatus === 'failed' || (hasCTA && s.ctaImageStatus === 'failed');
+      const rowClass = isActive ? 'active' : isFailed ? 'failed' : (s.videoStatus === 'completed' ? 'completed' : '');
+
+      let actions = '';
+      if (isFailed && entry.status === 'paused') {
+        actions = `
+          <button class="btn-sm" onclick="openEditModal(${i})" title="Edit prompt">✏️</button>
+          <button class="btn-sm green" onclick="retryScene(${i})" title="Retry">🔄</button>`;
+      }
+      if (s.imageStatus === 'completed' && s.imageUrl) {
+        actions += `<img class="scene-thumb" src="${s.imageUrl}?t=${Date.now()}" onclick="window.open('${s.imageUrl}','_blank')" title="View scene image" />`;
+      }
+      if (hasCTA && s.ctaImageStatus === 'completed' && s.ctaImageUrl) {
+        actions += `<img class="scene-thumb" src="${s.ctaImageUrl}?t=${Date.now()}" onclick="window.open('${s.ctaImageUrl}','_blank')" title="View CTA image" style="border:2px solid var(--accent)" />`;
+      }
+      if (s.videoStatus === 'completed' && s.videoUrl) {
+        actions += `<button class="btn-sm" onclick="window.open('${s.videoUrl}','_blank')" title="Preview video">▶</button>`;
+      }
+
+      const errorMsg = s.imageError || s.videoError || (hasCTA && s.ctaImageError) || '';
+
+      // Reference image badges
+      let refBadges = '';
+      if (s.useHeroRef) refBadges += '<span class="ref-badge hero" title="Hero reference">🦸</span>';
+      if (s.useBgRef) refBadges += '<span class="ref-badge bg" title="BG reference">🏞</span>';
+      if (isLastScene) refBadges += '<span class="ref-badge cta" title="CTA frame">🎯</span>';
+
+      return `
+        <div class="scene-row ${rowClass}">
+          <span class="scene-num">${s.sceneNumber}</span>
+          <div class="scene-statuses">
+            <span class="scene-step ${imgClass}" title="Image">${imgIcon} Img</span>
+            ${hasCTA ? `<span class="scene-step ss-${s.ctaImageStatus || 'pending'}" title="CTA Image">${ctaIcon} CTA</span>` : ''}
+            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>
+            ${refBadges ? `<span class="scene-refs">${refBadges}</span>` : ''}
+          </div>
+          <span class="scene-prompt" title="${(s.imagePrompt||'').replace(/"/g,'&quot;')}">${(s.imagePrompt||'').slice(0,50)}...</span>
+          <div class="scene-actions">${actions}</div>
+        </div>
+        ${errorMsg ? `<div class="scene-error" style="margin-left:32px;margin-top:-4px;margin-bottom:4px">❌ ${errorMsg}</div>` : ''}`;
+    }).join('');
+  }
+
+  // Final video
+  const finalDiv = document.getElementById('story-final');
+  if (entry.status === 'completed' && entry.finalVideoUrl) {
+    finalDiv.style.display = 'block';
+    document.getElementById('story-final-video').src = entry.finalVideoUrl + '?t=' + Date.now();
+    document.getElementById('story-final-dl').href = entry.finalVideoUrl;
+    document.getElementById('story-total-cost').textContent = entry.totalCost ? `Total cost: $${parseFloat(entry.totalCost).toFixed(4)}` : '';
+  } else {
+    finalDiv.style.display = 'none';
+  }
+}
+
+async function resumeStory() {
+  if (!activeStoryUUID) return;
+  try {
+    const res = await fetch(`/api/resume-story/${activeStoryUUID}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Resume failed.');
+    setStatus('story', 'success', `▶ ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+  }
+}
+
+async function resubmitAllImages() {
+  if (!activeStoryUUID) return;
+  const btn = document.getElementById('btn-resubmit-images');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Re-submitting...'; }
+  try {
+    const res = await fetch(`/api/resubmit-images/${activeStoryUUID}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Re-submit failed.');
+    setStatus('story', 'success', `🔁 ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+    if (btn) { btn.disabled = false; btn.textContent = '🔁 Re-submit All Images'; }
+  }
+}
+
+async function resubmitAllVideos() {
+  if (!activeStoryUUID) return;
+  const btn = document.getElementById('btn-resubmit-videos');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Re-submitting...'; }
+  try {
+    const res = await fetch(`/api/resubmit-videos/${activeStoryUUID}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Re-submit failed.');
+    setStatus('story', 'success', `🔁 ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+    if (btn) { btn.disabled = false; btn.textContent = '🔁 Re-submit All Videos'; }
+  }
+}
+
+async function retryScene(idx) {
+  if (!activeStoryUUID) return;
+  try {
+    const res = await fetch(`/api/retry-scene/${activeStoryUUID}/${idx}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Retry failed.');
+    setStatus('story', 'success', `🔄 ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+  }
+}
+
+function openEditModal(sceneIdx) {
+  editingSceneIndex = sceneIdx;
+  // We need to fetch latest scene data
+  fetch(`/api/story-history/${activeStoryUUID}`).then(r => r.json()).then(data => {
+    const scene = data.entry?.scenes?.[sceneIdx];
+    if (!scene) return;
+    document.getElementById('edit-modal-scene-num').textContent = scene.sceneNumber;
+    document.getElementById('edit-modal-img-prompt').value = scene.imagePrompt || '';
+    document.getElementById('edit-modal-vid-prompt').value = scene.videoPrompt || '';
+    document.getElementById('edit-prompt-modal').classList.add('show');
+  });
+}
+
+function closeEditModal() {
+  document.getElementById('edit-prompt-modal').classList.remove('show');
+  editingSceneIndex = null;
+}
+
+async function saveAndRetryScene() {
+  if (editingSceneIndex === null || !activeStoryUUID) return;
+  const imagePrompt = document.getElementById('edit-modal-img-prompt').value.trim();
+  const videoPrompt = document.getElementById('edit-modal-vid-prompt').value.trim();
+  closeEditModal();
+
+  try {
+    const res = await fetch(`/api/retry-scene/${activeStoryUUID}/${editingSceneIndex}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imagePrompt, videoPrompt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Retry failed.');
+    setStatus('story', 'success', `🔄 ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+  }
+}
+
+async function loadStoryHistoryList() {
+  try {
+    const res = await fetch('/api/story-history');
+    const data = await res.json();
+    renderStoryHistoryList(data.history || []);
+  } catch {}
+}
+
+function renderStoryHistoryList(history) {
+  const list = document.getElementById('story-history-list');
+  if (!history.length) {
+    list.innerHTML = '<div class="history-empty">No stories yet.</div>';
+    return;
+  }
+
+  list.innerHTML = history.map(h => {
+    const date = new Date(h.submittedAt).toLocaleString();
+    const dotClass = h.status === 'completed' ? 'dot-completed' : h.status === 'processing' ? 'dot-pending' : h.status === 'paused' ? 'dot-pending' : h.status === 'pending' ? 'dot-pending' : 'dot-failed';
+    const statusLabel = h.status === 'completed' ? '✅ Done' : h.status === 'processing' ? '⏳ Processing' : h.status === 'paused' ? '⏸ Paused' : h.status === 'pending' ? '⏳ Starting' : '❌ Failed';
+    const costStr = h.totalCost ? `$${parseFloat(h.totalCost).toFixed(4)}` : '';
+    const sceneSummary = h.scenes?.length ? `${h.scenes.filter(s=>s.videoStatus==='completed').length}/${h.scenes.length} scenes done` : 'Planning...';
+
+    return `
+      <div class="hist-item ${h.status === 'completed' ? 'completed' : h.status === 'failed' ? 'failed' : 'pending'}">
+        <div class="hist-header" onclick="loadStoryDetail('${h.taskUUID}')">
+          <span class="hist-status-dot ${dotClass}"></span>
+          <div class="hist-info">
+            <div class="hist-title">📖 Story · ${h.sceneCount} scenes · ${h.videoModelLabel}</div>
+            <div class="hist-meta">${date} · ${sceneSummary} ${costStr ? '· ' + costStr : ''}</div>
+          </div>
+          <div class="hist-badges">
+            <span class="hist-type-badge htb-story">STORY</span>
+            <span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;background:${h.status==='completed'?'rgba(16,185,129,.15)':h.status==='failed'?'rgba(239,68,68,.15)':'rgba(245,158,11,.15)'};color:${h.status==='completed'?'var(--green)':h.status==='failed'?'var(--red)':'var(--yellow)'}">
+              ${statusLabel}
+            </span>
+          </div>
+          <span class="hist-chevron">›</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadStoryDetail(taskUUID) {
+  activeStoryUUID = taskUUID;
+  try {
+    const res = await fetch(`/api/story-history/${taskUUID}`);
+    const data = await res.json();
+    if (data.entry) {
+      renderStoryProgress(data.entry);
+      // If still processing, start polling
+      if (data.entry.status === 'processing' || data.entry.status === 'pending') {
+        startStoryPolling(taskUUID);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load story detail:', err);
+  }
+}
+
+async function deleteStoryEntry(taskUUID) {
+  if (!confirm('Delete this story and all its generated files?')) return;
+  try {
+    await fetch(`/api/story-history/${taskUUID}`, { method: 'DELETE' });
+    await loadStoryHistoryList();
+    if (activeStoryUUID === taskUUID) {
+      activeStoryUUID = null;
+      document.getElementById('scene-tracker').innerHTML = '<div class="history-empty" style="padding:24px 12px">Submit a story to see scene progress here.</div>';
+      document.getElementById('story-final').style.display = 'none';
+      document.getElementById('story-resume-bar').style.display = 'none';
+    }
+  } catch {}
 }
 
 // ══════ Start ══════

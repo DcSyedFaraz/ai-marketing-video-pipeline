@@ -31,7 +31,8 @@
       "Bash(node -c lib/gemini.js)",
       "Bash(node -c lib/runware.js)",
       "Bash(xargs grep -l \"xfade\\\\|crossfade\")",
-      "Bash(xargs grep -n \"concat\\\\|filter\\\\|complexFilter\")"
+      "Bash(xargs grep -n \"concat\\\\|filter\\\\|complexFilter\")",
+      "Bash(node -c lib/ffmpeg.js)"
     ]
   }
 }

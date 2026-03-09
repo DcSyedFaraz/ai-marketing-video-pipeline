@@ -546,7 +546,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
         }
 
         const finalPath = path.join(dir, 'final.mp4');
-        await concatMultipleVideos(videoPaths, finalPath, { width: 3072, height: 5504 });
+        await concatMultipleVideos(videoPaths, finalPath, { width: 1080, height: 1920 });
 
         // Calculate total cost (including CTA image cost for last scene)
         let totalCost = 0;

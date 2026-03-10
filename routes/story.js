@@ -95,29 +95,34 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
       updateStoryEntry(taskUUID, { status: 'processing', currentPhase: 'planning', error: null });
 
       try {
-        // Look up selected model's exact allowed durations for Gemini
+        // Look up selected model's exact allowed durations for Claude
         const modelInfo = STORY_VIDEO_MODELS.find(m => m.id === entry.videoModel);
         const allowedDurations = modelInfo?.allowedDurations || [5, 8];
 
         const geminiResult = await planScenes(
-          entry.storyText, entry.sceneCount, entry.gameContext, entry.voiceDesc, entry.heroDesc,
+          entry.storyText,
+          { min: entry.durationMin || 15, max: entry.durationMax || 30 },
+          entry.gameContext, entry.voiceDesc, entry.heroDesc,
           { heroImagePath: entry.heroImagePath || null, backgroundImagePath: entry.bgImagePath || null },
           allowedDurations,
         );
         const scenes = initSceneProgress(geminiResult.scenes);
+        const sceneCount = scenes.length;
+        const totalDuration = scenes.reduce((sum, s) => sum + (s.duration || 0), 0);
         const voiceOver = geminiResult.voiceOverCharacteristics || entry.voiceDesc || '';
         updateStoryEntry(taskUUID, {
           scenes,
+          sceneCount,
           voiceOverCharacteristics: voiceOver,
           currentPhase: 'images',
           currentSceneIndex: 0,
         });
-        console.log(`[Story] ✅ Gemini planned ${scenes.length} scenes | Voice: ${voiceOver}`);
+        console.log(`[Story] ✅ Claude planned ${sceneCount} scenes | Total: ${totalDuration}s | Voice: ${voiceOver}`);
       } catch (err) {
-        console.error(`[Story] ❌ Gemini planning failed:`, err.message);
+        console.error(`[Story] ❌ Claude planning failed:`, err.message);
         updateStoryEntry(taskUUID, {
           status: 'paused', currentPhase: 'planning',
-          error: `Gemini planning failed: ${err.message}`,
+          error: `Claude planning failed: ${err.message}`,
         });
         return;
       }
@@ -642,13 +647,14 @@ const storyUpload = upload.fields([
 ]);
 
 router.post('/api/generate-story', storyUpload, async (req, res) => {
-  const { storyText, sceneCount, gameContext, voiceDesc, heroDesc, videoModel } = req.body;
+  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel } = req.body;
 
   if (!storyText || !storyText.trim()) {
     return res.status(400).json({ error: 'Story text is required.' });
   }
 
-  const count = parseInt(sceneCount) || 5;
+  // Parse duration range "15-30" → { min: 15, max: 30 }
+  const [durMin, durMax] = (durationRange || '15-30').split('-').map(Number);
   const model = videoModel || 'google:3@3';
   const modelInfo = STORY_VIDEO_MODELS.find(m => m.id === model);
   const taskUUID = randomUUID();
@@ -659,7 +665,7 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
 
   console.log(`\n[Story] ── New Story Request ──────────────────────`);
   console.log(`[Story]  taskUUID : ${taskUUID}`);
-  console.log(`[Story]  Scenes   : ${count}`);
+  console.log(`[Story]  Duration : ${durMin}-${durMax}s (AI picks scene count)`);
   console.log(`[Story]  Model    : ${model}`);
   console.log(`[Story]  HeroImg  : ${heroImagePath || 'none'}`);
   console.log(`[Story]  BgImg    : ${bgImagePath || 'none'}`);
@@ -673,15 +679,17 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
     completedAt: null,
     error: null,
     storyText: storyText.trim(),
-    sceneCount: count,
+    durationRange: `${durMin}-${durMax}`,
+    durationMin: durMin,
+    durationMax: durMax,
     gameContext: (gameContext || '').trim(),
     voiceDesc: (voiceDesc || '').trim(),
     heroDesc: (heroDesc || '').trim(),
     videoModel: model,
     videoModelLabel: modelInfo?.label || model,
-    voiceOverCharacteristics: null, // Gemini will populate this during planning
-    heroImagePath,    // saved for resume — Gemini + Nano Bana 2 reference
-    bgImagePath,      // saved for resume — Gemini + Nano Bana 2 reference
+    voiceOverCharacteristics: null, // Claude will populate this during planning
+    heroImagePath,    // saved for resume — Claude + Nano Bana 2 reference
+    bgImagePath,      // saved for resume — Claude + Nano Bana 2 reference
     currentPhase: 'planning',
     currentSceneIndex: null,
     scenes: [],

@@ -793,13 +793,14 @@
 
         <div class="row2">
           <div class="fg">
-            <label>Number of Scenes</label>
-            <select id="story-scene-count">
-              <option value="3" selected>3 scenes</option>
-              <option value="5" >5 scenes</option>
-              <option value="7">7 scenes</option>
-              <option value="10">10 scenes</option>
+            <label>Total Video Duration</label>
+            <select id="story-duration-range">
+              <option value="15-30" selected>15 – 30 sec</option>
+              <option value="30-45">30 – 45 sec</option>
+              <option value="45-60">45 – 60 sec</option>
+              <option value="60-90">60 – 90 sec</option>
             </select>
+            <small style="color:var(--muted);margin-top:2px;display:block">AI picks scene count & durations to keep it fast-paced</small>
           </div>
           <div class="fg">
             <label>Video Model</label>
@@ -1825,7 +1826,7 @@ function clearStoryImage(type) {
 
 async function submitStory() {
   const storyText = document.getElementById('story-text').value.trim();
-  const sceneCount = document.getElementById('story-scene-count').value;
+  const durationRange = document.getElementById('story-duration-range').value;
   const videoModel = document.getElementById('story-video-model').value;
   const gameContext = document.getElementById('story-game-context').value.trim();
   const heroDesc = document.getElementById('story-hero-desc').value.trim();
@@ -1848,7 +1849,7 @@ async function submitStory() {
     // Use FormData for multipart upload (hero/bg images + text fields)
     const fd = new FormData();
     fd.append('storyText', storyText);
-    fd.append('sceneCount', sceneCount);
+    fd.append('durationRange', durationRange);
     fd.append('videoModel', videoModel);
     fd.append('gameContext', gameContext);
     fd.append('heroDesc', heroDesc);
@@ -2180,7 +2181,7 @@ function renderStoryHistoryList(history) {
         <div class="hist-header" onclick="loadStoryDetail('${h.taskUUID}')">
           <span class="hist-status-dot ${dotClass}"></span>
           <div class="hist-info">
-            <div class="hist-title">📖 Story · ${h.sceneCount} scenes · ${h.videoModelLabel}</div>
+            <div class="hist-title">📖 Story · ${h.scenes?.length || '?'} scenes${h.durationRange ? ` · ${h.durationRange}s` : ''} · ${h.videoModelLabel}</div>
             <div class="hist-meta">${date} · ${sceneSummary} ${costStr ? '· ' + costStr : ''}</div>
           </div>
           <div class="hist-badges">

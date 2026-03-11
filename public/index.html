@@ -236,6 +236,10 @@
     .story-resume-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; padding: 10px 14px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); border-radius: var(--rs); }
     .story-resume-bar .resume-text { flex: 1; font-size: 12px; color: var(--yellow); }
 
+    /* Pipeline mode toggle selected state */
+    #mode-opt-standard.mode-selected,
+    #mode-opt-fast-paced.mode-selected { border-color: var(--accent); background: rgba(124,58,237,.1); }
+
     /* Edit prompt modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; align-items: center; justify-content: center; }
     .modal-overlay.show { display: flex; }
@@ -243,6 +247,20 @@
     .modal-box h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
     .modal-box .fg { margin-bottom: 12px; }
     .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    /* ── Media Picker ── */
+    .media-picker-box { max-width: 680px; }
+    .media-picker-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .media-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; max-height: 50vh; overflow-y: auto; padding-right: 2px; }
+    .media-picker-item { border: 2px solid var(--border); border-radius: var(--rs); padding: 6px; cursor: pointer; transition: all .15s; background: var(--surface2); text-align: center; }
+    .media-picker-item:hover { border-color: var(--accent); background: rgba(124,58,237,.07); }
+    .media-picker-item.selected { border-color: var(--accent); background: rgba(124,58,237,.15); }
+    .media-picker-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block; background: var(--border); }
+    .media-picker-item .mp-icon { font-size: 32px; line-height: 1; margin: 8px 0 4px; }
+    .media-picker-item .mp-name { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+    .media-picker-item .mp-size { font-size: 9px; color: var(--muted); opacity: .7; }
+    .media-picker-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 32px 0; }
+    .dz-from-uploads { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--accent); cursor: pointer; margin-top: 5px; padding: 3px 7px; border: 1px solid var(--accent); border-radius: 4px; background: none; transition: background .15s; }
+    .dz-from-uploads:hover { background: rgba(124,58,237,.1); }
   </style>
 </head>
 <body>
@@ -266,6 +284,7 @@
     <button class="nav-tab" onclick="showPage('ctaframe')">🖼 CTA Frame</button>
     <button class="nav-tab" onclick="showPage('story')">📖 Story</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
+    <button class="nav-tab" onclick="openCanvas()" title="Open node-based pipeline canvas in new tab">🎨 Canvas</button>
   </div>
 
   <!-- ═══ AVATAR PAGE ═══ -->
@@ -794,12 +813,26 @@
         <div class="row2">
           <div class="fg">
             <label>Total Video Duration</label>
-            <select id="story-duration-range">
+            <select id="story-duration-range" onchange="onDurationRangeChange(this.value)">
+              <option value="10-15">10 – 15 sec</option>
               <option value="15-30" selected>15 – 30 sec</option>
               <option value="30-45">30 – 45 sec</option>
               <option value="45-60">45 – 60 sec</option>
               <option value="60-90">60 – 90 sec</option>
+              <option value="custom">Custom…</option>
             </select>
+            <div id="story-duration-custom" style="display:none;margin-top:6px">
+              <div style="display:flex;gap:8px;align-items:flex-end">
+                <div style="flex:1">
+                  <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Min (sec)</label>
+                  <input type="number" id="story-dur-min" min="5" max="600" value="20" style="width:100%">
+                </div>
+                <div style="flex:1">
+                  <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Max (sec)</label>
+                  <input type="number" id="story-dur-max" min="5" max="600" value="40" style="width:100%">
+                </div>
+              </div>
+            </div>
             <small style="color:var(--muted);margin-top:2px;display:block">AI picks scene count & durations to keep it fast-paced</small>
           </div>
           <div class="fg">
@@ -822,12 +855,13 @@
         <div class="row2" style="margin-bottom:14px">
           <div class="fg" style="margin-bottom:0">
             <label>Hero Reference Image <small style="font-weight:400">(optional)</small></label>
-            <div class="dropzone" id="dz-story-hero" onclick="document.getElementById('story-hero-image').click()">
+            <div class="dropzone" id="dz-story-hero">
               <input type="file" id="story-hero-image" accept="image/*" onchange="handleStoryImagePick(this,'hero')" />
               <div class="dz-icon">🦸</div>
               <div class="dz-text">Drop hero image or <strong>browse</strong></div>
               <div class="dz-hint">Gemini sees this to keep hero consistent</div>
             </div>
+            <button class="dz-from-uploads" onclick="openMediaPicker('hero','image')">📂 Choose from uploads</button>
             <div class="file-pill" id="pill-story-hero">
               <img class="file-pill-thumb" id="thumb-story-hero" />
               <div class="file-pill-info">
@@ -839,12 +873,13 @@
           </div>
           <div class="fg" style="margin-bottom:0">
             <label>Background Reference Image <small style="font-weight:400">(optional)</small></label>
-            <div class="dropzone" id="dz-story-bg" onclick="document.getElementById('story-bg-image').click()">
+            <div class="dropzone" id="dz-story-bg">
               <input type="file" id="story-bg-image" accept="image/*" onchange="handleStoryImagePick(this,'bg')" />
               <div class="dz-icon">🏞</div>
               <div class="dz-text">Drop background or <strong>browse</strong></div>
               <div class="dz-hint">Gemini sees this for environment style</div>
             </div>
+            <button class="dz-from-uploads" onclick="openMediaPicker('bg','image')">📂 Choose from uploads</button>
             <div class="file-pill" id="pill-story-bg">
               <img class="file-pill-thumb" id="thumb-story-bg" />
               <div class="file-pill-info">
@@ -854,6 +889,39 @@
               <button class="file-pill-rm" onclick="clearStoryImage('bg')">✕</button>
             </div>
           </div>
+        </div>
+
+        <!-- Pipeline Mode toggle -->
+        <div class="fg" style="margin-top:8px">
+          <label>Pipeline Mode</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+            <label style="display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:10px 12px;cursor:pointer;transition:border-color .15s" id="mode-opt-standard" onclick="onPipelineModeChange('standard')">
+              <input type="radio" name="pipelineMode" value="standard" checked style="margin-top:2px;flex-shrink:0" />
+              <div>
+                <div style="font-size:12px;font-weight:600">📽 Standard</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Sequential, seamless transitions via frame extraction</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:10px 12px;cursor:pointer;transition:border-color .15s" id="mode-opt-fast-paced" onclick="onPipelineModeChange('fast-paced')">
+              <input type="radio" name="pipelineMode" value="fast-paced" style="margin-top:2px;flex-shrink:0" />
+              <div>
+                <div style="font-size:12px;font-weight:600">⚡ Fast-Paced</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Parallel generation, varied angles, high energy</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Background Music (shown only in Fast-Paced mode) -->
+        <div class="fg" id="story-music-section" style="display:none;margin-top:4px">
+          <label>Background Music <small style="font-weight:400">(optional — mixed at low volume into final video)</small></label>
+          <div class="dropzone" id="music-dropzone" style="padding:12px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('story-music-input').click()">
+            <div class="dz-icon" style="font-size:20px">🎵</div>
+            <div class="dz-text"><span id="music-label">Drop music file or <strong>click to browse</strong></span></div>
+            <div class="dz-hint">MP3, WAV, M4A · no size limit</div>
+          </div>
+          <input type="file" id="story-music-input" accept=".mp3,.wav,.m4a,.aac,.ogg" style="display:none" onchange="handleMusicFilePick(this)" />
+          <button class="dz-from-uploads" onclick="openMediaPicker('music','audio')">📂 Choose from uploads</button>
         </div>
 
         <div class="fg">
@@ -874,7 +942,10 @@
 
       <!-- Right: Scene Tracker -->
       <div class="card">
-        <div class="card-title">🎬 Scene Progress</div>
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>🎬 Scene Progress</span>
+          <button class="btn-sm" onclick="openCanvas()" title="Open node-based canvas view for this story" style="font-size:11px">🎨 Canvas View</button>
+        </div>
 
         <!-- Phase bar -->
         <div class="story-phase-bar" id="story-phase-bar">
@@ -946,6 +1017,21 @@
     </div>
   </div>
 
+  <!-- ═══ MEDIA PICKER MODAL ═══ -->
+  <div class="modal-overlay" id="media-picker-modal" onclick="if(event.target===this)closeMediaPicker()">
+    <div class="modal-box media-picker-box">
+      <h3 id="media-picker-title">📂 Choose from Uploads</h3>
+      <div class="media-picker-filters" id="media-picker-filters"></div>
+      <div class="media-picker-grid" id="media-picker-grid">
+        <div class="media-picker-empty">Loading…</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-purple" style="flex:1" id="media-picker-select-btn" onclick="confirmMediaPick()" disabled>✔ Use Selected</button>
+        <button class="btn-sm" onclick="closeMediaPicker()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ GALLERY PAGE ═══ -->
   <div id="page-gallery" class="page">
     <div class="section-hdr">
@@ -1009,6 +1095,8 @@ async function init() {
   await loadGallery();
   await loadCombineVideos();
   await loadStoryHistoryList();
+  // Initialize pipeline mode selection visual state
+  onPipelineModeChange('standard');
 }
 
 // ══════ Models ══════
@@ -1097,6 +1185,13 @@ function showPage(name) {
   if (name === 'history') loadHistory();
   if (name === 'gallery') loadGallery();
   if (name === 'story') loadStoryHistoryList();
+}
+
+function openCanvas() {
+  // If a story is currently active in the Story tab, pass its UUID to the canvas
+  const uuid = typeof activeStoryUUID !== 'undefined' && activeStoryUUID ? activeStoryUUID : '';
+  const url = uuid ? `/canvas.html?uuid=${uuid}` : '/canvas.html';
+  window.open(url, '_blank');
 }
 
 // ══════ Dropzones ══════
@@ -1777,6 +1872,163 @@ async function loadStoryGameContext() {
 // ── Story hero/background image upload helpers ──
 let storyHeroFile = null;
 let storyBgFile = null;
+let storyMusicFile = null;
+
+function onDurationRangeChange(value) {
+  const customDiv = document.getElementById('story-duration-custom');
+  customDiv.style.display = value === 'custom' ? 'block' : 'none';
+}
+
+function getStoryDurationRange() {
+  const val = document.getElementById('story-duration-range').value;
+  if (val !== 'custom') return val;
+  const min = parseInt(document.getElementById('story-dur-min').value, 10) || 20;
+  const max = parseInt(document.getElementById('story-dur-max').value, 10) || 40;
+  // Ensure min < max and both are sane
+  const safeMin = Math.max(5, Math.min(min, 590));
+  const safeMax = Math.max(safeMin + 5, Math.min(max, 600));
+  return `${safeMin}-${safeMax}`;
+}
+
+function onPipelineModeChange(mode) {
+  // Update radio
+  document.querySelector(`input[name="pipelineMode"][value="${mode}"]`).checked = true;
+  // Update visual selection
+  document.getElementById('mode-opt-standard').classList.toggle('mode-selected', mode === 'standard');
+  document.getElementById('mode-opt-fast-paced').classList.toggle('mode-selected', mode === 'fast-paced');
+  // Show/hide music section
+  document.getElementById('story-music-section').style.display = mode === 'fast-paced' ? 'block' : 'none';
+  // Clear music file if switching back to standard
+  if (mode === 'standard' && storyMusicFile) {
+    storyMusicFile = null;
+    document.getElementById('story-music-input').value = '';
+    document.getElementById('music-label').innerHTML = 'Drop music file or <strong>click to browse</strong>';
+  }
+}
+
+function handleMusicFilePick(input) {
+  if (input.files[0]) {
+    storyMusicFile = input.files[0];
+    document.getElementById('music-label').innerHTML = `🎵 <strong>${storyMusicFile.name}</strong> (${(storyMusicFile.size / 1024).toFixed(0)} KB)`;
+  }
+}
+
+// ── Media Picker (re-use already-uploaded files) ──────────────────────────────
+let _mpTarget = null;   // 'hero' | 'bg' | 'music'
+let _mpFilter = null;   // 'image' | 'audio'
+let _mpSelected = null; // { url, filename, type }
+let _mpAllFiles = [];   // cached from last fetch
+
+async function openMediaPicker(target, filter) {
+  _mpTarget = target;
+  _mpFilter = filter;
+  _mpSelected = null;
+
+  const titles = { hero: '🦸 Choose Hero Image', bg: '🏞 Choose Background Image', music: '🎵 Choose Music File' };
+  document.getElementById('media-picker-title').textContent = titles[target] || '📂 Choose from Uploads';
+  document.getElementById('media-picker-select-btn').disabled = true;
+  document.getElementById('media-picker-modal').classList.add('show');
+
+  renderMediaPickerGrid([], true); // show loading state
+
+  try {
+    const res = await fetch('/api/uploads');
+    const data = await res.json();
+    _mpAllFiles = data.files || [];
+  } catch {
+    _mpAllFiles = [];
+  }
+
+  renderMediaPickerFilters();
+  renderMediaPickerGrid(_mpAllFiles.filter(f => f.type === _mpFilter));
+}
+
+function closeMediaPicker() {
+  document.getElementById('media-picker-modal').classList.remove('show');
+  _mpTarget = null;
+  _mpSelected = null;
+}
+
+function renderMediaPickerFilters() {
+  // Show toggle only if both image and audio files exist (future-proof)
+  document.getElementById('media-picker-filters').innerHTML = '';
+}
+
+function renderMediaPickerGrid(files, loading = false) {
+  const grid = document.getElementById('media-picker-grid');
+  if (loading) {
+    grid.innerHTML = '<div class="media-picker-empty">Loading uploads…</div>';
+    return;
+  }
+  if (!files.length) {
+    grid.innerHTML = '<div class="media-picker-empty">No previously uploaded files found.<br><small>Upload a file first, then it will appear here.</small></div>';
+    return;
+  }
+
+  grid.innerHTML = files.map(f => {
+    const isImage = f.type === 'image';
+    const sizeStr = f.size > 1024 * 1024 ? (f.size / 1024 / 1024).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB';
+    const shortName = f.filename.replace(/^\d+-[\da-f]+-?/, '').slice(0, 20) || f.filename.slice(-20);
+    const thumb = isImage
+      ? `<img src="${f.url}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div class="mp-icon" style="display:none">🖼</div>`
+      : `<div class="mp-icon">🎵</div>`;
+    return `<div class="media-picker-item" data-url="${f.url}" data-filename="${f.filename}" data-type="${f.type}" onclick="selectMediaItem(this)">
+      ${thumb}
+      <div class="mp-name" title="${f.filename}">${shortName}</div>
+      <div class="mp-size">${sizeStr}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectMediaItem(el) {
+  document.querySelectorAll('.media-picker-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  _mpSelected = { url: el.dataset.url, filename: el.dataset.filename, type: el.dataset.type };
+  document.getElementById('media-picker-select-btn').disabled = false;
+}
+
+async function confirmMediaPick() {
+  if (!_mpSelected || !_mpTarget) return;
+
+  const btn = document.getElementById('media-picker-select-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Loading…';
+
+  try {
+    // Fetch the file from /uploads/ as a Blob, then wrap in a File object
+    const response = await fetch(_mpSelected.url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    const file = new File([blob], _mpSelected.filename, { type: blob.type || 'application/octet-stream' });
+
+    if (_mpTarget === 'hero' || _mpTarget === 'bg') {
+      // Assign to the correct file variable and show the pill
+      if (_mpTarget === 'hero') storyHeroFile = file;
+      else storyBgFile = file;
+
+      const pill = document.getElementById(`pill-story-${_mpTarget}`);
+      const thumb = document.getElementById(`thumb-story-${_mpTarget}`);
+      const name = document.getElementById(`name-story-${_mpTarget}`);
+      const size = document.getElementById(`size-story-${_mpTarget}`);
+      const dz = document.getElementById(`dz-story-${_mpTarget}`);
+
+      thumb.src = URL.createObjectURL(file);
+      name.textContent = file.name;
+      size.textContent = (file.size / 1024).toFixed(0) + ' KB';
+      pill.classList.add('show');
+      dz.style.display = 'none';
+    } else if (_mpTarget === 'music') {
+      storyMusicFile = file;
+      document.getElementById('music-label').innerHTML = `🎵 <strong>${file.name}</strong> (${(file.size / 1024).toFixed(0)} KB)`;
+    }
+
+    closeMediaPicker();
+  } catch (err) {
+    btn.textContent = '✔ Use Selected';
+    btn.disabled = false;
+    alert('Failed to load file: ' + err.message);
+  }
+}
 
 function handleStoryImagePick(input, type) {
   const file = input.files[0];
@@ -1826,7 +2078,7 @@ function clearStoryImage(type) {
 
 async function submitStory() {
   const storyText = document.getElementById('story-text').value.trim();
-  const durationRange = document.getElementById('story-duration-range').value;
+  const durationRange = getStoryDurationRange();
   const videoModel = document.getElementById('story-video-model').value;
   const gameContext = document.getElementById('story-game-context').value.trim();
   const heroDesc = document.getElementById('story-hero-desc').value.trim();
@@ -1848,14 +2100,17 @@ async function submitStory() {
   try {
     // Use FormData for multipart upload (hero/bg images + text fields)
     const fd = new FormData();
+    const pipelineMode = document.querySelector('input[name="pipelineMode"]:checked')?.value || 'standard';
     fd.append('storyText', storyText);
     fd.append('durationRange', durationRange);
     fd.append('videoModel', videoModel);
+    fd.append('pipelineMode', pipelineMode);
     fd.append('gameContext', gameContext);
     fd.append('heroDesc', heroDesc);
     fd.append('voiceDesc', voiceDesc);
     if (storyHeroFile) fd.append('heroImage', storyHeroFile);
     if (storyBgFile) fd.append('bgImage', storyBgFile);
+    if (storyMusicFile) fd.append('musicFile', storyMusicFile);
 
     const res = await fetch('/api/generate-story', {
       method: 'POST',
@@ -1955,6 +2210,7 @@ function renderStoryProgress(entry) {
       tracker.innerHTML = '<div class="history-empty" style="padding:20px">No scenes yet.</div>';
     }
   } else {
+    const isFastPacedEntry = (entry.pipelineMode === 'fast-paced');
     tracker.innerHTML = entry.scenes.map((s, i) => {
       const vidClass = `ss-${s.videoStatus}`;
       const vidIcon = s.videoStatus === 'completed' ? '✅' : s.videoStatus === 'generating' ? '⏳' : s.videoStatus === 'failed' ? '❌' : '—';
@@ -1962,21 +2218,27 @@ function renderStoryProgress(entry) {
       const isFirstScene = (i === 0);
       const isLastScene = (i === entry.scenes.length - 1);
       const hasCTA = isLastScene && s.ctaImagePrompt;
-      const hasImgB = isFirstScene && s.imageBPrompt;
+      const hasImgB = !isFastPacedEntry && isFirstScene && s.imageBPrompt;
 
-      // Image A / main image status (not shown for last scene)
+      // Image A / main image status
       const imgClass = `ss-${s.imageStatus}`;
       const imgIcon = s.imageStatus === 'completed' ? '✅' : s.imageStatus === 'generating' ? '⏳' : s.imageStatus === 'failed' ? '❌' : '—';
 
-      // Image B status (first scene only)
+      // Image B status (standard mode, first scene only)
       const imgBIcon = hasImgB ? (s.imageBStatus === 'completed' ? '✅' : s.imageBStatus === 'generating' ? '⏳' : s.imageBStatus === 'failed' ? '❌' : '—') : '';
 
       // CTA image status (last scene only)
       const ctaIcon = hasCTA ? (s.ctaImageStatus === 'completed' ? '✅' : s.ctaImageStatus === 'generating' ? '⏳' : s.ctaImageStatus === 'failed' ? '❌' : '—') : '';
 
       const isActive = entry.currentSceneIndex === i && entry.status === 'processing';
-      const isFailed = (!isLastScene && s.imageStatus === 'failed') || s.videoStatus === 'failed' || (hasCTA && s.ctaImageStatus === 'failed') || (hasImgB && s.imageBStatus === 'failed');
+      // Fast-paced: no standard "last scene has no image" — all scenes have imageStatus
+      const imgActuallyFailed = isFastPacedEntry
+        ? (s.imageStatus === 'failed')
+        : (!isLastScene && s.imageStatus === 'failed');
+      const isFailed = imgActuallyFailed || s.videoStatus === 'failed' || (hasCTA && s.ctaImageStatus === 'failed') || (hasImgB && s.imageBStatus === 'failed');
       const rowClass = isActive ? 'active' : isFailed ? 'failed' : (s.videoStatus === 'completed' ? 'completed' : '');
+
+      const pipelineIdle = (entry.status !== 'processing');
 
       let actions = '';
       if (isFailed && entry.status === 'paused') {
@@ -1984,20 +2246,33 @@ function renderStoryProgress(entry) {
           <button class="btn-sm" onclick="openEditModal(${i})" title="Edit prompt">✏️</button>
           <button class="btn-sm green" onclick="retryScene(${i})" title="Retry">🔄</button>`;
       }
-      // Image A thumbnail (not for last scene)
-      if (!isLastScene && s.imageStatus === 'completed' && s.imageUrl) {
-        actions += `<img class="scene-thumb" src="${s.imageUrl}?t=${Date.now()}" onclick="window.open('${s.imageUrl}','_blank')" title="View frame A image" />`;
+
+      // ── Image thumbnails + regen buttons ──
+      const imgDone = (isFastPacedEntry || !isLastScene) && s.imageStatus === 'completed' && s.imageUrl;
+      const imgBDone = hasImgB && s.imageBStatus === 'completed' && s.imageBUrl;
+      const ctaDone = hasCTA && s.ctaImageStatus === 'completed' && s.ctaImageUrl;
+      const anyImgDone = imgDone || imgBDone || ctaDone;
+
+      if (imgDone) {
+        actions += `<img class="scene-thumb" src="${s.imageUrl}?t=${Date.now()}" onclick="window.open('${s.imageUrl}','_blank')" title="View opening frame" />`;
       }
-      // Image B thumbnail (first scene only)
-      if (hasImgB && s.imageBStatus === 'completed' && s.imageBUrl) {
+      if (imgBDone) {
         actions += `<img class="scene-thumb" src="${s.imageBUrl}?t=${Date.now()}" onclick="window.open('${s.imageBUrl}','_blank')" title="View frame B image" style="border:2px solid #4ecdc4" />`;
       }
-      // CTA thumbnail (last scene only)
-      if (hasCTA && s.ctaImageStatus === 'completed' && s.ctaImageUrl) {
+      if (ctaDone) {
         actions += `<img class="scene-thumb" src="${s.ctaImageUrl}?t=${Date.now()}" onclick="window.open('${s.ctaImageUrl}','_blank')" title="View CTA image" style="border:2px solid var(--accent)" />`;
       }
+      // Regen image button — shown when any image is done and pipeline is idle
+      if (anyImgDone && pipelineIdle) {
+        actions += `<button class="btn-sm" onclick="regenSceneImage(${i})" title="Regenerate image(s) for this scene" style="font-size:10px">🖼 Regen</button>`;
+      }
+
+      // ── Video preview + regen button ──
       if (s.videoStatus === 'completed' && s.videoUrl) {
         actions += `<button class="btn-sm" onclick="window.open('${s.videoUrl}','_blank')" title="Preview video">▶</button>`;
+        if (pipelineIdle) {
+          actions += `<button class="btn-sm" onclick="regenSceneVideo(${i})" title="Regenerate video for this scene" style="font-size:10px">🎬 Regen</button>`;
+        }
       }
 
       const errorMsg = s.imageError || (hasImgB && s.imageBError) || s.videoError || (hasCTA && s.ctaImageError) || '';
@@ -2008,28 +2283,41 @@ function renderStoryProgress(entry) {
       if (s.useBgRef) refBadges += '<span class="ref-badge bg" title="BG reference">🏞</span>';
       if (isLastScene) refBadges += '<span class="ref-badge cta" title="CTA frame">🎯</span>';
 
-      // Build status badges based on scene type
+      // Build status badges based on mode + scene type
       let statusBadges = '';
-      if (isFirstScene) {
-        // Scene 1: Img A, Img B, Vid
+      if (isFastPacedEntry) {
+        if (isLastScene) {
+          // Fast-paced last scene: Img A + CTA + Vid
+          statusBadges = `
+            <span class="scene-step ${imgClass}" title="Opening frame">${imgIcon} Img A</span>
+            ${hasCTA ? `<span class="scene-step ss-${s.ctaImageStatus || 'pending'}" title="CTA Image">${ctaIcon} CTA</span>` : ''}
+            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
+        } else {
+          // Fast-paced all other scenes: Img + Vid
+          statusBadges = `
+            <span class="scene-step ${imgClass}" title="Opening frame">${imgIcon} Img</span>
+            <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
+        }
+      } else if (isFirstScene) {
+        // Standard Scene 1: Img A, Img B, Vid
         statusBadges = `
             <span class="scene-step ${imgClass}" title="Image A (opening frame)">${imgIcon} Img A</span>
             ${hasImgB ? `<span class="scene-step ss-${s.imageBStatus || 'pending'}" title="Image B (end frame)">${imgBIcon} Img B</span>` : ''}
             <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
       } else if (isLastScene) {
-        // Last scene: CTA, Vid (no Img badge)
+        // Standard last scene: CTA, Vid (no Img badge)
         statusBadges = `
             ${hasCTA ? `<span class="scene-step ss-${s.ctaImageStatus || 'pending'}" title="CTA Image">${ctaIcon} CTA</span>` : ''}
             <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
       } else {
-        // Middle scenes: Img, Vid
+        // Standard middle scenes: Img, Vid
         statusBadges = `
             <span class="scene-step ${imgClass}" title="Image (end frame)">${imgIcon} Img</span>
             <span class="scene-step ${vidClass}" title="Video">${vidIcon} Vid</span>`;
       }
 
       // Prompt preview — show most relevant prompt
-      const promptPreview = isLastScene ? (s.ctaImagePrompt || '') : (s.imagePrompt || '');
+      const promptPreview = (isFastPacedEntry || !isLastScene) ? (s.imagePrompt || '') : (s.ctaImagePrompt || '');
 
       return `
         <div class="scene-row ${rowClass}">
@@ -2115,6 +2403,32 @@ async function retryScene(idx) {
   }
 }
 
+async function regenSceneImage(idx) {
+  if (!activeStoryUUID) return;
+  try {
+    const res = await fetch(`/api/regen-image/${activeStoryUUID}/${idx}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Regen failed.');
+    setStatus('story', 'loading', `🖼 ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+  }
+}
+
+async function regenSceneVideo(idx) {
+  if (!activeStoryUUID) return;
+  try {
+    const res = await fetch(`/api/regen-video/${activeStoryUUID}/${idx}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Regen failed.');
+    setStatus('story', 'loading', `🎬 ${data.message}`);
+    startStoryPolling(activeStoryUUID);
+  } catch (err) {
+    setStatus('story', 'error', `❌ ${err.message}`);
+  }
+}
+
 function openEditModal(sceneIdx) {
   editingSceneIndex = sceneIdx;
   // We need to fetch latest scene data
@@ -2181,7 +2495,7 @@ function renderStoryHistoryList(history) {
         <div class="hist-header" onclick="loadStoryDetail('${h.taskUUID}')">
           <span class="hist-status-dot ${dotClass}"></span>
           <div class="hist-info">
-            <div class="hist-title">📖 Story · ${h.scenes?.length || '?'} scenes${h.durationRange ? ` · ${h.durationRange}s` : ''} · ${h.videoModelLabel}</div>
+            <div class="hist-title">📖 Story${h.pipelineMode === 'fast-paced' ? ' ⚡' : ''} · ${h.scenes?.length || '?'} scenes${h.durationRange ? ` · ${h.durationRange}s` : ''} · ${h.videoModelLabel}</div>
             <div class="hist-meta">${date} · ${sceneSummary} ${costStr ? '· ' + costStr : ''}</div>
           </div>
           <div class="hist-badges">

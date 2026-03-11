@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipeline Canvas — Runware</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d0f; --surface: #161618; --surface2: #1e1e22; --border: #2a2a30;
+      --accent: #7c3aed; --accent-h: #6d28d9; --accent2: #06b6d4;
+      --green: #10b981; --red: #ef4444; --yellow: #f59e0b; --orange: #f97316;
+      --text: #f1f1f3; --muted: #8a8a9a; --r: 12px; --rs: 8px;
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+           background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* ── Top bar ── */
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border);
+              padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; z-index: 50; }
+    .topbar-logo { width: 28px; height: 28px; background: linear-gradient(135deg,var(--accent),var(--accent2));
+                   border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .topbar h1 { font-size: 15px; font-weight: 700; }
+    .topbar-sep { width: 1px; height: 20px; background: var(--border); }
+    .topbar-info { font-size: 12px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-status { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
+    .topbar-status.processing { background: rgba(245,158,11,.15); color: var(--yellow); }
+    .topbar-status.completed  { background: rgba(16,185,129,.15);  color: var(--green); }
+    .topbar-status.paused     { background: rgba(239,68,68,.15);    color: var(--red); }
+    .topbar-status.pending    { background: rgba(138,138,154,.1);   color: var(--muted); }
+
+    .btn-sm { padding: 5px 11px; font-size: 11px; font-weight: 500; border: 1px solid var(--border);
+              border-radius: var(--rs); background: var(--surface2); color: var(--text); cursor: pointer;
+              transition: all .15s; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-sm.accent:hover { background: var(--accent-h); }
+    .btn-sm.green { border-color: var(--green); color: var(--green); }
+    .btn-sm.green:hover { background: rgba(16,185,129,.1); }
+
+    /* ── Controls overlay ── */
+    .controls { position: absolute; bottom: 16px; right: 16px; z-index: 40;
+                display: flex; flex-direction: column; gap: 4px; }
+    .ctrl-btn { width: 34px; height: 34px; background: var(--surface); border: 1px solid var(--border);
+                border-radius: var(--rs); cursor: pointer; font-size: 16px; display: flex;
+                align-items: center; justify-content: center; transition: all .15s; color: var(--text); }
+    .ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Mini-map ── */
+    .minimap { position: absolute; bottom: 16px; left: 16px; z-index: 40;
+               background: var(--surface); border: 1px solid var(--border); border-radius: var(--rs);
+               width: 160px; height: 100px; overflow: hidden; }
+    .minimap-canvas { position: absolute; inset: 0; }
+    .minimap-label { position: absolute; bottom: 3px; left: 6px; font-size: 9px; color: var(--muted); pointer-events: none; }
+
+    /* ── Canvas viewport ── */
+    .canvas-viewport { flex: 1; position: relative; overflow: hidden; cursor: grab; }
+    .canvas-viewport.grabbing { cursor: grabbing; }
+    .canvas-world { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+    /* ── Connection lines ── */
+    .connections-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+
+    /* ── Node ── */
+    .node { position: absolute; background: var(--surface); border: 2px solid var(--border);
+            border-radius: var(--r); min-width: 200px; max-width: 220px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: border-color .2s, box-shadow .2s;
+            user-select: none; cursor: pointer; }
+    .node:hover { box-shadow: 0 6px 28px rgba(0,0,0,.6); border-color: var(--accent) !important; }
+    .node.status-processing { border-color: var(--yellow); box-shadow: 0 0 0 3px rgba(245,158,11,.15), 0 4px 20px rgba(0,0,0,.4); }
+    .node.status-completed  { border-color: var(--green);  box-shadow: 0 0 0 3px rgba(16,185,129,.12), 0 4px 20px rgba(0,0,0,.4); }
+    .node.status-failed     { border-color: var(--red);    box-shadow: 0 0 0 3px rgba(239,68,68,.15),   0 4px 20px rgba(0,0,0,.4); }
+    .node.status-skipped    { border-color: var(--border); opacity: .55; }
+    .node.type-input        { border-color: var(--accent);  }
+    .node.type-output       { border-color: var(--green); min-width: 220px; }
+    .node.type-phase        { border-color: var(--accent2); }
+
+    .node-header { padding: 9px 12px 8px; border-bottom: 1px solid var(--border);
+                   display: flex; align-items: center; gap: 7px; }
+    .node-icon { font-size: 15px; flex-shrink: 0; }
+    .node-title { font-size: 12px; font-weight: 700; flex: 1; }
+    .node-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px; flex-shrink: 0; }
+    .node-badge.pending    { background: rgba(138,138,154,.15); color: var(--muted); }
+    .node-badge.generating { background: rgba(245,158,11,.2);   color: var(--yellow); animation: pulse-badge .9s infinite; }
+    .node-badge.completed  { background: rgba(16,185,129,.2);   color: var(--green); }
+    .node-badge.failed     { background: rgba(239,68,68,.2);    color: var(--red); }
+    .node-badge.skipped    { background: rgba(138,138,154,.1);  color: var(--muted); }
+    .node-badge.processing { background: rgba(245,158,11,.2);   color: var(--yellow); animation: pulse-badge .9s infinite; }
+    .node-badge.paused     { background: rgba(239,68,68,.15);   color: var(--red); }
+    @keyframes pulse-badge { 0%,100% { opacity:1 } 50% { opacity:.5 } }
+
+    .node-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+    .node-thumb { width: 100%; aspect-ratio: 9/16; object-fit: cover; border-radius: 6px;
+                  background: var(--surface2); display: block; transition: opacity .15s; }
+    .node-thumb:hover { opacity: .85; }
+    .node-thumb-row { display: flex; gap: 6px; }
+    .node-thumb-row .node-thumb { aspect-ratio: 9/16; flex: 1; }
+
+    .node-video-wrap { position: relative; width: 100%; }
+    .node-video { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px;
+                  background: #000; display: block; }
+    .node-video-portrait { aspect-ratio: 9/16; max-height: 260px; }
+
+    .node-field { display: flex; flex-direction: column; gap: 2px; }
+    .node-field-label { font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .node-field-value { font-size: 11px; color: var(--text); line-height: 1.4; }
+    .node-field-value.muted { color: var(--muted); font-style: italic; }
+    .node-field-value.prompt { color: var(--muted); font-size: 10px; line-height: 1.5;
+                                display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .node-field-value.cost { color: var(--green); font-weight: 600; }
+    .node-field-value.error { color: var(--red); font-size: 10px; }
+
+    .node-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+
+    .node-port { position: absolute; width: 12px; height: 12px; border-radius: 50%;
+                 background: var(--border); border: 2px solid var(--surface2); pointer-events: none; }
+    .node-port.out { right: -6px; top: 50%; transform: translateY(-50%); }
+    .node-port.in  { left: -6px;  top: 50%; transform: translateY(-50%); }
+    .node-port.connected { background: var(--accent); border-color: var(--accent2); }
+    .node-port.green { background: var(--green); border-color: var(--green); }
+
+    /* ── Phase column headers ── */
+    .col-header { position: absolute; text-align: center; font-size: 11px; font-weight: 700;
+                  color: var(--muted); text-transform: uppercase; letter-spacing: .06em; pointer-events: none; }
+
+    /* ── Scene label ── */
+    .scene-label { position: absolute; text-align: center; font-size: 13px; font-weight: 700;
+                   color: var(--accent); pointer-events: none; }
+
+    /* ── Separator line ── */
+    .phase-divider { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); opacity: .4; pointer-events: none; }
+
+    /* ── Empty state ── */
+    .empty-state { position: absolute; inset: 0; display: flex; flex-direction: column;
+                   align-items: center; justify-content: center; gap: 12px; color: var(--muted); pointer-events: none; }
+    .empty-state .big-icon { font-size: 52px; opacity: .3; }
+    .empty-state p { font-size: 14px; }
+    .empty-state small { font-size: 12px; opacity: .6; }
+
+    /* ── Story selector dropdown ── */
+    .story-select-wrap { position: relative; }
+    .story-select-wrap select { background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+                                 border-radius: var(--rs); padding: 5px 10px; font-size: 12px; cursor: pointer;
+                                 max-width: 300px; }
+
+    /* ── Cost pill ── */
+    .cost-pill { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px;
+                 background: rgba(16,185,129,.15); color: var(--green); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface2); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Spinner ── */
+    .spin { display: inline-block; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Auto-refresh indicator ── */
+    .refresh-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0;
+                   animation: pulse-dot 2s infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+    .refresh-dot.paused { background: var(--muted); animation: none; }
+
+    /* ══════════════════════════════════════════════════════════════
+       NODE DETAIL MODAL
+    ══════════════════════════════════════════════════════════════ */
+    .detail-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,.75); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fade-in .15s ease;
+    }
+    @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+
+    .detail-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); width: min(92vw, 900px); max-height: 90vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,.8);
+      animation: slide-up .18s ease;
+    }
+    @keyframes slide-up { from { transform: translateY(18px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+
+    .detail-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .detail-header .dh-icon { font-size: 20px; }
+    .detail-header .dh-title { font-size: 16px; font-weight: 700; flex: 1; }
+    .detail-header .dh-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
+    .detail-header .dh-close {
+      width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface2); cursor: pointer; font-size: 16px; color: var(--muted);
+      display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
+    }
+    .detail-header .dh-close:hover { border-color: var(--red); color: var(--red); }
+
+    .detail-body {
+      flex: 1; overflow-y: auto; padding: 18px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .detail-body.single-col { grid-template-columns: 1fr; }
+
+    .detail-media {
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .detail-info {
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    .detail-img {
+      width: 100%; border-radius: 8px; object-fit: contain;
+      background: var(--surface2); max-height: 500px; display: block;
+      cursor: zoom-in;
+    }
+    .detail-video {
+      width: 100%; border-radius: 8px; background: #000; display: block;
+      max-height: 500px;
+    }
+
+    .detail-field { display: flex; flex-direction: column; gap: 4px; }
+    .detail-field-label {
+      font-size: 10px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .detail-field-value {
+      font-size: 12px; color: var(--text); line-height: 1.6;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px;
+      word-break: break-word; white-space: pre-wrap;
+    }
+    .detail-field-value.cost { color: var(--green); font-weight: 600; background: rgba(16,185,129,.08); }
+    .detail-field-value.error { color: var(--red); background: rgba(239,68,68,.08); }
+    .detail-field-value.muted { color: var(--muted); font-style: italic; }
+
+    .detail-actions {
+      padding: 14px 18px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+    }
+
+    .detail-section-title {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    }
+
+    .detail-img-row {
+      display: flex; gap: 10px;
+    }
+    .detail-img-row .detail-img {
+      flex: 1; max-height: 300px;
+    }
+
+    .detail-status-row {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .detail-stat-chip {
+      font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600;
+      border: 1px solid var(--border); background: var(--surface2);
+    }
+    .detail-stat-chip.green { border-color: var(--green); color: var(--green); background: rgba(16,185,129,.1); }
+    .detail-stat-chip.yellow { border-color: var(--yellow); color: var(--yellow); background: rgba(245,158,11,.1); }
+    .detail-stat-chip.red { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
+    .detail-stat-chip.muted { color: var(--muted); }
+
+    .gen-spinner {
+      display: flex; align-items: center; gap: 10px; padding: 16px;
+      background: var(--surface2); border-radius: 8px; border: 1px solid var(--border);
+      color: var(--yellow); font-size: 13px; font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Bar ── -->
+<div class="topbar">
+  <div class="topbar-logo">🎬</div>
+  <h1>Pipeline Canvas</h1>
+  <div class="topbar-sep"></div>
+
+  <div class="story-select-wrap">
+    <select id="story-select" onchange="loadStory(this.value)">
+      <option value="">— Select a story —</option>
+    </select>
+  </div>
+
+  <div class="topbar-sep"></div>
+  <div class="topbar-info" id="topbar-info">No story loaded</div>
+  <div id="topbar-status" class="topbar-status pending" style="display:none"></div>
+
+  <div class="refresh-dot" id="refresh-dot" title="Auto-refresh active"></div>
+  <button class="btn-sm" onclick="fitCanvas()" title="Fit all nodes in view">⊞ Fit</button>
+  <button class="btn-sm" onclick="toggleAutoRefresh()" id="btn-auto-refresh">⏸ Pause</button>
+  <button class="btn-sm" onclick="manualRefresh()" id="btn-refresh">↺ Refresh</button>
+  <button class="btn-sm" onclick="window.open('/','_blank')" title="Open main GUI">↗ Main GUI</button>
+</div>
+
+<!-- ── Canvas Viewport ── -->
+<div class="canvas-viewport" id="viewport">
+  <div class="canvas-world" id="world">
+    <svg class="connections-svg" id="connections-svg"></svg>
+    <!-- Nodes injected here by JS -->
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="empty-state">
+    <div class="big-icon">🎨</div>
+    <p>Select a story to visualise its pipeline</p>
+    <small>Each scene becomes a column of connected nodes</small>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="ctrl-btn" onclick="zoom(1.2)" title="Zoom in">+</button>
+    <button class="ctrl-btn" onclick="zoom(0.83)" title="Zoom out">−</button>
+    <button class="ctrl-btn" onclick="resetView()" title="Reset view">⌂</button>
+  </div>
+
+  <!-- Mini-map -->
+  <div class="minimap" id="minimap">
+    <canvas class="minimap-canvas" id="minimap-canvas"></canvas>
+    <div class="minimap-label">overview</div>
+  </div>
+</div>
+
+<!-- Node Detail Modal (rendered dynamically) -->
+<div id="detail-overlay" class="detail-overlay" style="display:none" onclick="handleOverlayClick(event)"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════════
+let entry = null;
+let prevEntry = null;         // previous state for diffing
+let currentUUID = null;
+let autoRefresh = true;
+let refreshTimer = null;
+const REFRESH_INTERVAL = 3500;
+
+// Canvas transform
+let tx = 80, ty = 80, scale = 1;
+const MIN_SCALE = 0.12, MAX_SCALE = 3;
+
+// Drag state
+let dragging = false, lastMX = 0, lastMY = 0;
+
+// Layout constants
+const NODE_W = 220;
+const NODE_GAP_X = 60;
+const NODE_GAP_Y = 20;
+const COL_HEADER_H = 32;
+const TOP_PAD = 20;
+
+// Phase column x positions
+let colX = {};
+
+// Node registry for connection drawing: { id: { x, y, w, h } }
+let nodeRects = {};
+
+// Stable version keys per URL (set once when completed, never changed)
+// This prevents re-fetching already-loaded images/videos on refresh
+const urlVersionKeys = new Map();
+
+function getVersionKey(url) {
+  if (!url) return '';
+  if (!urlVersionKeys.has(url)) {
+    urlVersionKeys.set(url, Date.now());
+  }
+  return urlVersionKeys.get(url);
+}
+
+// Track whether canvas has been fully built (initial render done)
+let canvasBuilt = false;
+
+// ══════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════
+async function init() {
+  setupPanZoom();
+  await loadStoryList();
+  const params = new URLSearchParams(location.search);
+  const uuid = params.get('uuid');
+  if (uuid) {
+    document.getElementById('story-select').value = uuid;
+    await loadStory(uuid);
+  }
+  scheduleRefresh();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STORY LIST
+// ══════════════════════════════════════════════════════════════════
+async function loadStoryList() {
+  try {
+    const res = await fetch('/api/story-history');
+    const data = await res.json();
+    const sel = document.getElementById('story-select');
+    const histories = data.history || [];
+    sel.innerHTML = '<option value="">— Select a story —</option>' +
+      histories.map(h => {
+        const label = (h.storyText || '').slice(0, 45) + (h.storyText?.length > 45 ? '…' : '');
+        const mode = h.pipelineMode === 'fast-paced' ? ' ⚡' : '';
+        const status = { processing: '⏳', completed: '✅', paused: '⚠', failed: '❌', pending: '🕐' }[h.status] || '';
+        return `<option value="${h.taskUUID}">${status}${mode} ${label || h.taskUUID.slice(0,8)}</option>`;
+      }).join('');
+    if (currentUUID) sel.value = currentUUID;
+  } catch(e) { console.warn('loadStoryList:', e); }
+}
+
+async function loadStory(uuid) {
+  if (!uuid) { entry = null; prevEntry = null; currentUUID = null; canvasBuilt = false; renderEmpty(); return; }
+  currentUUID = uuid;
+  history.replaceState(null, '', `?uuid=${uuid}`);
+  canvasBuilt = false; // force full rebuild on story switch
+  await refreshStory();
+}
+
+async function refreshStory() {
+  if (!currentUUID) return;
+  try {
+    const res = await fetch(`/api/story-history/${currentUUID}`);
+    if (!res.ok) { entry = null; canvasBuilt = false; renderEmpty(); return; }
+    const data = await res.json();
+    prevEntry = entry;
+    entry = data.entry;
+
+    if (!canvasBuilt) {
+      // Full initial build
+      renderCanvas();
+      canvasBuilt = true;
+    } else {
+      // Lightweight diff update — only update what changed
+      patchCanvas();
+    }
+    updateTopbar();
+  } catch(e) { console.warn('refreshStory:', e); }
+}
+
+function manualRefresh() {
+  loadStoryList();
+  prevEntry = null;  // force full patch on manual refresh
+  refreshStory();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  AUTO REFRESH
+// ══════════════════════════════════════════════════════════════════
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  if (!autoRefresh) return;
+  refreshTimer = setTimeout(async () => {
+    await refreshStory();
+    scheduleRefresh();
+  }, REFRESH_INTERVAL);
+}
+
+function toggleAutoRefresh() {
+  autoRefresh = !autoRefresh;
+  const btn = document.getElementById('btn-auto-refresh');
+  const dot = document.getElementById('refresh-dot');
+  btn.textContent = autoRefresh ? '⏸ Pause' : '▶ Resume';
+  dot.classList.toggle('paused', !autoRefresh);
+  if (autoRefresh) scheduleRefresh();
+  else clearTimeout(refreshTimer);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  TOPBAR
+// ══════════════════════════════════════════════════════════════════
+function updateTopbar() {
+  if (!entry) return;
+  const info = document.getElementById('topbar-info');
+  const statusEl = document.getElementById('topbar-status');
+
+  const mode = entry.pipelineMode === 'fast-paced' ? ' ⚡ Fast-Paced' : ' 📽 Standard';
+  const scenes = entry.scenes?.length ? ` · ${entry.scenes.length} scenes` : '';
+  const cost = entry.totalCost ? ` · $${parseFloat(entry.totalCost).toFixed(4)}` : '';
+  info.textContent = `${(entry.storyText || '').slice(0,60)}… ${mode}${scenes}${cost}`;
+
+  statusEl.style.display = '';
+  statusEl.className = `topbar-status ${entry.status}`;
+  const labels = { processing:'⏳ Processing', completed:'✅ Done', paused:'⚠ Paused', failed:'❌ Failed', pending:'🕐 Pending' };
+  statusEl.textContent = labels[entry.status] || entry.status;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  RENDER EMPTY
+// ══════════════════════════════════════════════════════════════════
+function renderEmpty() {
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('world').querySelectorAll('.node,.col-header,.scene-label,.phase-divider').forEach(el => el.remove());
+  document.getElementById('connections-svg').innerHTML = '';
+  nodeRects = {};
+  updateTopbar();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MAIN RENDER (full build — called once per story load)
+// ══════════════════════════════════════════════════════════════════
+function renderCanvas() {
+  document.getElementById('empty-state').style.display = 'none';
+  const world = document.getElementById('world');
+  world.querySelectorAll('.node,.col-header,.scene-label,.phase-divider').forEach(el => el.remove());
+  document.getElementById('connections-svg').innerHTML = '';
+  nodeRects = {};
+
+  if (!entry) return;
+
+  const scenes = entry.scenes || [];
+  const isFP = entry.pipelineMode === 'fast-paced';
+  const N = scenes.length;
+  const phaseCols = ['input', 'planning', ...scenes.map((_, i) => `scene_${i}`), 'concat', 'output'];
+
+  // X positions
+  colX = {};
+  let cx = TOP_PAD;
+  for (const col of phaseCols) {
+    colX[col] = cx;
+    cx += NODE_W + NODE_GAP_X;
+  }
+
+  const totalW = cx;
+  const baseY = COL_HEADER_H + TOP_PAD;
+
+  // Column headers
+  const phaseLabels = { input: '📋 Input', planning: '🤖 Planning', concat: '⛓ Concat', output: '✅ Output' };
+  for (const col of phaseCols) {
+    const label = phaseLabels[col] || `Scene ${parseInt(col.split('_')[1]) + 1}`;
+    const isScene = col.startsWith('scene_');
+    addLabel(world, colX[col], TOP_PAD - 4, NODE_W, isScene ? `Scene ${parseInt(col.split('_')[1]) + 1}` : label, isScene ? 'scene-label' : 'col-header');
+  }
+
+  // Phase dividers
+  for (const col of ['planning', ...scenes.map((_, i) => `scene_${i}`), 'concat', 'output']) {
+    addDivider(world, colX[col] - NODE_GAP_X / 2, totalW + 200);
+  }
+
+  // INPUT node
+  placeNode(world, buildInputNode(entry), colX['input'], baseY, 'input');
+
+  // PLANNING node
+  placeNode(world, buildPlanningNode(entry), colX['planning'], baseY, 'planning');
+
+  // SCENE nodes
+  for (let i = 0; i < N; i++) {
+    const scene = scenes[i];
+    const isFirst = i === 0, isLast = i === N - 1;
+    const col = `scene_${i}`;
+    let y = baseY;
+
+    const hasImgA = isFP ? true : !isLast;
+    if (hasImgA) {
+      const h = placeNode(world, buildImageNode(scene, 'A', i, entry.status), colX[col], y, `img_a_${i}`);
+      y += h + NODE_GAP_Y;
+    }
+
+    if (!isFP && isFirst && scene.imageBPrompt) {
+      const h = placeNode(world, buildImageNode(scene, 'B', i, entry.status), colX[col], y, `img_b_${i}`);
+      y += h + NODE_GAP_Y;
+    }
+
+    if (isLast && scene.ctaImagePrompt) {
+      const h = placeNode(world, buildCtaImageNode(scene, i, entry.status), colX[col], y, `cta_${i}`);
+      y += h + NODE_GAP_Y;
+    }
+
+    placeNode(world, buildVideoNode(scene, i, entry.status, isFP), colX[col], y, `vid_${i}`);
+  }
+
+  // CONCAT node
+  placeNode(world, buildConcatNode(entry), colX['concat'], baseY, 'concat');
+
+  // OUTPUT node
+  placeNode(world, buildOutputNode(entry), colX['output'], baseY, 'output');
+
+  // Draw connections
+  requestAnimationFrame(() => drawConnections(N, isFP, baseY));
+  requestAnimationFrame(drawMinimap);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PATCH CANVAS (diff update — no DOM teardown, no media reload)
+// ══════════════════════════════════════════════════════════════════
+function patchCanvas() {
+  if (!entry) return;
+  const scenes = entry.scenes || [];
+  const isFP = entry.pipelineMode === 'fast-paced';
+  const N = scenes.length;
+  const world = document.getElementById('world');
+
+  // Check if scene count changed — if so, do full rebuild
+  const prevScenes = prevEntry?.scenes || [];
+  if (prevScenes.length !== N) {
+    canvasBuilt = false;
+    renderCanvas();
+    canvasBuilt = true;
+    return;
+  }
+
+  // Patch planning node
+  patchPlanningNode(entry, prevEntry);
+
+  // Patch each scene's nodes
+  for (let i = 0; i < N; i++) {
+    const scene = scenes[i];
+    const prev = prevScenes[i] || {};
+    const isFirst = i === 0, isLast = i === N - 1;
+    const hasImgA = isFP ? true : !isLast;
+
+    if (hasImgA) patchImageNode(`img_a_${i}`, scene, prev, 'A', i);
+    if (!isFP && isFirst && scene.imageBPrompt) patchImageNode(`img_b_${i}`, scene, prev, 'B', i);
+    if (isLast && scene.ctaImagePrompt) patchCtaNode(`cta_${i}`, scene, prev, i);
+    patchVideoNode(`vid_${i}`, scene, prev, i, isFP);
+  }
+
+  // Patch concat/output nodes
+  patchConcatNode(entry, prevEntry);
+  patchOutputNode(entry, prevEntry);
+
+  updateTopbar();
+}
+
+// ── Generic node badge + status patch ──
+function patchNodeStatus(nodeId, newStatus, badgeText, badgeClass) {
+  const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+  if (!node) return;
+
+  // Update status class
+  node.className = node.className.replace(/\bstatus-\S+/g, '').trim();
+  node.classList.add(`status-${newStatus}`);
+
+  // Update badge
+  const badge = node.querySelector('.node-badge');
+  if (badge) {
+    badge.className = `node-badge ${badgeClass}`;
+    badge.textContent = badgeText;
+  }
+}
+
+// ── Patch: set image src only when newly completed ──
+function patchImageSrc(nodeId, url, altText) {
+  if (!url) return;
+  const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+  if (!node) return;
+
+  // Remove spinner / error placeholder
+  const spinField = node.querySelector('.img-placeholder');
+  if (spinField) spinField.remove();
+
+  // Only inject img if not already present
+  let img = node.querySelector('.node-thumb');
+  if (!img) {
+    img = document.createElement('img');
+    img.className = 'node-thumb';
+    img.alt = altText || 'Image';
+    img.title = 'Click node to open detail';
+    img.onerror = () => { img.style.opacity = '.2'; };
+    // Insert before first .node-field
+    const body = node.querySelector('.node-body');
+    const firstField = body.querySelector('.node-field');
+    if (firstField) body.insertBefore(img, firstField);
+    else body.prepend(img);
+  }
+
+  // Only update src if it's not already set to this URL (prevents re-fetch)
+  const vk = getVersionKey(url);
+  const targetSrc = url + '?v=' + vk;
+  if (img.src !== targetSrc && !img.src.endsWith(url.replace(/.*\//, ''))) {
+    img.src = targetSrc;
+  }
+}
+
+// ── Patch: set video src only when newly completed ──
+function patchVideoSrc(nodeId, url) {
+  if (!url) return;
+  const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+  if (!node) return;
+
+  const spinField = node.querySelector('.vid-placeholder');
+  if (spinField) spinField.remove();
+
+  let vid = node.querySelector('.node-video');
+  if (!vid) {
+    const wrap = document.createElement('div');
+    wrap.className = 'node-video-wrap';
+    vid = document.createElement('video');
+    vid.className = 'node-video node-video-portrait';
+    vid.controls = true;
+    vid.preload = 'metadata';
+    vid.playsInline = true;
+    wrap.appendChild(vid);
+    const body = node.querySelector('.node-body');
+    const firstField = body.querySelector('.node-field');
+    if (firstField) body.insertBefore(wrap, firstField);
+    else body.prepend(wrap);
+  }
+
+  const vk = getVersionKey(url);
+  const targetSrc = url + '?v=' + vk;
+  if (!vid.src || (!vid.src.endsWith(url.replace(/.*\//, '')) && vid.getAttribute('data-url') !== url)) {
+    vid.src = targetSrc;
+    vid.setAttribute('data-url', url);
+  }
+}
+
+// ── Patch: add action buttons when pipeline becomes idle ──
+function patchActions(nodeId, scene, sceneIdx, type) {
+  const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+  if (!node) return;
+  if (node.querySelector('.node-actions')) return; // already has actions
+  const idle = entry.status !== 'processing';
+  if (!idle) return;
+
+  const actions = document.createElement('div');
+  actions.className = 'node-actions';
+  const body = node.querySelector('.node-body');
+
+  if (type === 'imgA' || type === 'imgB' || type === 'cta') {
+    const url = type === 'imgB' ? scene.imageBUrl : type === 'cta' ? scene.ctaImageUrl : scene.imageUrl;
+    const status = type === 'imgB' ? scene.imageBStatus : type === 'cta' ? scene.ctaImageStatus : scene.imageStatus;
+    if ((status === 'completed' || status === 'failed') && url) {
+      actions.appendChild(actionBtn('🔍 View', '', () => window.open(url, '_blank'), 'Open full size'));
+      actions.appendChild(actionBtn('🖼 Regen', '', () => callApi(`/api/regen-image/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate image'));
+    }
+  } else if (type === 'video') {
+    const url = scene.videoUrl;
+    if (scene.videoStatus === 'completed' || scene.videoStatus === 'failed') {
+      if (url) actions.appendChild(actionBtn('⬇ DL', 'green', () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); }, 'Download'));
+      actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(`/api/regen-video/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate video'));
+    }
+  }
+
+  if (actions.children.length) body.appendChild(actions);
+}
+
+function patchImageNode(nodeId, scene, prev, type, sceneIdx) {
+  const isB = type === 'B';
+  const status = isB ? scene.imageBStatus : scene.imageStatus;
+  const prevStatus = isB ? prev.imageBStatus : prev.imageStatus;
+  const url = isB ? scene.imageBUrl : scene.imageUrl;
+
+  if (status !== prevStatus || !prevStatus) {
+    patchNodeStatus(nodeId, status, statusBadgeText(status), status);
+  }
+  if (status === 'completed' && url) {
+    patchImageSrc(nodeId, url, `Image ${type}`);
+    patchActions(nodeId, scene, sceneIdx, isB ? 'imgB' : 'imgA');
+  }
+  // If error changed
+  const err = isB ? scene.imageBError : scene.imageError;
+  const prevErr = isB ? prev.imageBError : prev.imageError;
+  if (err && err !== prevErr) {
+    const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+    if (node) {
+      let errEl = node.querySelector('.err-display');
+      if (!errEl) {
+        errEl = document.createElement('div');
+        errEl.className = 'node-field err-display';
+        errEl.innerHTML = `<div class="node-field-label">Error</div><div class="node-field-value error"></div>`;
+        node.querySelector('.node-body').appendChild(errEl);
+      }
+      errEl.querySelector('.node-field-value').textContent = err.slice(0, 100);
+    }
+  }
+  if (status !== 'processing' && status !== 'generating' && status !== 'pending' && entry.status !== 'processing') {
+    patchActions(nodeId, scene, sceneIdx, isB ? 'imgB' : 'imgA');
+  }
+}
+
+function patchCtaNode(nodeId, scene, prev, sceneIdx) {
+  const status = scene.ctaImageStatus || 'pending';
+  const prevStatus = prev.ctaImageStatus || 'pending';
+  const url = scene.ctaImageUrl;
+
+  if (status !== prevStatus) {
+    patchNodeStatus(nodeId, status, statusBadgeText(status), status);
+  }
+  if (status === 'completed' && url) {
+    patchImageSrc(nodeId, url, 'CTA Image');
+    patchActions(nodeId, scene, sceneIdx, 'cta');
+  }
+}
+
+function patchVideoNode(nodeId, scene, prev, sceneIdx, isFP) {
+  const status = scene.videoStatus || 'pending';
+  const prevStatus = prev.videoStatus || 'pending';
+  const url = scene.videoUrl;
+
+  if (status !== prevStatus) {
+    patchNodeStatus(nodeId, status, statusBadgeText(status), status);
+  }
+  if (status === 'completed' && url) {
+    patchVideoSrc(nodeId, url);
+    patchActions(nodeId, scene, sceneIdx, 'video');
+  }
+  if (status !== 'processing' && status !== 'generating' && entry.status !== 'processing') {
+    patchActions(nodeId, scene, sceneIdx, 'video');
+  }
+}
+
+function patchPlanningNode(entry, prev) {
+  const node = document.querySelector('.node[data-node-id="planning"]');
+  if (!node) return;
+  const ph = entry.currentPhase, st = entry.status;
+  let badgeText = 'Pending', badgeClass = 'pending', statusClass = 'default';
+  if (ph === 'planning' && st === 'processing') { badgeText = '⏳ Running'; badgeClass = 'generating'; statusClass = 'processing'; }
+  else if (entry.scenes?.length) { badgeText = '✅ Done'; badgeClass = 'completed'; statusClass = 'completed'; }
+  else if (st === 'paused' && ph === 'planning') { badgeText = '❌ Failed'; badgeClass = 'failed'; statusClass = 'failed'; }
+  patchNodeStatus('planning', statusClass, badgeText, badgeClass);
+}
+
+function patchConcatNode(entry, prev) {
+  const ph = entry.currentPhase, st = entry.status;
+  let badge = 'Pending', badgeCls = 'pending', statusCls = 'default';
+  if (ph === 'concat' && st === 'processing') { badge = '⏳ Running'; badgeCls = 'generating'; statusCls = 'processing'; }
+  else if (st === 'completed' || (ph === 'done' && entry.finalVideoUrl)) { badge = '✅ Done'; badgeCls = 'completed'; statusCls = 'completed'; }
+  patchNodeStatus('concat', statusCls, badge, badgeCls);
+}
+
+function patchOutputNode(entry, prev) {
+  const done = entry.status === 'completed' && entry.finalVideoUrl;
+  const nodeId = 'output';
+
+  if (done && entry.finalVideoUrl) {
+    patchNodeStatus(nodeId, 'completed', '✅ Ready', 'completed');
+    // Set video src only once
+    const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+    if (node) {
+      const waiting = node.querySelector('.waiting-msg');
+      if (waiting) waiting.remove();
+
+      let vid = node.querySelector('.node-video');
+      if (!vid) {
+        const wrap = document.createElement('div');
+        wrap.className = 'node-video-wrap';
+        vid = document.createElement('video');
+        vid.className = 'node-video node-video-portrait';
+        vid.controls = true;
+        vid.preload = 'metadata';
+        vid.playsInline = true;
+        wrap.appendChild(vid);
+        const body = node.querySelector('.node-body');
+        body.prepend(wrap);
+      }
+      const vk = getVersionKey(entry.finalVideoUrl);
+      const targetSrc = entry.finalVideoUrl + '?v=' + vk;
+      if (!vid.src || vid.getAttribute('data-url') !== entry.finalVideoUrl) {
+        vid.src = targetSrc;
+        vid.setAttribute('data-url', entry.finalVideoUrl);
+      }
+
+      // Add cost + download if not already there
+      if (!node.querySelector('.total-cost-field') && entry.totalCost != null) {
+        const body = node.querySelector('.node-body');
+        const cf = field('Total Cost', '$' + parseFloat(entry.totalCost).toFixed(4), 'cost');
+        cf.classList.add('total-cost-field');
+        body.appendChild(cf);
+      }
+      if (!node.querySelector('.dl-btn')) {
+        const actions = document.createElement('div');
+        actions.className = 'node-actions';
+        const dlBtn = actionBtn('⬇ Download', 'green', () => {
+          const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click();
+        });
+        dlBtn.classList.add('dl-btn');
+        actions.appendChild(dlBtn);
+        node.querySelector('.node-body').appendChild(actions);
+      }
+    }
+  }
+}
+
+// ── Place a node element in the world, return its height ──
+function placeNode(world, nodeEl, x, y, id) {
+  nodeEl.style.left = x + 'px';
+  nodeEl.style.top  = y + 'px';
+  nodeEl.dataset.nodeId = id;
+  nodeEl.addEventListener('click', (e) => {
+    // Don't open detail when clicking action buttons or video controls
+    if (e.target.closest('.node-actions') || e.target.closest('video') || e.target.closest('a')) return;
+    openNodeDetail(id);
+  });
+  world.appendChild(nodeEl);
+  const h = nodeEl.offsetHeight || 200;
+  nodeRects[id] = { x, y, w: NODE_W, h };
+  return h;
+}
+
+function addLabel(world, x, y, w, text, cls) {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.width = w + 'px';
+  el.textContent = text;
+  world.appendChild(el);
+}
+
+function addDivider(world, x, height) {
+  const el = document.createElement('div');
+  el.className = 'phase-divider';
+  el.style.left   = x + 'px';
+  el.style.top    = '0';
+  el.style.height = (height + 200) + 'px';
+  world.appendChild(el);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  NODE BUILDERS
+// ══════════════════════════════════════════════════════════════════
+
+function makeNode(icon, title, badgeText, badgeClass, typeClass, statusClass) {
+  const node = document.createElement('div');
+  node.className = `node type-${typeClass} status-${statusClass}`;
+
+  const header = document.createElement('div');
+  header.className = 'node-header';
+  header.innerHTML = `
+    <span class="node-icon">${icon}</span>
+    <span class="node-title">${title}</span>
+    <span class="node-badge ${badgeClass}">${badgeText}</span>
+  `;
+  node.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'node-body';
+  node.appendChild(body);
+
+  const portIn  = document.createElement('div');
+  const portOut = document.createElement('div');
+  portIn.className  = 'node-port in';
+  portOut.className = 'node-port out';
+  node.appendChild(portIn);
+  node.appendChild(portOut);
+
+  return { node, body };
+}
+
+function field(label, value, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'node-field';
+  d.innerHTML = `<div class="node-field-label">${label}</div><div class="node-field-value ${cls}">${value}</div>`;
+  return d;
+}
+
+function thumb(url, label) {
+  const img = document.createElement('img');
+  img.className = 'node-thumb';
+  const vk = getVersionKey(url);
+  img.src = url + '?v=' + vk;
+  img.alt = label;
+  img.title = 'Click node to open detail';
+  img.onerror = () => { img.style.opacity = '.2'; img.style.background = 'var(--surface2)'; };
+  return img;
+}
+
+function actionBtn(text, cls, onclick, title) {
+  const btn = document.createElement('button');
+  btn.className = `btn-sm ${cls}`;
+  btn.textContent = text;
+  btn.title = title || text;
+  btn.onclick = (e) => { e.stopPropagation(); onclick(); };
+  return btn;
+}
+
+// ── Input node ──
+function buildInputNode(entry) {
+  const { node, body } = makeNode('📋', 'Story Input', 'Input', 'completed', 'input', 'completed');
+  const pm = entry.pipelineMode === 'fast-paced' ? '⚡ Fast-Paced' : '📽 Standard';
+  body.appendChild(field('Pipeline Mode', pm));
+  body.appendChild(field('Duration Range', entry.durationRange ? entry.durationRange + 's' : '—'));
+  body.appendChild(field('Video Model', entry.videoModelLabel || entry.videoModel || '—'));
+  if (entry.storyText) body.appendChild(field('Story', escHtml(entry.storyText.slice(0, 120)) + '…', 'prompt'));
+  if (entry.voiceDesc) body.appendChild(field('Voice', escHtml(entry.voiceDesc), 'prompt'));
+  if (entry.heroDesc)  body.appendChild(field('Hero Desc', escHtml(entry.heroDesc.slice(0, 80)) + '…', 'prompt'));
+  node.querySelector('.node-port.in').style.display = 'none';
+  return node;
+}
+
+// ── Planning node ──
+function buildPlanningNode(entry) {
+  const ph = entry.currentPhase;
+  const st = entry.status;
+  let badgeText = 'Pending', badgeClass = 'pending', statusClass = 'default';
+  if (ph === 'planning' && st === 'processing') { badgeText = '⏳ Running'; badgeClass = 'generating'; statusClass = 'processing'; }
+  else if (entry.scenes?.length) { badgeText = '✅ Done'; badgeClass = 'completed'; statusClass = 'completed'; }
+  else if (st === 'paused' && ph === 'planning') { badgeText = '❌ Failed'; badgeClass = 'failed'; statusClass = 'failed'; }
+
+  const { node, body } = makeNode('🤖', 'AI Planning', badgeText, badgeClass, 'phase', statusClass);
+
+  if (entry.scenes?.length) {
+    body.appendChild(field('Scenes Planned', `${entry.scenes.length} scenes`));
+    body.appendChild(field('Total Duration', entry.scenes.reduce((s, sc) => s + (sc.duration || 0), 0) + 's'));
+  }
+  if (entry.voiceOverCharacteristics) {
+    body.appendChild(field('Voice-over', escHtml(entry.voiceOverCharacteristics.slice(0, 90)), 'prompt'));
+  }
+  if (entry.status === 'paused' && entry.currentPhase === 'planning' && entry.error) {
+    body.appendChild(field('Error', escHtml(entry.error), 'error'));
+  }
+  return node;
+}
+
+// ── Image node (type A or B) ──
+function buildImageNode(scene, type, sceneIdx, entryStatus) {
+  const isB = type === 'B';
+  const status = isB ? (scene.imageBStatus || 'pending') : (scene.imageStatus || 'pending');
+  const url    = isB ? scene.imageBUrl : scene.imageUrl;
+  const err    = isB ? scene.imageBError : scene.imageError;
+  const cost   = isB ? scene.imageBCost : scene.imageCost;
+  const prompt = isB ? scene.imageBPrompt : scene.imagePrompt;
+  const title  = isB ? `Image B — Frame End` : `Image A — Opening Frame`;
+  const badge  = statusBadgeText(status);
+
+  const { node, body } = makeNode('🖼', title, badge, status, 'scene', status);
+
+  if (status === 'completed' && url) {
+    body.appendChild(thumb(url, title));
+  } else if (status === 'generating') {
+    const ph = document.createElement('div');
+    ph.className = 'node-field img-placeholder';
+    ph.innerHTML = `<div class="node-field-value"><span class="spin">⏳</span> Generating…</div>`;
+    body.appendChild(ph);
+  } else if (status === 'failed' && err) {
+    body.appendChild(field('Error', escHtml(err.slice(0, 100)), 'error'));
+  } else if (status === 'skipped') {
+    body.appendChild(field('', 'Skipped (sequential pipeline)', 'muted'));
+  }
+
+  if (prompt) body.appendChild(field('Prompt', escHtml(prompt.slice(0, 120)) + '…', 'prompt'));
+  if (cost != null) body.appendChild(field('Cost', '$' + parseFloat(cost).toFixed(4), 'cost'));
+
+  const idle = entryStatus !== 'processing';
+  if ((status === 'completed' || status === 'failed') && url && idle) {
+    const actions = document.createElement('div');
+    actions.className = 'node-actions';
+    actions.appendChild(actionBtn('🔍 View', '', () => window.open(url, '_blank'), 'Open full size'));
+    actions.appendChild(actionBtn('🖼 Regen', '', () => callApi(`/api/regen-image/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate image'));
+    body.appendChild(actions);
+  }
+
+  return node;
+}
+
+// ── CTA Image node ──
+function buildCtaImageNode(scene, sceneIdx, entryStatus) {
+  const status = scene.ctaImageStatus || 'pending';
+  const url    = scene.ctaImageUrl;
+  const err    = scene.ctaImageError;
+  const cost   = scene.ctaImageCost;
+  const badge  = statusBadgeText(status);
+
+  const { node, body } = makeNode('🎯', 'CTA Image', badge, status, 'scene', status);
+
+  if (status === 'completed' && url) body.appendChild(thumb(url, 'CTA Image'));
+  else if (status === 'generating') {
+    const ph = document.createElement('div');
+    ph.className = 'node-field img-placeholder';
+    ph.innerHTML = `<div class="node-field-value"><span class="spin">⏳</span> Generating…</div>`;
+    body.appendChild(ph);
+  }
+  else if (status === 'failed' && err) body.appendChild(field('Error', escHtml(err.slice(0, 100)), 'error'));
+
+  if (scene.ctaImagePrompt) body.appendChild(field('Prompt', escHtml(scene.ctaImagePrompt.slice(0, 120)) + '…', 'prompt'));
+  if (cost != null) body.appendChild(field('Cost', '$' + parseFloat(cost).toFixed(4), 'cost'));
+
+  const idle = entryStatus !== 'processing';
+  if (status === 'completed' && url && idle) {
+    const actions = document.createElement('div');
+    actions.className = 'node-actions';
+    actions.appendChild(actionBtn('🔍 View', '', () => window.open(url, '_blank')));
+    actions.appendChild(actionBtn('🎯 Regen', '', () => callApi(`/api/regen-image/${entry.taskUUID}/${sceneIdx}`, 'POST')));
+    body.appendChild(actions);
+  }
+  return node;
+}
+
+// ── Video node ──
+function buildVideoNode(scene, sceneIdx, entryStatus, isFP) {
+  const status = scene.videoStatus || 'pending';
+  const url    = scene.videoUrl;
+  const err    = scene.videoError;
+  const cost   = scene.videoCost;
+  const badge  = statusBadgeText(status);
+  const dur    = scene.duration ? scene.duration + 's' : '';
+
+  const { node, body } = makeNode('🎥', `Video ${dur}`, badge, status, 'scene', status);
+
+  if (status === 'completed' && url) {
+    const wrap = document.createElement('div');
+    wrap.className = 'node-video-wrap';
+    const vid = document.createElement('video');
+    vid.className = 'node-video node-video-portrait';
+    const vk = getVersionKey(url);
+    vid.src = url + '?v=' + vk;
+    vid.setAttribute('data-url', url);
+    vid.controls = true;
+    vid.preload = 'metadata';
+    vid.playsInline = true;
+    wrap.appendChild(vid);
+    body.appendChild(wrap);
+  } else if (status === 'generating') {
+    const ph = document.createElement('div');
+    ph.className = 'node-field vid-placeholder';
+    ph.innerHTML = `<div class="node-field-value"><span class="spin">⏳</span> Generating…</div>`;
+    body.appendChild(ph);
+  } else if (status === 'failed' && err) {
+    body.appendChild(field('Error', escHtml(err.slice(0, 100)), 'error'));
+  }
+
+  if (scene.videoPrompt) {
+    const vp = scene.videoPrompt;
+    const colonIdx = vp.indexOf('": "');
+    const shortVP = colonIdx > -1 ? vp.slice(colonIdx + 4).replace(/"\s*$/, '') : vp.slice(0, 100);
+    body.appendChild(field('V/O Line', escHtml(shortVP.slice(0, 100)), 'prompt'));
+  }
+  if (cost != null) body.appendChild(field('Cost', '$' + parseFloat(cost).toFixed(4), 'cost'));
+  if (!isFP && sceneIdx > 0) body.appendChild(field('', 'First frame → prev scene last frame', 'muted'));
+
+  const idle = entryStatus !== 'processing';
+  if ((status === 'completed' || status === 'failed') && idle) {
+    const actions = document.createElement('div');
+    actions.className = 'node-actions';
+    if (url) actions.appendChild(actionBtn('⬇ DL', 'green', () => {
+      const a = document.createElement('a'); a.href = url; a.download = ''; a.click();
+    }, 'Download video'));
+    actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(`/api/regen-video/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate video'));
+    body.appendChild(actions);
+  }
+
+  return node;
+}
+
+// ── Concat node ──
+function buildConcatNode(entry) {
+  const ph = entry.currentPhase;
+  const st = entry.status;
+  let badge = 'Pending', badgeCls = 'pending', statusCls = 'default';
+  if (ph === 'concat' && st === 'processing') { badge = '⏳ Running'; badgeCls = 'generating'; statusCls = 'processing'; }
+  else if (st === 'completed' || (ph === 'done' && entry.finalVideoUrl)) { badge = '✅ Done'; badgeCls = 'completed'; statusCls = 'completed'; }
+
+  const { node, body } = makeNode('⛓', 'Concat + Mix', badge, badgeCls, 'phase', statusCls);
+  const hasMusic = !!entry.musicFilePath;
+  body.appendChild(field('Music Mix', hasMusic ? '🎵 Yes' : '—'));
+  if (entry.scenes?.length) body.appendChild(field('Segments', entry.scenes.length + ' video clips'));
+  return node;
+}
+
+// ── Output node ──
+function buildOutputNode(entry) {
+  const done = entry.status === 'completed' && entry.finalVideoUrl;
+  const badge = done ? '✅ Ready' : (entry.status === 'processing' ? '⏳ Wait' : '—');
+  const badgeCls = done ? 'completed' : 'pending';
+  const statusCls = done ? 'completed' : 'default';
+
+  const { node, body } = makeNode('🏁', 'Final Video', badge, badgeCls, 'output', statusCls);
+  node.querySelector('.node-port.out').style.display = 'none';
+
+  if (done && entry.finalVideoUrl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'node-video-wrap';
+    const vid = document.createElement('video');
+    vid.className = 'node-video node-video-portrait';
+    const vk = getVersionKey(entry.finalVideoUrl);
+    vid.src = entry.finalVideoUrl + '?v=' + vk;
+    vid.setAttribute('data-url', entry.finalVideoUrl);
+    vid.controls = true;
+    vid.preload = 'metadata';
+    vid.playsInline = true;
+    wrap.appendChild(vid);
+    body.appendChild(wrap);
+
+    if (entry.totalCost != null) body.appendChild(field('Total Cost', '$' + parseFloat(entry.totalCost).toFixed(4), 'cost'));
+    if (entry.completedAt) body.appendChild(field('Completed', new Date(entry.completedAt).toLocaleTimeString()));
+
+    const actions = document.createElement('div');
+    actions.className = 'node-actions';
+    actions.appendChild(actionBtn('⬇ Download', 'green', () => {
+      const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click();
+    }));
+    body.appendChild(actions);
+  } else if (entry.status === 'paused' && entry.error) {
+    body.appendChild(field('Error', escHtml(entry.error.slice(0, 100)), 'error'));
+  } else {
+    const wm = field('', 'Waiting for all scenes…', 'muted');
+    wm.classList.add('waiting-msg');
+    body.appendChild(wm);
+  }
+  return node;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CONNECTIONS
+// ══════════════════════════════════════════════════════════════════
+function drawConnections(N, isFP, baseY) {
+  const svg = document.getElementById('connections-svg');
+  svg.innerHTML = '';
+
+  const connections = [];
+
+  connections.push({ from: 'input', to: 'planning', color: 'var(--accent)' });
+
+  if (N === 0) {
+    connections.push({ from: 'planning', to: 'concat', color: 'var(--accent2)' });
+    connections.push({ from: 'concat',   to: 'output', color: 'var(--green)' });
+  } else {
+    for (let i = 0; i < N; i++) {
+      const isFirst = i === 0, isLast  = i === N - 1;
+      const hasImgA = isFP ? true : !isLast;
+      const hasImgB = !isFP && isFirst && nodeRects[`img_b_${i}`];
+      const hasCTA  = isLast && nodeRects[`cta_${i}`];
+
+      const firstImgId = hasImgA ? `img_a_${i}` : (hasCTA ? `cta_${i}` : `vid_${i}`);
+      if (i === 0) {
+        connections.push({ from: 'planning', to: firstImgId, color: 'var(--accent2)' });
+      } else {
+        connections.push({ from: `vid_${i-1}`, to: firstImgId, color: 'var(--accent2)' });
+      }
+
+      if (hasImgA && hasImgB) {
+        connections.push({ from: `img_a_${i}`, to: `img_b_${i}`, color: 'var(--muted)', vertical: true });
+      }
+      if (hasImgB) {
+        connections.push({ from: `img_b_${i}`, to: `vid_${i}`, color: 'var(--yellow)', vertical: true });
+      } else if (hasImgA && hasCTA) {
+        connections.push({ from: `img_a_${i}`, to: `cta_${i}`, color: 'var(--orange)', vertical: true });
+        connections.push({ from: `cta_${i}`,   to: `vid_${i}`, color: 'var(--yellow)', vertical: true });
+      } else if (hasImgA) {
+        connections.push({ from: `img_a_${i}`, to: `vid_${i}`, color: 'var(--yellow)', vertical: true });
+      } else if (hasCTA) {
+        connections.push({ from: `cta_${i}`, to: `vid_${i}`, color: 'var(--yellow)', vertical: true });
+      }
+    }
+    connections.push({ from: `vid_${N-1}`, to: 'concat', color: 'var(--accent2)' });
+    connections.push({ from: 'concat', to: 'output', color: 'var(--green)' });
+  }
+
+  for (const c of connections) {
+    const fromR = nodeRects[c.from];
+    const toR   = nodeRects[c.to];
+    if (!fromR || !toR) continue;
+    drawCurve(svg, fromR, toR, c.color, c.vertical || false);
+  }
+}
+
+function drawCurve(svg, fromR, toR, color, vertical) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  let d;
+
+  if (vertical) {
+    const x = fromR.x + fromR.w / 2;
+    const y1 = fromR.y + fromR.h;
+    const y2 = toR.y;
+    const mid = (y1 + y2) / 2;
+    d = `M ${x} ${y1} C ${x} ${mid}, ${x} ${mid}, ${x} ${y2}`;
+  } else {
+    const x1 = fromR.x + fromR.w;
+    const y1 = fromR.y + fromR.h / 2;
+    const x2 = toR.x;
+    const y2 = toR.y + toR.h / 2;
+    const cx = (x1 + x2) / 2;
+    d = `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`;
+  }
+
+  path.setAttribute('d', d);
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke-opacity', '0.55');
+  svg.appendChild(path);
+
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  const ex = vertical ? (toR.x + toR.w / 2) : toR.x;
+  const ey = vertical ? toR.y : (toR.y + toR.h / 2);
+  arrow.setAttribute('cx', ex); arrow.setAttribute('cy', ey);
+  arrow.setAttribute('r', '4');
+  arrow.setAttribute('fill', color); arrow.setAttribute('opacity', '0.7');
+  svg.appendChild(arrow);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  NODE DETAIL MODAL
+// ══════════════════════════════════════════════════════════════════
+function openNodeDetail(nodeId) {
+  if (!entry) return;
+  const overlay = document.getElementById('detail-overlay');
+  overlay.innerHTML = '';
+
+  const modal = document.createElement('div');
+  modal.className = 'detail-modal';
+  modal.addEventListener('click', e => e.stopPropagation());
+
+  const scenes = entry.scenes || [];
+  const isFP = entry.pipelineMode === 'fast-paced';
+  const N = scenes.length;
+  const idle = entry.status !== 'processing';
+
+  let content = null;
+
+  if (nodeId === 'input') {
+    content = buildDetailInput(entry);
+  } else if (nodeId === 'planning') {
+    content = buildDetailPlanning(entry);
+  } else if (nodeId === 'concat') {
+    content = buildDetailConcat(entry);
+  } else if (nodeId === 'output') {
+    content = buildDetailOutput(entry, idle);
+  } else if (nodeId.startsWith('img_a_')) {
+    const i = parseInt(nodeId.split('_')[2]);
+    content = buildDetailImageA(scenes[i], i, entry, idle);
+  } else if (nodeId.startsWith('img_b_')) {
+    const i = parseInt(nodeId.split('_')[2]);
+    content = buildDetailImageB(scenes[i], i, entry, idle);
+  } else if (nodeId.startsWith('cta_')) {
+    const i = parseInt(nodeId.split('_')[1]);
+    content = buildDetailCta(scenes[i], i, entry, idle);
+  } else if (nodeId.startsWith('vid_')) {
+    const i = parseInt(nodeId.split('_')[1]);
+    content = buildDetailVideo(scenes[i], i, entry, idle, isFP);
+  }
+
+  if (!content) return;
+
+  modal.innerHTML = '';
+  modal.appendChild(content.header);
+  modal.appendChild(content.body);
+  if (content.footer) modal.appendChild(content.footer);
+
+  overlay.appendChild(modal);
+  overlay.style.display = 'flex';
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').style.display = 'none';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('detail-overlay')) closeDetail();
+}
+
+// ── Detail header builder ──
+function detailHeader(icon, title, badge, badgeClass) {
+  const h = document.createElement('div');
+  h.className = 'detail-header';
+  h.innerHTML = `
+    <span class="dh-icon">${icon}</span>
+    <span class="dh-title">${title}</span>
+    <span class="dh-badge node-badge ${badgeClass}">${badge}</span>
+    <div class="dh-close" onclick="closeDetail()" title="Close">✕</div>
+  `;
+  return h;
+}
+
+// ── Detail field builder ──
+function detailField(label, value, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'detail-field';
+  const valEl = document.createElement('div');
+  valEl.className = `detail-field-value ${cls}`;
+  valEl.textContent = value || '—';
+  d.innerHTML = `<div class="detail-field-label">${escHtml(label)}</div>`;
+  d.appendChild(valEl);
+  return d;
+}
+
+function detailSectionTitle(text) {
+  const d = document.createElement('div');
+  d.className = 'detail-section-title';
+  d.textContent = text;
+  return d;
+}
+
+function detailStatusRow(chips) {
+  const row = document.createElement('div');
+  row.className = 'detail-status-row';
+  for (const { label, cls } of chips) {
+    const chip = document.createElement('div');
+    chip.className = `detail-stat-chip ${cls || ''}`;
+    chip.textContent = label;
+    row.appendChild(chip);
+  }
+  return row;
+}
+
+function detailImg(url, alt) {
+  const img = document.createElement('img');
+  img.className = 'detail-img';
+  const vk = getVersionKey(url);
+  img.src = url + '?v=' + vk;
+  img.alt = alt || 'Image';
+  img.title = 'Click to open full size';
+  img.onclick = () => window.open(url, '_blank');
+  img.onerror = () => { img.style.opacity = '.3'; img.alt = 'Failed to load'; };
+  return img;
+}
+
+function detailVideo(url) {
+  const vid = document.createElement('video');
+  vid.className = 'detail-video';
+  const vk = getVersionKey(url);
+  vid.src = url + '?v=' + vk;
+  vid.controls = true;
+  vid.preload = 'auto';
+  vid.playsInline = true;
+  vid.style.maxHeight = '65vh';
+  return vid;
+}
+
+function detailFooter(buttons) {
+  const f = document.createElement('div');
+  f.className = 'detail-actions';
+  for (const { text, cls, fn, title } of buttons) {
+    const btn = document.createElement('button');
+    btn.className = `btn-sm ${cls || ''}`;
+    btn.textContent = text;
+    if (title) btn.title = title;
+    btn.onclick = fn;
+    f.appendChild(btn);
+  }
+  return f;
+}
+
+// ── Detail: Input ──
+function buildDetailInput(entry) {
+  const pm = entry.pipelineMode === 'fast-paced' ? '⚡ Fast-Paced' : '📽 Standard';
+  const header = detailHeader('📋', 'Story Input', 'Input', 'completed');
+
+  const body = document.createElement('div');
+  body.className = 'detail-body single-col';
+
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  info.appendChild(detailStatusRow([
+    { label: pm, cls: 'green' },
+    { label: (entry.durationRange || '—') + 's', cls: 'muted' },
+    { label: entry.videoModel || '—', cls: 'muted' },
+  ]));
+
+  if (entry.storyText) info.appendChild(detailField('Story / Script', entry.storyText));
+  if (entry.voiceDesc) info.appendChild(detailField('Voice Description', entry.voiceDesc));
+  if (entry.heroDesc)  info.appendChild(detailField('Hero Description', entry.heroDesc));
+  if (entry.gameContext) info.appendChild(detailField('Game Context', entry.gameContext));
+  if (entry.heroImagePath) info.appendChild(detailField('Hero Image', entry.heroImagePath));
+  if (entry.bgImagePath) info.appendChild(detailField('Background Image', entry.bgImagePath));
+  if (entry.musicFilePath) info.appendChild(detailField('Music File', entry.musicFilePath));
+  info.appendChild(detailField('Task UUID', entry.taskUUID || '—'));
+  if (entry.createdAt) info.appendChild(detailField('Created', new Date(entry.createdAt).toLocaleString()));
+
+  body.appendChild(info);
+  return { header, body };
+}
+
+// ── Detail: Planning ──
+function buildDetailPlanning(entry) {
+  const ph = entry.currentPhase, st = entry.status;
+  let badgeText = 'Pending', badgeClass = 'pending';
+  if (ph === 'planning' && st === 'processing') { badgeText = '⏳ Running'; badgeClass = 'generating'; }
+  else if (entry.scenes?.length) { badgeText = '✅ Done'; badgeClass = 'completed'; }
+  else if (st === 'paused' && ph === 'planning') { badgeText = '❌ Failed'; badgeClass = 'failed'; }
+
+  const header = detailHeader('🤖', 'AI Scene Planning', badgeText, badgeClass);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body single-col';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  if (entry.scenes?.length) {
+    const total = entry.scenes.reduce((s, sc) => s + (sc.duration || 0), 0);
+    info.appendChild(detailStatusRow([
+      { label: `${entry.scenes.length} scenes`, cls: 'green' },
+      { label: `${total}s total`, cls: 'muted' },
+    ]));
+
+    info.appendChild(detailSectionTitle('Scenes Overview'));
+    for (let i = 0; i < entry.scenes.length; i++) {
+      const sc = entry.scenes[i];
+      const sd = document.createElement('div');
+      sd.className = 'detail-field';
+      sd.innerHTML = `<div class="detail-field-label">Scene ${i + 1} · ${sc.duration || '?'}s · ${sc.videoStatus || 'pending'}</div>`;
+      const sv = document.createElement('div');
+      sv.className = 'detail-field-value';
+      sv.style.fontSize = '11px';
+      sv.textContent = (sc.videoPrompt || '').slice(0, 200) || '(no prompt yet)';
+      sd.appendChild(sv);
+      info.appendChild(sd);
+    }
+  }
+  if (entry.voiceOverCharacteristics) info.appendChild(detailField('Voice-over Characteristics', entry.voiceOverCharacteristics));
+  if (entry.error && ph === 'planning') info.appendChild(detailField('Error', entry.error, 'error'));
+
+  body.appendChild(info);
+  return { header, body };
+}
+
+// ── Detail: Image A ──
+function buildDetailImageA(scene, i, entry, idle) {
+  const status = scene.imageStatus || 'pending';
+  const url = scene.imageUrl;
+  const header = detailHeader('🖼', `Scene ${i + 1} — Image A (Opening Frame)`, statusBadgeText(status), status);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body' + (url && status === 'completed' ? '' : ' single-col');
+
+  const media = document.createElement('div');
+  media.className = 'detail-media';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  if (status === 'completed' && url) {
+    media.appendChild(detailImg(url, 'Image A'));
+  } else if (status === 'generating') {
+    info.appendChild(genSpinner('Generating image…'));
+  } else if (status === 'failed' && scene.imageError) {
+    info.appendChild(detailField('Error', scene.imageError, 'error'));
+  }
+
+  const chips = [{ label: `Scene ${i + 1}`, cls: 'muted' }];
+  if (scene.duration) chips.push({ label: scene.duration + 's', cls: 'muted' });
+  if (scene.imageCost != null) chips.push({ label: '$' + parseFloat(scene.imageCost).toFixed(4), cls: 'green' });
+  if (scene.useHeroRef) chips.push({ label: '🧑 Hero ref', cls: '' });
+  if (scene.useBgRef) chips.push({ label: '🖼 BG ref', cls: '' });
+  info.appendChild(detailStatusRow(chips));
+
+  if (scene.imagePrompt) info.appendChild(detailField('Image Prompt', scene.imagePrompt));
+
+  body.appendChild(media);
+  body.appendChild(info);
+
+  const footerBtns = [];
+  if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
+  if (idle) footerBtns.push({ text: '🖼 Regenerate Image', fn: () => { callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
+}
+
+// ── Detail: Image B ──
+function buildDetailImageB(scene, i, entry, idle) {
+  const status = scene.imageBStatus || 'pending';
+  const url = scene.imageBUrl;
+  const header = detailHeader('🖼', `Scene ${i + 1} — Image B (End Frame)`, statusBadgeText(status), status);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body' + (url && status === 'completed' ? '' : ' single-col');
+
+  const media = document.createElement('div');
+  media.className = 'detail-media';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  if (status === 'completed' && url) {
+    media.appendChild(detailImg(url, 'Image B'));
+  } else if (status === 'generating') {
+    info.appendChild(genSpinner('Generating image B…'));
+  } else if (status === 'failed' && scene.imageBError) {
+    info.appendChild(detailField('Error', scene.imageBError, 'error'));
+  }
+
+  const chips = [{ label: `Scene ${i + 1} — End Frame`, cls: 'muted' }];
+  if (scene.imageBCost != null) chips.push({ label: '$' + parseFloat(scene.imageBCost).toFixed(4), cls: 'green' });
+  info.appendChild(detailStatusRow(chips));
+
+  if (scene.imageBPrompt) info.appendChild(detailField('Image B Prompt', scene.imageBPrompt));
+
+  body.appendChild(media);
+  body.appendChild(info);
+
+  const footerBtns = [];
+  if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
+  if (idle) footerBtns.push({ text: '🖼 Regenerate Image', fn: () => { callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
+}
+
+// ── Detail: CTA ──
+function buildDetailCta(scene, i, entry, idle) {
+  const status = scene.ctaImageStatus || 'pending';
+  const url = scene.ctaImageUrl;
+  const header = detailHeader('🎯', `Scene ${i + 1} — CTA Image`, statusBadgeText(status), status);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body' + (url && status === 'completed' ? '' : ' single-col');
+
+  const media = document.createElement('div');
+  media.className = 'detail-media';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  if (status === 'completed' && url) {
+    media.appendChild(detailImg(url, 'CTA Image'));
+  } else if (status === 'generating') {
+    info.appendChild(genSpinner('Generating CTA image…'));
+  } else if (status === 'failed' && scene.ctaImageError) {
+    info.appendChild(detailField('Error', scene.ctaImageError, 'error'));
+  }
+
+  const chips = [{ label: 'CTA / Call-to-Action', cls: 'muted' }, { label: `Scene ${i + 1} Last`, cls: 'muted' }];
+  if (scene.ctaImageCost != null) chips.push({ label: '$' + parseFloat(scene.ctaImageCost).toFixed(4), cls: 'green' });
+  info.appendChild(detailStatusRow(chips));
+
+  if (scene.ctaImagePrompt) info.appendChild(detailField('CTA Prompt', scene.ctaImagePrompt));
+
+  body.appendChild(media);
+  body.appendChild(info);
+
+  const footerBtns = [];
+  if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
+  if (idle) footerBtns.push({ text: '🎯 Regenerate CTA', fn: () => { callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
+}
+
+// ── Detail: Video ──
+function buildDetailVideo(scene, i, entry, idle, isFP) {
+  const status = scene.videoStatus || 'pending';
+  const url = scene.videoUrl;
+  const header = detailHeader('🎥', `Scene ${i + 1} — Video (${scene.duration || '?'}s)`, statusBadgeText(status), status);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body' + (url && status === 'completed' ? '' : ' single-col');
+
+  const media = document.createElement('div');
+  media.className = 'detail-media';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  if (status === 'completed' && url) {
+    media.appendChild(detailVideo(url));
+  } else if (status === 'generating') {
+    info.appendChild(genSpinner('Generating video…'));
+  } else if (status === 'failed' && scene.videoError) {
+    info.appendChild(detailField('Error', scene.videoError, 'error'));
+  }
+
+  const chips = [{ label: `Scene ${i + 1}`, cls: 'muted' }];
+  if (scene.duration) chips.push({ label: scene.duration + 's', cls: 'muted' });
+  if (scene.videoCost != null) chips.push({ label: '$' + parseFloat(scene.videoCost).toFixed(4), cls: 'green' });
+  if (!isFP && i > 0) chips.push({ label: 'Frame-chained', cls: '' });
+  info.appendChild(detailStatusRow(chips));
+
+  if (scene.videoPrompt) {
+    info.appendChild(detailField('Video / V/O Prompt', scene.videoPrompt));
+  }
+  if (scene.imagePrompt) info.appendChild(detailField('Opening Frame Prompt', scene.imagePrompt));
+  if (!isFP && i === 0 && scene.imageBPrompt) info.appendChild(detailField('End Frame Prompt', scene.imageBPrompt));
+
+  body.appendChild(media);
+  body.appendChild(info);
+
+  const footerBtns = [];
+  if (url) footerBtns.push({ text: '⬇ Download Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); } });
+  if (idle) footerBtns.push({ text: '🎬 Regenerate Video', fn: () => { callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
+}
+
+// ── Detail: Concat ──
+function buildDetailConcat(entry) {
+  const ph = entry.currentPhase, st = entry.status;
+  let badgeText = 'Pending', badgeClass = 'pending';
+  if (ph === 'concat' && st === 'processing') { badgeText = '⏳ Running'; badgeClass = 'generating'; }
+  else if (st === 'completed') { badgeText = '✅ Done'; badgeClass = 'completed'; }
+
+  const header = detailHeader('⛓', 'Concat + Mix Phase', badgeText, badgeClass);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body single-col';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  const chips = [];
+  if (entry.scenes?.length) chips.push({ label: entry.scenes.length + ' clips', cls: 'muted' });
+  if (entry.musicFilePath) chips.push({ label: '🎵 Music included', cls: 'green' });
+  else chips.push({ label: 'No music', cls: 'muted' });
+  info.appendChild(detailStatusRow(chips));
+
+  info.appendChild(detailField('Mode', entry.pipelineMode === 'fast-paced' ? 'Fast-Paced (parallel)' : 'Standard (sequential + frame extraction)'));
+  if (entry.musicFilePath) info.appendChild(detailField('Music File', entry.musicFilePath));
+  if (entry.finalVideoUrl) info.appendChild(detailField('Output', entry.finalVideoUrl));
+
+  body.appendChild(info);
+  return { header, body, footer: detailFooter([{ text: 'Close', fn: closeDetail }]) };
+}
+
+// ── Detail: Output ──
+function buildDetailOutput(entry, idle) {
+  const done = entry.status === 'completed' && entry.finalVideoUrl;
+  const badge = done ? '✅ Ready' : (entry.status === 'processing' ? '⏳ Wait' : '—');
+  const badgeCls = done ? 'completed' : 'pending';
+
+  const header = detailHeader('🏁', 'Final Output Video', badge, badgeCls);
+
+  const body = document.createElement('div');
+  body.className = 'detail-body' + (done ? '' : ' single-col');
+
+  const media = document.createElement('div');
+  media.className = 'detail-media';
+  const info = document.createElement('div');
+  info.className = 'detail-info';
+
+  if (done) {
+    media.appendChild(detailVideo(entry.finalVideoUrl));
+  } else {
+    info.appendChild(field('', 'Final video not yet available.', 'muted'));
+  }
+
+  if (entry.totalCost != null) {
+    info.appendChild(detailStatusRow([{ label: 'Total cost: $' + parseFloat(entry.totalCost).toFixed(4), cls: 'green' }]));
+  }
+  if (entry.completedAt) info.appendChild(detailField('Completed At', new Date(entry.completedAt).toLocaleString()));
+  if (entry.finalVideoUrl) info.appendChild(detailField('File URL', entry.finalVideoUrl));
+  if (entry.error) info.appendChild(detailField('Error', entry.error, 'error'));
+
+  body.appendChild(media);
+  body.appendChild(info);
+
+  const footerBtns = [];
+  if (done && entry.finalVideoUrl) {
+    footerBtns.push({ text: '⬇ Download Final Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click(); } });
+  }
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
+}
+
+function genSpinner(msg) {
+  const d = document.createElement('div');
+  d.className = 'gen-spinner';
+  d.innerHTML = `<span class="spin">⏳</span> ${escHtml(msg)}`;
+  return d;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PAN + ZOOM
+// ══════════════════════════════════════════════════════════════════
+function setupPanZoom() {
+  const vp = document.getElementById('viewport');
+
+  vp.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.node')) return;
+    dragging = true; lastMX = e.clientX; lastMY = e.clientY;
+    vp.classList.add('grabbing');
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    tx += e.clientX - lastMX;
+    ty += e.clientY - lastMY;
+    lastMX = e.clientX; lastMY = e.clientY;
+    applyTransform();
+    drawMinimap();
+  });
+
+  window.addEventListener('mouseup', () => {
+    dragging = false;
+    document.getElementById('viewport').classList.remove('grabbing');
+  });
+
+  vp.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = vp.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const delta = e.deltaY < 0 ? 1.1 : 0.91;
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * delta));
+    tx = mx - (mx - tx) * (newScale / scale);
+    ty = my - (my - ty) * (newScale / scale);
+    scale = newScale;
+    applyTransform();
+    drawMinimap();
+  }, { passive: false });
+
+  // Touch pan
+  let touches = [];
+  vp.addEventListener('touchstart', e => { touches = [...e.touches]; });
+  vp.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && touches.length === 1) {
+      tx += e.touches[0].clientX - touches[0].clientX;
+      ty += e.touches[0].clientY - touches[0].clientY;
+    } else if (e.touches.length === 2 && touches.length === 2) {
+      const d0 = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY);
+      const d1 = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+      const delta = d1 / d0;
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * delta));
+    }
+    touches = [...e.touches];
+    applyTransform();
+    drawMinimap();
+  }, { passive: false });
+
+  // Keyboard shortcut: Escape to close modal
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeDetail();
+  });
+}
+
+function applyTransform() {
+  document.getElementById('world').style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+}
+
+function zoom(factor) {
+  const vp = document.getElementById('viewport');
+  const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+  const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+  tx = cx - (cx - tx) * (newScale / scale);
+  ty = cy - (cy - ty) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+  drawMinimap();
+}
+
+function resetView() { tx = 80; ty = 80; scale = 1; applyTransform(); drawMinimap(); }
+
+function fitCanvas() {
+  const vp = document.getElementById('viewport');
+  if (!Object.keys(nodeRects).length) return;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const r of Object.values(nodeRects)) {
+    minX = Math.min(minX, r.x);
+    minY = Math.min(minY, r.y);
+    maxX = Math.max(maxX, r.x + r.w);
+    maxY = Math.max(maxY, r.y + r.h);
+  }
+
+  const pad = 60;
+  const contentW = maxX - minX + pad * 2;
+  const contentH = maxY - minY + pad * 2;
+  const vpW = vp.clientWidth;
+  const vpH = vp.clientHeight;
+  const newScale = Math.min(vpW / contentW, vpH / contentH, MAX_SCALE);
+  scale = Math.max(MIN_SCALE, newScale);
+  tx = (vpW - contentW * scale) / 2 - (minX - pad) * scale;
+  ty = (vpH - contentH * scale) / 2 - (minY - pad) * scale;
+  applyTransform();
+  drawMinimap();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MINI-MAP
+// ══════════════════════════════════════════════════════════════════
+function drawMinimap() {
+  const canvas = document.getElementById('minimap-canvas');
+  const mm = document.getElementById('minimap');
+  const W = mm.clientWidth, H = mm.clientHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  if (!Object.keys(nodeRects).length) return;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const r of Object.values(nodeRects)) {
+    minX = Math.min(minX, r.x); minY = Math.min(minY, r.y);
+    maxX = Math.max(maxX, r.x + r.w); maxY = Math.max(maxY, r.y + r.h);
+  }
+  const cW = maxX - minX || 1, cH = maxY - minY || 1;
+  const s = Math.min((W - 10) / cW, (H - 10) / cH);
+  const ox = 5, oy = 5;
+
+  for (const r of Object.values(nodeRects)) {
+    ctx.fillStyle = '#2a2a30';
+    ctx.fillRect(ox + (r.x - minX) * s, oy + (r.y - minY) * s, Math.max(2, r.w * s), Math.max(2, r.h * s));
+  }
+
+  const vp = document.getElementById('viewport');
+  const vpW = vp.clientWidth, vpH = vp.clientHeight;
+  const vx = (-tx / scale - minX) * s + ox;
+  const vy = (-ty / scale - minY) * s + oy;
+  const vw = (vpW / scale) * s;
+  const vh = (vpH / scale) * s;
+  ctx.strokeStyle = 'rgba(124,58,237,.7)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(vx, vy, vw, vh);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  API HELPERS
+// ══════════════════════════════════════════════════════════════════
+async function callApi(url, method, body) {
+  try {
+    const opts = { method };
+    if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+    const res = await fetch(url, opts);
+    const data = await res.json();
+    if (!res.ok) { alert('Error: ' + (data.error || 'Request failed')); return; }
+    // Force full rebuild on next refresh after API action
+    canvasBuilt = false;
+    await refreshStory();
+  } catch(e) { alert('Request failed: ' + e.message); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════════════════
+function statusBadgeText(status) {
+  return { pending: '— Pending', generating: '⏳ Generating', completed: '✅ Done', failed: '❌ Failed', skipped: '— Skipped' }[status] || status;
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

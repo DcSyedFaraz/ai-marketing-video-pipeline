@@ -53,6 +53,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/output', express.static('output'));
+app.use('/uploads', express.static('uploads'));
 
 // Mount route files
 app.use(avatarRouter);

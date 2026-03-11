@@ -1,0 +1,315 @@
+{
+  "game": {
+    "title": "Blitz of Battle",
+    "genre": "Midcore Mobile MOBA",
+    "format": "2v2 real-time PvP",
+    "match_duration_minutes": 3,
+    "ranked_tiers": ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Immortal"],
+    "hero_term": "Eternals",
+    "platforms": ["iOS", "Android"],
+    "publisher": "Sanam Games"
+  },
+  "creative_guardrails": {
+    "hook_window_seconds": 3,
+    "optimal_video_length_seconds": [15, 30],
+    "cta_placement": "final 3-5 seconds",
+    "test_market": "Malaysia and Philippines via META Android",
+    "scale_market": "United States",
+    "words_to_avoid": ["easy", "free"],
+    "never_do": [
+      "Claim features that do not exist in-game",
+      "Open with logos, title cards, or slow pans",
+      "Use text-heavy intros before gameplay is shown"
+    ],
+    "cps_ir_weights": {
+      "ThruPlayRate": 0.30,
+      "CTR": 0.25,
+      "InstallCount": 0.25,
+      "ThreeSecondPlayRate": 0.20
+    }
+  },
+  "marketing_angles": [
+    {
+      "id": 1,
+      "name": "Hero Showoff",
+      "status": "in_pipeline",
+      "test_priority": null,
+      "core_message": "Every Eternal plays differently. Find yours.",
+      "target_audiences": ["Core MOBA gamers", "Casual strategists"],
+      "emotional_territory": ["Identity", "Curiosity", "Aspiration"],
+      "format": {
+        "type": "video",
+        "length_seconds": 15,
+        "style": "Ability highlight cuts, fast editing"
+      },
+      "creative_directions": [
+        "Fast cuts between hero ultimates and Super Attacks — visual spectacle",
+        "Which hero are you? — personality-based hook",
+        "One hero per ad showcasing their defining skill",
+        "Contrast two heroes with opposite playstyles side by side"
+      ],
+      "messaging_examples": [
+        "Pick your Eternal. Dominate the arena.",
+        "Every Eternal. One arena. Zero excuses.",
+        "Master yours."
+      ],
+      "cps_ir_notes": {
+        "ThreeSecondPlayRate": "High — strong visual variety triggers immediate curiosity",
+        "ThruPlayRate": "Medium — maintain novelty with hero variety to avoid drop-off"
+      }
+    },
+    {
+      "id": 2,
+      "name": "Co-op / Social",
+      "status": "in_pipeline",
+      "test_priority": null,
+      "core_message": "Better with a partner. More fun with a friend.",
+      "target_audiences": ["Social and duo players", "Couples", "Friend groups"],
+      "emotional_territory": ["Belonging", "Shared victory", "Bonding"],
+      "format": {
+        "type": "video",
+        "length_seconds": [15, 20],
+        "style": "UGC-style, POV, split-screen"
+      },
+      "creative_directions": [
+        "Split-screen showing two friends reacting to a clutch win",
+        "Play with your duo — couple or best friend framing",
+        "Rivals-to-teammates arc: trash talk → coordination → victory",
+        "Real people playing together in POV format"
+      ],
+      "messaging_examples": [
+        "3 minutes. You and your duo vs. the world.",
+        "Your best battles are side by side.",
+        "Team up. Take over."
+      ],
+      "cps_ir_notes": {
+        "ThruPlayRate": "High — social narrative arc naturally builds to a payoff",
+        "CTR": "Medium-High — social proof and shared emotion drive taps"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Ranked Climb",
+      "status": "untested_gap",
+      "test_priority": 1,
+      "core_message": "You are Bronze now. You will not stay there.",
+      "target_audiences": ["Core MOBA gamers aged 25-35", "Lapsed competitive players"],
+      "emotional_territory": ["Ambition", "Grind", "Mastery"],
+      "format": {
+        "type": "video",
+        "length_seconds": [20, 30],
+        "style": "Narrative arc, rank-up moment as climax"
+      },
+      "creative_directions": [
+        "Rank-up moment as climax — rank badge animation with enemy reacting",
+        "How far can you climb? — open challenge framing",
+        "Losing a close match → learning → winning → rank up arc",
+        "Leaderboard reveal with player name climbing to the top"
+      ],
+      "messaging_examples": [
+        "Bronze today. Immortal is waiting.",
+        "Climb the ranks. Prove your skill.",
+        "8 tiers. One goal. Get to the top.",
+        "Real players. Real ranks. No shortcuts."
+      ],
+      "cps_ir_notes": {
+        "ThruPlayRate": "High — rank progression arc gives viewers a reason to watch to the end",
+        "CTR": "High — competitive identity is a strong tap motivator for core gamers"
+      }
+    },
+    {
+      "id": 4,
+      "name": "Fast Match / Play Anywhere",
+      "status": "untested_gap",
+      "test_priority": 2,
+      "core_message": "A full MOBA battle in 3 minutes. No excuses not to play.",
+      "target_audiences": ["Casual mobile gamers", "Lapsed MOBA players burned out by long sessions"],
+      "emotional_territory": ["Relief", "Convenience", "Freedom"],
+      "format": {
+        "type": "video",
+        "length_seconds": 15,
+        "style": "Situational hook, fast-cut full match, before/after"
+      },
+      "creative_directions": [
+        "Full match shown in fast-cut within the ad runtime — real-time countdown visible",
+        "Situational micro-moment hook: Waiting for coffee? Play a match.",
+        "Side-by-side comparison: Other MOBAs 30 min vs. Blitz of Battle 3 min",
+        "End-of-match screen showing match duration as the punchline"
+      ],
+      "messaging_examples": [
+        "3-minute MOBA. Full skill. No time wasted.",
+        "One match. Three minutes. That's all it takes.",
+        "The MOBA that fits your life.",
+        "No 30-minute sessions. Just wins."
+      ],
+      "cps_ir_notes": {
+        "ThreeSecondPlayRate": "High — situational hooks are immediately relatable",
+        "CTR": "High — time-saving value prop is a clear and compelling tap motivator"
+      }
+    },
+    {
+      "id": 5,
+      "name": "Prove Yourself",
+      "status": "untested",
+      "test_priority": 3,
+      "consolidates": ["Underdog", "Comeback / Revenge", "Skill Challenge"],
+      "core_message": "You were doubted, outranked, or losing — and you won anyway.",
+      "target_audiences": ["Core MOBA gamers", "Casual players intimidated by competitive games"],
+      "emotional_territory": ["Resilience", "Underdog pride", "Self-proof"],
+      "creative_principle": "Struggle is the hook. Victory is the payoff. Do not resolve tension early.",
+      "format": {
+        "type": "video",
+        "length_seconds": [20, 30],
+        "style": "Tension arc with earned climax"
+      },
+      "creative_directions": [
+        "Rank disparity shown on screen — Bronze player beats Gold enemy — rank revealed as punchline",
+        "Open on losing state with low health and outnumbered — Super Attack activates — match reversed",
+        "Enemy taunting mid-match — gets outplayed immediately after",
+        "New player lands their first perfect Super Attack — nobody expected it",
+        "Text overlay at turning point: They thought it was over."
+      ],
+      "messaging_examples": [
+        "They counted you out. Big mistake.",
+        "Rank doesn't win matches. Skill does.",
+        "Low health. High stakes. No surrender.",
+        "Nobody saw that coming. Especially them.",
+        "The best matches start when you're losing."
+      ],
+      "cps_ir_notes": {
+        "ThruPlayRate": "High — build tension slowly, do not front-load the win",
+        "ThreeSecondPlayRate": "Medium — open on a clearly losing or underdog state to create immediate stakes"
+      }
+    },
+    {
+      "id": 6,
+      "name": "Domination / PvP Flex",
+      "status": "untested",
+      "test_priority": 4,
+      "consolidates": ["PvP Domination", "Bragging Rights"],
+      "core_message": "No struggle needed. You are already the best in the lobby.",
+      "target_audiences": ["Core competitive gamers", "Social players who want to flex wins"],
+      "emotional_territory": ["Confidence", "Superiority", "Status"],
+      "creative_principle": "No narrative arc. Pure skill gap on display from frame one. Front-load dominance.",
+      "format": {
+        "type": "video",
+        "length_seconds": [15, 20],
+        "style": "High-energy montage, no build-up needed"
+      },
+      "creative_directions": [
+        "Flawless match — enemy eliminated before they can react, zero drama",
+        "MVP badge and victory screen close-up → leaderboard showing player at the top",
+        "Duo steamrolling — 2v2 where the enemy never stood a chance",
+        "Quick-cut montage of 3-4 dominant plays with no explanation",
+        "Implicit social flex — Send this to your friends framing"
+      ],
+      "messaging_examples": [
+        "Some players climb ranks. Others just own them.",
+        "MVP. Every. Match.",
+        "This is what the top of the lobby looks like.",
+        "Go on. You earned the flex.",
+        "They never had a chance."
+      ],
+      "cps_ir_notes": {
+        "ThreeSecondPlayRate": "Very High — most visually dominant gameplay must land in first 3 seconds",
+        "CTR": "High — superiority framing creates strong ego-driven tap impulse"
+      }
+    },
+    {
+      "id": 7,
+      "name": "MOBA Burnout Escape",
+      "status": "untested",
+      "test_priority": 5,
+      "core_message": "Everything you love about MOBAs. None of what burns you out.",
+      "target_audiences": ["Lapsed MOBA players from Wild Rift or Mobile Legends", "Casual strategists"],
+      "emotional_territory": ["Relief", "Rediscovery", "Nostalgia"],
+      "format": {
+        "type": "video",
+        "length_seconds": 20,
+        "style": "Before/after structure, pain point opening"
+      },
+      "creative_directions": [
+        "Open with familiar MOBA pain points — long loading, 20-min match timer, surrender vote — then cut to Blitz's clean 3-min match",
+        "Remember when MOBAs were fun? — nostalgic framing into gameplay reveal",
+        "Before/after: exhausted player finishing a 30-min MOBA → same player energized playing Blitz back to back",
+        "Minimalist text: 30-minute match. Surrender vote at 15. Or... — cut to Blitz gameplay"
+      ],
+      "messaging_examples": [
+        "MOBA without the burnout.",
+        "Remember when this was fun? It still is.",
+        "Everything you loved about MOBAs. In 3 minutes.",
+        "The MOBA you actually finish."
+      ],
+      "cps_ir_notes": {
+        "ThruPlayRate": "High — pain point opening creates strong reason to keep watching for the resolution",
+        "CTR": "High — speaks to an already-motivated audience with a known frustration"
+      }
+    },
+    {
+      "id": 8,
+      "name": "Ragebait / Cringe Provocation",
+      "status": "untested",
+      "test_priority": 6,
+      "core_message": "You could do better than this. Prove it.",
+      "target_audiences": ["Broad — format works before genre interest is established"],
+      "emotional_territory": ["Frustration", "Superiority complex", "Compulsive I need to fix this"],
+      "creative_principle": "No resolution before CTA. Unresolved tension drives the download. The viewer's only escape is to install and play.",
+      "retention_flag": "Monitor D1 retention closely. Broad audience pull may attract lower-intent users. If D1 drops below baseline add a competitive signal before the CTA to filter for MOBA intent.",
+      "format": {
+        "type": "video",
+        "length_seconds": 15,
+        "style": "Text overlay heavy, deliberately rough, cheap to produce"
+      },
+      "sub_formats": [
+        {
+          "id": "8A",
+          "name": "Deliberately Bad Gameplay",
+          "description": "Player makes the most obviously wrong decisions possible stacked back to back",
+          "examples": [
+            "Full Super Attack charged → player runs away from the fight",
+            "Enemy standing at 1 HP → player uses all abilities and misses every one",
+            "Power-up sitting next to player → completely ignored while they lose",
+            "Player runs in circles while teammate gets eliminated"
+          ],
+          "structure": "Bad decision at 0-3s → gets worse at 3-10s → terrible outcome at 10-14s → CTA at 14-15s"
+        },
+        {
+          "id": "8B",
+          "name": "Wrong Answer Overlay",
+          "recommended": true,
+          "reason": "Lowest production cost, most proven format in mobile UA — test this first",
+          "description": "Fake interactive question overlaid on gameplay with obviously wrong answer selected confidently",
+          "examples": [
+            "Enemy at 5HP. What do you do? → Run away selected as correct",
+            "Super Attack fully charged mid-fight. Use Super? → Wait for later selected",
+            "1 + 1 = ? → 3 selected confidently"
+          ],
+          "structure": "Question appears at 0-2s → wrong answer selected at 2-8s → painful consequence at 8-13s → CTA at 13-15s"
+        },
+        {
+          "id": "8C",
+          "name": "Fake Advice Seeking",
+          "description": "Player makes a catastrophic choice framed as genuinely asking the audience what they should have done",
+          "examples": [
+            "Was this the right move? → worst possible decision plays out",
+            "Rate my gameplay 1 to 10 → 15 seconds of painful choices",
+            "Did I play this correctly? → player stands idle while match ends"
+          ],
+          "structure": "Winnable situation shown at 0-2s → catastrophic decisions at 2-12s → terrible outcome at 12-14s → CTA at 14-15s"
+        }
+      ],
+      "cta_variants": [
+        "You'd do better. Prove it.",
+        "This guy needs your help. Download now.",
+        "Most players can't get past Bronze. Are you different?",
+        "Download Blitz of Battle. Don't play like this."
+      ],
+      "cps_ir_notes": {
+        "ThreeSecondPlayRate": "Very High — cringe hook is immediate with no slow build",
+        "ThruPlayRate": "Medium — tension holds attention but lack of resolution may cause some drop-off",
+        "CTR": "High — frustration and superiority create a strong tap impulse",
+        "InstallCount": "Monitor — broad reach may lower install intent quality"
+      }
+    }
+  ]
+}

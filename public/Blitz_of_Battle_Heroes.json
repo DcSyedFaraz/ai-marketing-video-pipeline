@@ -1,0 +1,288 @@
+{
+  "game": "Blitz of Battle",
+  "asset_type": "Hero Character Designs",
+  "visual_style": "Mobile MOBA, top-down isometric gameplay, stylized fantasy art",
+  "usage_notes": {
+    "for_images": "Use 'visual_description' as the primary prompt. Add 'lore_description' for character personality and backstory context.",
+    "for_videos": "Use 'abilities' array for action sequences. Each ability includes visual effect descriptions for animation reference.",
+    "art_direction": "Stylized mobile game aesthetic, vibrant colors, clear silhouettes, readable at small mobile screen scale"
+  },
+  "total_heroes": 11,
+  "heroes": [
+    {
+      "name": "Halyx",
+      "class": "Assassin",
+      "lore_description": "The youngest Master Assassin in his clan with extreme agility. Despite his youth, he has mastered the deadly arts of stealth, poison, and precision strikes, becoming a legendary backstab specialist feared across the realm.",
+      "visual_description": "Muscular martial artist assassin with dark red-brown skin and fierce expression, sharp facial features and facial hair. Bare-chested showing defined muscles. Gray wrapped arm guards with red/brown accents. Long katana sword with wrapped brown handle. Dark gray pants with red horizontal stripes on legs. Heavy black boots. Intimidating aggressive stance. Youngest Master Assassin in his clan with extreme agility.",
+      "combat_style": "Stealth assassin, backstab specialist",
+      "abilities": [
+        {
+          "name": "Wicked Strikes",
+          "visual_effect": "Dual katana slashes with purple energy, bonus damage from behind and lifesteal"
+        },
+        {
+          "name": "Stealth",
+          "visual_effect": "Turns invisible with purple shadow silhouette for 3 seconds, next attack deals bonus damage and stuns"
+        },
+        {
+          "name": "Poison Bomb",
+          "visual_effect": "Throws bright green toxic bomb creating glowing poison cloud area that damages and slows"
+        },
+        {
+          "name": "Blade Rush",
+          "visual_effect": "Dashing sword strike with white/silver blade trail cutting through enemies in path"
+        }
+      ]
+    },
+    {
+      "name": "Ra-Keth",
+      "class": "Fighter",
+      "lore_description": "Ancient Egyptian warrior who wields the power of spectral curses. Cursed by the pharaohs to serve as an eternal guardian, he uses mystical turquoise energy to curse his enemies and protect sacred grounds.",
+      "visual_description": "Egyptian-inspired warrior with gray-blue Anubis-like features and pointed ears. Golden and black striped pharaoh headdress. Gold armor on shoulders and arms with ornate detailing. Prominent turquoise glowing gem in chest. Dual-wields curved khopesh swords with gold hilts. Dark purple and maroon garments with gold waist sash and arm bands. Muscular athletic build in combat stance.",
+      "combat_style": "Melee fighter with magical curse abilities",
+      "abilities": [
+        {
+          "name": "Emperor's Curse",
+          "visual_effect": "Cyan energy orb with crackling lightning bouncing between enemies"
+        },
+        {
+          "name": "Dreadful Skull",
+          "visual_effect": "Cyan glowing ghostly skull projectile"
+        },
+        {
+          "name": "Creeping Death",
+          "visual_effect": "Cyan ghostly hands rising from ground in circular area with gold ornate border"
+        },
+        {
+          "name": "Collector's Hand",
+          "visual_effect": "Mystical marks that stun"
+        }
+      ]
+    },
+    {
+      "name": "Cravius",
+      "class": "Fighter",
+      "lore_description": "Fierce orc berserker whose raw physical power is unmatched in close combat. His battle rage grows with each strike, unleashing devastating area attacks that can turn the tide of any battle.",
+      "visual_description": "Massive orc warrior with bright green skin and fierce expression, prominent tusks and dark beard. Gray fur-trimmed armor on shoulders with dark metal plating. Wields huge double-bladed battle axe. Red war paint handprint on bare green chest. Brown leather straps and dark pants. Heavy armored boots. Intimidating brutish appearance with raw physical power. Dark gray/black hair tied back.",
+      "combat_style": "Melee berserker, area damage fighter",
+      "abilities": [
+        {
+          "name": "Mighty Cleave",
+          "visual_effect": "Powerful axe swing with red energy that cleaves through multiple enemies"
+        },
+        {
+          "name": "Tremor Strike",
+          "visual_effect": "Ground-smashing axe attack creating yellow shockwave in directional path"
+        },
+        {
+          "name": "Valorous Leap",
+          "visual_effect": "Heroic jump attack with red/orange glow that pushes enemies and slows them"
+        },
+        {
+          "name": "Whirlwind",
+          "visual_effect": "Spinning rage attack with bright blue/white cyclone energy, immune to crowd control"
+        }
+      ]
+    },
+    {
+      "name": "Drathos",
+      "class": "Fighter",
+      "lore_description": "Born from The Burning Ember but chose the path of good. This demon warrior channels hellfire and demonic rage, growing stronger as his health drops. His redemption story drives him to protect the innocent despite his fearsome appearance.",
+      "visual_description": "Demon warrior with red-orange skin, prominent curved black horns, pointed ears and fierce fanged grin. Dark gray spiked armor on shoulders with glowing orange-yellow lava cracks. Bare muscular chest and arms. Wields long bladed spear with red tip. White bandages wrapped around arms and waist. Dark pants and black boots. Demonic intimidating presence with hellfire aesthetic. Born from The Burning Ember but chose path of good.",
+      "combat_style": "Berserker fighter, frenzy damage dealer",
+      "abilities": [
+        {
+          "name": "Hell Scream",
+          "visual_effect": "Demonic frenzy mode with red-orange flames, massive attack speed boost when health drops"
+        },
+        {
+          "name": "Bull Rush",
+          "visual_effect": "Charging dash with golden-orange energy trail that stuns on hit"
+        },
+        {
+          "name": "Demonic Crush",
+          "visual_effect": "Throws enemies up and slams them down with bright yellow explosive impact"
+        },
+        {
+          "name": "Blinding Rage",
+          "visual_effect": "Unleashes hellish power with orange-red energy aura, gains movement speed and deals damage over time"
+        }
+      ]
+    },
+    {
+      "name": "Ruthon",
+      "class": "Fighter",
+      "lore_description": "Ever the vanguard protector aiding allies while deterring enemies. This noble crusader radiates holy presence, using divine magic to heal companions and smite foes with sacred swords from the heavens.",
+      "visual_description": "Noble knight crusader with tan skin and determined expression, brown hair. Shining royal blue and gold heavy plate armor with ornate detailing and blue diamond gems. Bright golden pauldrons with wing motifs. Wields glowing golden energy sword and blue shield with gold trim. Cape not visible but implied by armor design. Heroic stalwart defender stance radiating holy presence. Ever the vanguard protector aiding allies while deterring enemies.",
+      "combat_style": "Tank fighter with support healing",
+      "abilities": [
+        {
+          "name": "Will of the Crusade",
+          "visual_effect": "Passive golden hammer glow, bonus damage at max hit stacks"
+        },
+        {
+          "name": "Holy Light",
+          "visual_effect": "Golden-orange radiant healing light that heals self or ally while damaging nearby foes in area"
+        },
+        {
+          "name": "Sacred Blade",
+          "visual_effect": "Calls down bright cyan-blue glowing sacred sword from sky that stuns target and adjacent enemies"
+        },
+        {
+          "name": "Raining Swords",
+          "visual_effect": "Multiple bright blue-cyan glowing swords rain from sky in area dealing damage and stunning"
+        }
+      ]
+    },
+    {
+      "name": "Aranence",
+      "class": "Mage",
+      "lore_description": "Master of elemental magic who combines the fury of fire with the chill of ice. This wise elderly wizard has spent centuries perfecting the balance between opposing elements, making him a formidable distance control specialist.",
+      "visual_description": "Wise elderly wizard with long white beard and stern expression. Dark navy blue hooded robe with orange/gold trim and ornate golden shoulder armor. Holds wooden staff with glowing golden orb at the top. Brown leather belt with gold buckle, carrying spell books and turquoise potion bottles. Dark pants and brown boots. Traditional fantasy wizard archetype with powerful presence.",
+      "combat_style": "Ranged elemental mage, distance control specialist",
+      "abilities": [
+        {
+          "name": "Ice Pulse",
+          "visual_effect": "Bright cyan/blue freezing energy pulsating in circular area"
+        },
+        {
+          "name": "Meteor Blast",
+          "visual_effect": "Orange-yellow flaming meteor crashing down from sky"
+        },
+        {
+          "name": "Artificial Lightning",
+          "visual_effect": "Bright electric blue lightning bolts bouncing between enemies with white energy core"
+        },
+        {
+          "name": "Brilliance",
+          "visual_effect": "Purple protective shield burst that pushes enemies away"
+        }
+      ]
+    },
+    {
+      "name": "Balec",
+      "class": "Mage",
+      "lore_description": "Dark arcane sorcerer who channels forbidden purple magic. With mysterious origins and a vertical scar of pure energy across his eye, he wields defensive dark magic that silences and punishes those who dare oppose him.",
+      "visual_description": "Dark sorcerer with pale skin and intense purple eyes, vertical purple energy scar across right eye. Purple hooded robe with gold/yellow trim and ornate shoulder armor. Dark gray inner layers with leather belt holding spell components. Channels glowing purple orb of dark magic in right hand. Black pants and dark armored boots. Mysterious and intimidating presence with shadowy aesthetic.",
+      "combat_style": "Dark magic mage, defensive caster with crowd control",
+      "abilities": [
+        {
+          "name": "Dark Shield",
+          "visual_effect": "Bright purple/magenta shield with mystical symbols that blocks attacks"
+        },
+        {
+          "name": "Wave of Terror",
+          "visual_effect": "Horizontal purple energy wave that damages and silences enemies"
+        },
+        {
+          "name": "Dark Energy",
+          "visual_effect": "Swirling purple vortex on ground dealing damage over time"
+        },
+        {
+          "name": "Beam of Punishment",
+          "visual_effect": "Channeled bright purple/white energy beam with lightning that slows enemies"
+        }
+      ]
+    },
+    {
+      "name": "Vio",
+      "class": "Mage",
+      "lore_description": "Daughter of nature who heals forests, rivers, and animals. Now she directly opposes those who harm nature, wielding poison and life magic to punish environmental destruction while healing the natural world and her allies.",
+      "visual_description": "Nature goddess mage with bright pink-magenta hair in twin tails with yellow-green flower crown. Bright green eyes with cheerful expression. Green leafy dress-top with pink petal accents showing shoulders. Pink flowing skirt with green leaf details. Wields glowing yellow-green nature staff with leafy orb at top emitting bright green energy particles. Bare feet with green vine anklets. Daughter of nature who heals forests rivers and animals, now directly opposes those who harm nature.",
+      "combat_style": "Support mage with poison and healing",
+      "abilities": [
+        {
+          "name": "Nature's Calling",
+          "visual_effect": "Passive bright green spiral, attacks leave poison marks on enemies dealing damage over time"
+        },
+        {
+          "name": "Creeping Ivy",
+          "visual_effect": "Green vine wave through ground that roots all enemies in line"
+        },
+        {
+          "name": "Boiling Mud",
+          "visual_effect": "Brown-yellow bubbling toxic mud area dealing damage over time to enemies inside"
+        },
+        {
+          "name": "Wild Shock",
+          "visual_effect": "Bright green nature shockwave that heals self and allies based on stacked marks while dealing scaling damage"
+        }
+      ]
+    },
+    {
+      "name": "Ilyana",
+      "class": "Marksman",
+      "lore_description": "Craft and creative sharpshooter excelling at hunting with unmatched precision. This elven archer combines magical energy with her expert marksmanship to deliver devastating long-range attacks and explosive finishing shots.",
+      "visual_description": "Elven archer huntress with pale lavender-gray skin and long white-blonde hair with golden crown headpiece. Pink-purple eyes with confident expression. Dark blue-gray feathered shoulder armor with gold accents. Dark navy sleeveless top showing arms. Wields elegant recurve bow with glowing golden-yellow energy arrow nocked. Purple-pink armored leg guards. Brown leather boots. Craft and creative sharpshooter excelling at hunting with unmatched precision.",
+      "combat_style": "Ranged marksman, precision archer",
+      "abilities": [
+        {
+          "name": "Piercing Strike",
+          "visual_effect": "Passive grants armor penetration with golden arrow energy after max hit stacks"
+        },
+        {
+          "name": "Aimed Shot",
+          "visual_effect": "Precise red and white bullseye arrow dealing bonus damage based on target health, grants attack speed buff"
+        },
+        {
+          "name": "Light Speed",
+          "visual_effect": "Golden movement speed boost with speed lines effect"
+        },
+        {
+          "name": "Explosive Shot",
+          "visual_effect": "Magical explosive arrow with brown-orange impact that explodes dealing area damage"
+        }
+      ]
+    },
+    {
+      "name": "Selara",
+      "class": "Marksman",
+      "lore_description": "Silent vampire huntress who moves across the battlefield in single blinks with extreme mobility. She pierces enchanted armor leaving no mercy, using nightmare arrows to strike fear into the hearts of her enemies before vanishing into the shadows.",
+      "visual_description": "Silent vampire huntress with pale lavender-gray skin and long flowing white-silver hair. Intense purple-pink eyes with determined expression. Dark burgundy red hooded cloak with high collar. Black and red tactical outfit underneath. Wields high-tech black and red crossbow with glowing energy mechanism. Black armored boots and leg guards. Moves across battlefield in single blink with extreme mobility. Pierces enchanted armor leaving no mercy.",
+      "combat_style": "Mobile marksman assassin, fear specialist",
+      "abilities": [
+        {
+          "name": "Swift Boost",
+          "visual_effect": "Passive white speed lines, gains movement speed after taking damage"
+        },
+        {
+          "name": "Nightmare Arrow",
+          "visual_effect": "Magical purple-cyan skull arrow with ghostly wisps that damages and inflicts fear on all enemies in line"
+        },
+        {
+          "name": "Blink",
+          "visual_effect": "Red-white blur teleportation for short distance movement in and out of combat"
+        },
+        {
+          "name": "Zeal",
+          "visual_effect": "Ultimate stealth with orange-red flame silhouette, becomes invisible then gains attack speed and bonus damage"
+        }
+      ]
+    },
+    {
+      "name": "Zaleth",
+      "class": "Tank",
+      "lore_description": "Notorious necromancer knowing no mercy or morality, violating life and innocence. Where death follows. This undead skeletal warrior summons the dead to fight alongside him while regenerating through dark magic.",
+      "visual_description": "Undead skeletal necromancer with exposed skull face showing glowing eyes. Red tattered hooded cloak and scarf. Heavy golden-bronze ornate armor with black and gold striped pauldrons. Golden chain decorations across ribcage. Wields long metal scythe with curved blade glowing with red-pink necromantic energy. Dark gray-black leg armor with skull knee guards. Red cloth wrappings. Notorious necromancer knowing no mercy or morality violating life and innocence. Where death follows.",
+      "combat_style": "Necromancer tank with self-healing",
+      "abilities": [
+        {
+          "name": "Second Chance",
+          "visual_effect": "Passive purple heart, auto-activates when health drops below threshold restoring health over time"
+        },
+        {
+          "name": "Grave Stomp",
+          "visual_effect": "Bright purple-magenta necromantic lightning stomp granting shield and damaging-slowing nearby enemies"
+        },
+        {
+          "name": "Reaper's Scythe",
+          "visual_effect": "Launches purple-blue glowing scythe that pulls first hit enemy hero close"
+        },
+        {
+          "name": "Death's Construct",
+          "visual_effect": "Summons orange-brown undead abomination that stomps area dealing damage slowing enemies with stun chance"
+        }
+      ]
+    }
+  ]
+}

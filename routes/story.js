@@ -16,7 +16,7 @@ import path from 'path';
 
 import { STORY_VIDEO_MODELS } from '../lib/models.js';
 import { planScenes, generateVideoDescription } from '../lib/gemini.js';
-import { fileToDataURI, downloadVideo, downloadImage, getMimeType } from '../lib/helpers.js';
+import { fileToDataURI, downloadVideo, downloadImage, getMimeType, generateImageThumb, generateVideoThumb } from '../lib/helpers.js';
 import { concatMultipleVideos, extractLastFrame, mixMusicIntoVideo } from '../lib/ffmpeg.js';
 import { submitAndPoll, imageSubmitAndPollOwn } from '../lib/runware.js';
 import { uploadStory } from '../lib/multer.js';
@@ -427,7 +427,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                 taskUUID: imgTaskUUID,
                 model: 'google:4@3',
                 positivePrompt: scene.imagePrompt,
-                width: 3072, height: 5504,
+                width: 768, height: 1376,
                 numberResults: 1, includeCost: true, outputType: ['URL'],
               };
               if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
@@ -445,7 +445,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                 taskUUID: ctaTaskUUID,
                 model: 'google:4@3',
                 positivePrompt: scene.ctaImagePrompt,
-                width: 3072, height: 5504,
+                width: 45, height: 91,
                 numberResults: 1, includeCost: true, outputType: ['URL'],
               };
               if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
@@ -467,7 +467,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   taskUUID: ctaTaskUUID,
                   model: 'google:4@3',
                   positivePrompt: scene.ctaImagePrompt,
-                  width: 3072, height: 5504,
+                  width: 45, height: 91,
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
@@ -482,7 +482,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   taskUUID: imgTaskUUID,
                   model: 'google:4@3',
                   positivePrompt: scene.imagePrompt,
-                  width: 3072, height: 5504,
+                  width: 768, height: 1376,
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
@@ -496,7 +496,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   taskUUID: imgBTaskUUID,
                   model: 'google:4@3',
                   positivePrompt: scene.imageBPrompt,
-                  width: 3072, height: 5504,
+                  width: 768, height: 1376,
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (referenceImages.length > 0) imgBPayload.inputs = { referenceImages };
@@ -565,24 +565,30 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
               const imgPath = path.join(dir, imgFilename);
               console.log(`[Story] Downloading Scene ${scene.sceneNumber}${typeLabel} image from: ${imgURL.slice(0, 80)}...`);
               await downloadImage(imgURL, imgPath);
+              const thumbFilename = imgFilename.replace('.jpg', '_thumb.jpg');
+              const thumbPath = path.join(dir, thumbFilename);
+              await generateImageThumb(imgPath, thumbPath);
 
               const cost = img?.cost ?? img?.taskCost ?? null;
               if (job.type === 'cta') {
                 updateSceneInStory(taskUUID, i, {
                   ctaImageStatus: 'completed',
                   ctaImageUrl: `/output/stories/${taskUUID}/${imgFilename}`,
+                  ctaImageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`,
                   ctaImageCost: cost,
                 });
               } else if (job.type === 'imageB') {
                 updateSceneInStory(taskUUID, i, {
                   imageBStatus: 'completed',
                   imageBUrl: `/output/stories/${taskUUID}/${imgFilename}`,
+                  imageBThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`,
                   imageBCost: cost,
                 });
               } else {
                 updateSceneInStory(taskUUID, i, {
                   imageStatus: 'completed',
                   imageUrl: `/output/stories/${taskUUID}/${imgFilename}`,
+                  imageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`,
                   imageCost: cost,
                 });
               }
@@ -787,11 +793,14 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
               const videoPath = path.join(dir, videoFilename);
               console.log(`[Story] Downloading Scene ${scene.sceneNumber} video from: ${vidResult.videoURL.slice(0, 80)}...`);
               await downloadVideo(vidResult.videoURL, videoPath);
+              const videoThumbFilename = `scene_${scene.sceneNumber}_video_thumb.jpg`;
+              await generateVideoThumb(videoPath, path.join(dir, videoThumbFilename));
 
               const cost = vidResult.cost ?? null;
               updateSceneInStory(taskUUID, i, {
                 videoStatus: 'completed',
                 videoUrl: `/output/stories/${taskUUID}/${videoFilename}`,
+                videoThumbUrl: `/output/stories/${taskUUID}/${videoThumbFilename}`,
                 videoCost: cost,
               });
               console.log(`[Story] ✅ Scene ${scene.sceneNumber} video saved | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
@@ -1323,9 +1332,12 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
       const vidFilename = `scene_${s.sceneNumber}_video.mp4`;
       const vidPath = path.join(dir, vidFilename);
       await downloadVideo(vidURL, vidPath);
+      const vidThumbFilename = `scene_${s.sceneNumber}_video_thumb.jpg`;
+      await generateVideoThumb(vidPath, path.join(dir, vidThumbFilename));
       const cost = vid?.cost ?? vid?.taskCost ?? null;
       updateSceneInStory(taskUUID, idx, {
-        videoStatus: 'completed', videoUrl: `/output/stories/${taskUUID}/${vidFilename}`, videoCost: cost,
+        videoStatus: 'completed', videoUrl: `/output/stories/${taskUUID}/${vidFilename}`,
+        videoThumbUrl: `/output/stories/${taskUUID}/${vidThumbFilename}`, videoCost: cost,
       });
       console.log(`[Story] ✅ Scene ${s.sceneNumber} solo video done | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
     } catch (err) {
@@ -1341,14 +1353,14 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
   if (needsImage && freshScene.imagePrompt) {
     const t = randomUUID();
     const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.imagePrompt,
-      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
+      width: 768, height: 1376, numberResults: 1, includeCost: true, outputType: ['URL'] };
     if (referenceImages.length > 0) payload.inputs = { referenceImages };
     jobs.push({ type: 'scene', task: { payload, taskUUID: t } });
   }
   if (needsImageB && freshScene.imageBPrompt) {
     const t = randomUUID();
     const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.imageBPrompt,
-      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
+      width: 768, height: 1376, numberResults: 1, includeCost: true, outputType: ['URL'] };
     if (referenceImages.length > 0) payload.inputs = { referenceImages };
     jobs.push({ type: 'imageB', task: { payload, taskUUID: t } });
   }
@@ -1357,7 +1369,7 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
     const ctaRefs = [...referenceImages];
     if (ctaDataURI) ctaRefs.push(ctaDataURI);
     const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.ctaImagePrompt,
-      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
+      width: 768, height: 1376, numberResults: 1, includeCost: true, outputType: ['URL'] };
     if (ctaRefs.length > 0) payload.inputs = { referenceImages: ctaRefs };
     jobs.push({ type: 'cta', task: { payload, taskUUID: t } });
   }
@@ -1392,11 +1404,14 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
       if (!imgURL) throw new Error(`No image URL in response`);
       const suffix = type === 'cta' ? '_cta_image' : type === 'imageB' ? '_imageB' : '_image';
       const filename = `scene_${freshScene.sceneNumber}${suffix}.jpg`;
-      await downloadImage(imgURL, path.join(dir, filename));
+      const imgFullPath = path.join(dir, filename);
+      await downloadImage(imgURL, imgFullPath);
+      const thumbFilename = filename.replace('.jpg', '_thumb.jpg');
+      await generateImageThumb(imgFullPath, path.join(dir, thumbFilename));
       const cost = img?.cost ?? img?.taskCost ?? null;
-      if (type === 'cta') updateSceneInStory(taskUUID, idx, { ctaImageStatus: 'completed', ctaImageUrl: `/output/stories/${taskUUID}/${filename}`, ctaImageCost: cost });
-      else if (type === 'imageB') updateSceneInStory(taskUUID, idx, { imageBStatus: 'completed', imageBUrl: `/output/stories/${taskUUID}/${filename}`, imageBCost: cost });
-      else updateSceneInStory(taskUUID, idx, { imageStatus: 'completed', imageUrl: `/output/stories/${taskUUID}/${filename}`, imageCost: cost });
+      if (type === 'cta') updateSceneInStory(taskUUID, idx, { ctaImageStatus: 'completed', ctaImageUrl: `/output/stories/${taskUUID}/${filename}`, ctaImageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`, ctaImageCost: cost });
+      else if (type === 'imageB') updateSceneInStory(taskUUID, idx, { imageBStatus: 'completed', imageBUrl: `/output/stories/${taskUUID}/${filename}`, imageBThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`, imageBCost: cost });
+      else updateSceneInStory(taskUUID, idx, { imageStatus: 'completed', imageUrl: `/output/stories/${taskUUID}/${filename}`, imageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`, imageCost: cost });
       console.log(`[Story] ✅ Scene ${freshScene.sceneNumber} solo ${type} image done`);
     } catch (err) {
       const msg = err?.message || String(err);
@@ -1721,6 +1736,73 @@ router.get('/api/story-history/:taskUUID', (req, res) => {
   const entry = loadStoryHistory().find(h => h.taskUUID === req.params.taskUUID);
   if (!entry) return res.status(404).json({ error: 'Story not found.' });
   res.json({ entry });
+});
+
+// ── POST /api/ensure-thumbnails/:taskUUID ────────────────────────────────────
+// Called by canvas on load. For every completed image/video that has no thumb,
+// generates the thumb on the fly and updates the story entry.
+router.post('/api/ensure-thumbnails/:taskUUID', async (req, res) => {
+  const { taskUUID } = req.params;
+  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  if (!entry) return res.status(404).json({ error: 'Story not found.' });
+
+  const dir = storyDir(taskUUID);
+  const updates = []; // track what we generated
+
+  for (let i = 0; i < (entry.scenes || []).length; i++) {
+    const scene = entry.scenes[i];
+
+    // Image A
+    if (scene.imageStatus === 'completed' && scene.imageUrl && !scene.imageThumbUrl) {
+      const srcPath = path.resolve(scene.imageUrl.replace(/^\//, ''));
+      const thumbFilename = `scene_${scene.sceneNumber}_image_thumb.jpg`;
+      const thumbPath = path.join(dir, thumbFilename);
+      if (existsSync(srcPath)) {
+        await generateImageThumb(srcPath, thumbPath);
+        updateSceneInStory(taskUUID, i, { imageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}` });
+        updates.push(`scene${scene.sceneNumber}_imageA`);
+      }
+    }
+
+    // Image B
+    if (scene.imageBStatus === 'completed' && scene.imageBUrl && !scene.imageBThumbUrl) {
+      const srcPath = path.resolve(scene.imageBUrl.replace(/^\//, ''));
+      const thumbFilename = `scene_${scene.sceneNumber}_imageB_thumb.jpg`;
+      const thumbPath = path.join(dir, thumbFilename);
+      if (existsSync(srcPath)) {
+        await generateImageThumb(srcPath, thumbPath);
+        updateSceneInStory(taskUUID, i, { imageBThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}` });
+        updates.push(`scene${scene.sceneNumber}_imageB`);
+      }
+    }
+
+    // CTA Image
+    if (scene.ctaImageStatus === 'completed' && scene.ctaImageUrl && !scene.ctaImageThumbUrl) {
+      const srcPath = path.resolve(scene.ctaImageUrl.replace(/^\//, ''));
+      const thumbFilename = `scene_${scene.sceneNumber}_cta_image_thumb.jpg`;
+      const thumbPath = path.join(dir, thumbFilename);
+      if (existsSync(srcPath)) {
+        await generateImageThumb(srcPath, thumbPath);
+        updateSceneInStory(taskUUID, i, { ctaImageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}` });
+        updates.push(`scene${scene.sceneNumber}_cta`);
+      }
+    }
+
+    // Video
+    if (scene.videoStatus === 'completed' && scene.videoUrl && !scene.videoThumbUrl) {
+      const srcPath = path.resolve(scene.videoUrl.replace(/^\//, ''));
+      const thumbFilename = `scene_${scene.sceneNumber}_video_thumb.jpg`;
+      const thumbPath = path.join(dir, thumbFilename);
+      if (existsSync(srcPath)) {
+        await generateVideoThumb(srcPath, thumbPath);
+        updateSceneInStory(taskUUID, i, { videoThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}` });
+        updates.push(`scene${scene.sceneNumber}_video`);
+      }
+    }
+  }
+
+  console.log(`[Thumbnails] Generated ${updates.length} thumbnails for ${taskUUID}: ${updates.join(', ') || 'none needed'}`);
+  res.json({ generated: updates.length, items: updates });
 });
 
 // ── DELETE /api/story-history/:taskUUID ──────────────────────────────────────

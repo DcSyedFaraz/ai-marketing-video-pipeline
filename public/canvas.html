@@ -102,6 +102,13 @@
     .node-video { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px;
                   background: #000; display: block; }
     .node-video-portrait { aspect-ratio: 9/16; max-height: 260px; }
+    .node-video-placeholder { position: relative; width: 100%; aspect-ratio: 9/16; max-height: 260px;
+      border-radius: 6px; background: #111; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; overflow: hidden; }
+    .node-video-placeholder::after { content: '▶'; font-size: 28px; color: rgba(255,255,255,.85);
+      position: absolute; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+    .node-video-placeholder:hover::after { color: #fff; }
+    .node-video-placeholder video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
     .node-field { display: flex; flex-direction: column; gap: 2px; }
     .node-field-label { font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
@@ -716,6 +723,8 @@ async function refreshStory() {
       // Full initial build
       renderCanvas();
       canvasBuilt = true;
+      // Kick off background thumbnail generation for any missing thumbs (non-blocking)
+      ensureThumbnails(currentUUID);
     } else {
       // Lightweight diff update — only update what changed
       patchCanvas();
@@ -723,6 +732,29 @@ async function refreshStory() {
     updateTopbar();
     updatePipelineActions();
   } catch(e) { console.warn('refreshStory:', e); }
+}
+
+// Generate missing thumbnails in the background after canvas first loads.
+// If any were generated, do a silent refresh so the canvas picks them up.
+async function ensureThumbnails(uuid) {
+  try {
+    const res = await fetch(`/api/ensure-thumbnails/${uuid}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.generated > 0) {
+      console.log(`[Canvas] Generated ${data.generated} missing thumbnails, applying…`);
+      const r2 = await fetch(`/api/story-history/${uuid}`);
+      if (r2.ok) {
+        const d2 = await r2.json();
+        prevEntry = null; // force full patch so thumb URLs are picked up
+        entry = d2.entry;
+        patchCanvas();
+        // Also flush any img[data-src] that are now visible (patchImageSrc sets data-src)
+        applyDeferredThumbs();
+      }
+    }
+  } catch (e) {
+    console.warn('[Canvas] ensureThumbnails failed:', e.message);
+  }
 }
 
 function manualRefresh() {
@@ -945,6 +977,10 @@ function patchImageSrc(nodeId, url, altText) {
     img.className = 'node-thumb';
     img.alt = altText || 'Image';
     img.title = 'Click node to open detail';
+    img.decoding = 'async';
+    img.width = 180;
+    img.height = 320;
+    img.style.background = 'var(--surface2)';
     img.onerror = () => { img.style.opacity = '.2'; };
     // Insert before first .node-field
     const body = node.querySelector('.node-body');
@@ -953,16 +989,18 @@ function patchImageSrc(nodeId, url, altText) {
     else body.prepend(img);
   }
 
-  // Only update src if it's not already set to this URL (prevents re-fetch)
+  // Thumbnails are small (~10KB) — load src directly, no deferral needed
   const vk = getVersionKey(url);
   const targetSrc = url + '?v=' + vk;
-  if (img.src !== targetSrc && !img.src.endsWith(url.replace(/.*\//, ''))) {
+  if (img.src !== targetSrc && img.getAttribute('data-src') !== targetSrc) {
+    img.removeAttribute('data-src');
     img.src = targetSrc;
+    img.style.background = '';
   }
 }
 
 // ── Patch: set video src only when newly completed ──
-function patchVideoSrc(nodeId, url) {
+function patchVideoSrc(nodeId, url, thumbUrl) {
   if (!url) return;
   const node = document.querySelector(`.node[data-node-id="${nodeId}"]`);
   if (!node) return;
@@ -970,27 +1008,23 @@ function patchVideoSrc(nodeId, url) {
   const spinField = node.querySelector('.vid-placeholder');
   if (spinField) spinField.remove();
 
-  let vid = node.querySelector('.node-video');
-  if (!vid) {
-    const wrap = document.createElement('div');
-    wrap.className = 'node-video-wrap';
-    vid = document.createElement('video');
-    vid.className = 'node-video node-video-portrait';
-    vid.controls = true;
-    vid.preload = 'metadata';
-    vid.playsInline = true;
-    wrap.appendChild(vid);
+  // Replace spinner with click-to-play placeholder (no video loaded until clicked)
+  let placeholder = node.querySelector('.node-video-placeholder');
+  if (!placeholder || placeholder.getAttribute('data-url') !== url) {
+    if (placeholder) placeholder.remove();
+    placeholder = document.createElement('div');
+    placeholder.className = 'node-video-placeholder';
+    placeholder.setAttribute('data-url', url);
+    placeholder.title = 'Click to open detail';
+    if (thumbUrl) {
+      placeholder.style.backgroundImage = `url(${thumbUrl})`;
+      placeholder.style.backgroundSize = 'cover';
+      placeholder.style.backgroundPosition = 'center';
+    }
     const body = node.querySelector('.node-body');
     const firstField = body.querySelector('.node-field');
-    if (firstField) body.insertBefore(wrap, firstField);
-    else body.prepend(wrap);
-  }
-
-  const vk = getVersionKey(url);
-  const targetSrc = url + '?v=' + vk;
-  if (!vid.src || (!vid.src.endsWith(url.replace(/.*\//, '')) && vid.getAttribute('data-url') !== url)) {
-    vid.src = targetSrc;
-    vid.setAttribute('data-url', url);
+    if (firstField) body.insertBefore(placeholder, firstField);
+    else body.prepend(placeholder);
   }
 }
 
@@ -1026,15 +1060,16 @@ function patchActions(nodeId, scene, sceneIdx, type) {
 
 function patchImageNode(nodeId, scene, prev, type, sceneIdx) {
   const isB = type === 'B';
-  const status = isB ? scene.imageBStatus : scene.imageStatus;
+  const status    = isB ? scene.imageBStatus : scene.imageStatus;
   const prevStatus = isB ? prev.imageBStatus : prev.imageStatus;
-  const url = isB ? scene.imageBUrl : scene.imageUrl;
+  const url       = isB ? scene.imageBUrl : scene.imageUrl;
+  const thumbUrl  = isB ? scene.imageBThumbUrl : scene.imageThumbUrl;
 
   if (status !== prevStatus || !prevStatus) {
     patchNodeStatus(nodeId, status, statusBadgeText(status), status);
   }
   if (status === 'completed' && url) {
-    patchImageSrc(nodeId, url, `Image ${type}`);
+    patchImageSrc(nodeId, thumbUrl || url, `Image ${type}`);
     patchActions(nodeId, scene, sceneIdx, isB ? 'imgB' : 'imgA');
   }
   // If error changed
@@ -1059,29 +1094,31 @@ function patchImageNode(nodeId, scene, prev, type, sceneIdx) {
 }
 
 function patchCtaNode(nodeId, scene, prev, sceneIdx) {
-  const status = scene.ctaImageStatus || 'pending';
+  const status    = scene.ctaImageStatus || 'pending';
   const prevStatus = prev.ctaImageStatus || 'pending';
-  const url = scene.ctaImageUrl;
+  const url       = scene.ctaImageUrl;
+  const thumbUrl  = scene.ctaImageThumbUrl;
 
   if (status !== prevStatus) {
     patchNodeStatus(nodeId, status, statusBadgeText(status), status);
   }
   if (status === 'completed' && url) {
-    patchImageSrc(nodeId, url, 'CTA Image');
+    patchImageSrc(nodeId, thumbUrl || url, 'CTA Image');
     patchActions(nodeId, scene, sceneIdx, 'cta');
   }
 }
 
 function patchVideoNode(nodeId, scene, prev, sceneIdx, isFP) {
-  const status = scene.videoStatus || 'pending';
+  const status    = scene.videoStatus || 'pending';
   const prevStatus = prev.videoStatus || 'pending';
-  const url = scene.videoUrl;
+  const url       = scene.videoUrl;
+  const thumbUrl  = scene.videoThumbUrl;
 
   if (status !== prevStatus) {
     patchNodeStatus(nodeId, status, statusBadgeText(status), status);
   }
   if (status === 'completed' && url) {
-    patchVideoSrc(nodeId, url);
+    patchVideoSrc(nodeId, url, thumbUrl);
     patchActions(nodeId, scene, sceneIdx, 'video');
   }
   if (status !== 'processing' && status !== 'generating' && entry.status !== 'processing') {
@@ -1120,24 +1157,16 @@ function patchOutputNode(entry, prev) {
       const waiting = node.querySelector('.waiting-msg');
       if (waiting) waiting.remove();
 
-      let vid = node.querySelector('.node-video');
-      if (!vid) {
-        const wrap = document.createElement('div');
-        wrap.className = 'node-video-wrap';
-        vid = document.createElement('video');
-        vid.className = 'node-video node-video-portrait';
-        vid.controls = true;
-        vid.preload = 'metadata';
-        vid.playsInline = true;
-        wrap.appendChild(vid);
+      let placeholder = node.querySelector('.node-video-placeholder');
+      if (!placeholder || placeholder.getAttribute('data-url') !== entry.finalVideoUrl) {
+        if (placeholder) placeholder.remove();
+        const furl = entry.finalVideoUrl;
+        placeholder = document.createElement('div');
+        placeholder.className = 'node-video-placeholder';
+        placeholder.setAttribute('data-url', furl);
+        placeholder.title = 'Click to open detail';
         const body = node.querySelector('.node-body');
-        body.prepend(wrap);
-      }
-      const vk = getVersionKey(entry.finalVideoUrl);
-      const targetSrc = entry.finalVideoUrl + '?v=' + vk;
-      if (!vid.src || vid.getAttribute('data-url') !== entry.finalVideoUrl) {
-        vid.src = targetSrc;
-        vid.setAttribute('data-url', entry.finalVideoUrl);
+        body.prepend(placeholder);
       }
 
       // Add cost + download if not already there
@@ -1169,6 +1198,8 @@ function placeNode(world, nodeEl, x, y, id) {
   nodeEl.addEventListener('click', (e) => {
     // Don't open detail when clicking action buttons or video controls
     if (e.target.closest('.node-actions') || e.target.closest('video') || e.target.closest('a')) return;
+    // Load any deferred thumbnail images on first click
+    loadDeferredThumbs(nodeEl);
     openNodeDetail(id);
   });
   world.appendChild(nodeEl);
@@ -1238,11 +1269,29 @@ function thumb(url, label) {
   const img = document.createElement('img');
   img.className = 'node-thumb';
   const vk = getVersionKey(url);
+  // Thumbnails are small — load eagerly
   img.src = url + '?v=' + vk;
   img.alt = label;
   img.title = 'Click node to open detail';
+  img.decoding = 'async';
+  img.width = 180;
+  img.height = 320;
   img.onerror = () => { img.style.opacity = '.2'; img.style.background = 'var(--surface2)'; };
   return img;
+}
+
+// Call this to actually load a deferred thumb (called when node is clicked)
+function loadDeferredThumbs(container) {
+  container.querySelectorAll('img[data-src]').forEach(img => {
+    img.src = img.getAttribute('data-src');
+    img.removeAttribute('data-src');
+  });
+}
+
+// Load all deferred thumbnails across the entire canvas world (called after ensure-thumbnails)
+function applyDeferredThumbs() {
+  const world = document.getElementById('world');
+  if (world) loadDeferredThumbs(world);
 }
 
 function actionBtn(text, cls, onclick, title) {
@@ -1295,18 +1344,19 @@ function buildPlanningNode(entry) {
 // ── Image node (type A or B) ──
 function buildImageNode(scene, type, sceneIdx, entryStatus) {
   const isB = type === 'B';
-  const status = isB ? (scene.imageBStatus || 'pending') : (scene.imageStatus || 'pending');
-  const url    = isB ? scene.imageBUrl : scene.imageUrl;
-  const err    = isB ? scene.imageBError : scene.imageError;
-  const cost   = isB ? scene.imageBCost : scene.imageCost;
-  const prompt = isB ? scene.imageBPrompt : scene.imagePrompt;
-  const title  = isB ? `Image B — Frame End` : `Image A — Opening Frame`;
-  const badge  = statusBadgeText(status);
+  const status   = isB ? (scene.imageBStatus || 'pending') : (scene.imageStatus || 'pending');
+  const url      = isB ? scene.imageBUrl : scene.imageUrl;
+  const thumbUrl = isB ? scene.imageBThumbUrl : scene.imageThumbUrl;
+  const err      = isB ? scene.imageBError : scene.imageError;
+  const cost     = isB ? scene.imageBCost : scene.imageCost;
+  const prompt   = isB ? scene.imageBPrompt : scene.imagePrompt;
+  const title    = isB ? `Image B — Frame End` : `Image A — Opening Frame`;
+  const badge    = statusBadgeText(status);
 
   const { node, body } = makeNode('🖼', title, badge, status, 'scene', status);
 
   if (status === 'completed' && url) {
-    body.appendChild(thumb(url, title));
+    body.appendChild(thumb(thumbUrl || url, title));
   } else if (status === 'generating') {
     const ph = document.createElement('div');
     ph.className = 'node-field img-placeholder';
@@ -1335,15 +1385,16 @@ function buildImageNode(scene, type, sceneIdx, entryStatus) {
 
 // ── CTA Image node ──
 function buildCtaImageNode(scene, sceneIdx, entryStatus) {
-  const status = scene.ctaImageStatus || 'pending';
-  const url    = scene.ctaImageUrl;
-  const err    = scene.ctaImageError;
-  const cost   = scene.ctaImageCost;
-  const badge  = statusBadgeText(status);
+  const status   = scene.ctaImageStatus || 'pending';
+  const url      = scene.ctaImageUrl;
+  const thumbUrl = scene.ctaImageThumbUrl;
+  const err      = scene.ctaImageError;
+  const cost     = scene.ctaImageCost;
+  const badge    = statusBadgeText(status);
 
   const { node, body } = makeNode('🎯', 'CTA Image', badge, status, 'scene', status);
 
-  if (status === 'completed' && url) body.appendChild(thumb(url, 'CTA Image'));
+  if (status === 'completed' && url) body.appendChild(thumb(thumbUrl || url, 'CTA Image'));
   else if (status === 'generating') {
     const ph = document.createElement('div');
     ph.className = 'node-field img-placeholder';
@@ -1368,28 +1419,27 @@ function buildCtaImageNode(scene, sceneIdx, entryStatus) {
 
 // ── Video node ──
 function buildVideoNode(scene, sceneIdx, entryStatus, isFP) {
-  const status = scene.videoStatus || 'pending';
-  const url    = scene.videoUrl;
-  const err    = scene.videoError;
-  const cost   = scene.videoCost;
-  const badge  = statusBadgeText(status);
-  const dur    = scene.duration ? scene.duration + 's' : '';
+  const status   = scene.videoStatus || 'pending';
+  const url      = scene.videoUrl;
+  const thumbUrl = scene.videoThumbUrl;
+  const err      = scene.videoError;
+  const cost     = scene.videoCost;
+  const badge    = statusBadgeText(status);
+  const dur      = scene.duration ? scene.duration + 's' : '';
 
   const { node, body } = makeNode('🎥', `Video ${dur}`, badge, status, 'scene', status);
 
   if (status === 'completed' && url) {
-    const wrap = document.createElement('div');
-    wrap.className = 'node-video-wrap';
-    const vid = document.createElement('video');
-    vid.className = 'node-video node-video-portrait';
-    const vk = getVersionKey(url);
-    vid.src = url + '?v=' + vk;
-    vid.setAttribute('data-url', url);
-    vid.controls = true;
-    vid.preload = 'metadata';
-    vid.playsInline = true;
-    wrap.appendChild(vid);
-    body.appendChild(wrap);
+    const placeholder = document.createElement('div');
+    placeholder.className = 'node-video-placeholder';
+    placeholder.setAttribute('data-url', url);
+    placeholder.title = 'Click to open detail';
+    if (thumbUrl) {
+      placeholder.style.backgroundImage = `url(${thumbUrl})`;
+      placeholder.style.backgroundSize = 'cover';
+      placeholder.style.backgroundPosition = 'center';
+    }
+    body.appendChild(placeholder);
   } else if (status === 'generating') {
     const ph = document.createElement('div');
     ph.className = 'node-field vid-placeholder';
@@ -1448,18 +1498,12 @@ function buildOutputNode(entry) {
   node.querySelector('.node-port.out').style.display = 'none';
 
   if (done && entry.finalVideoUrl) {
-    const wrap = document.createElement('div');
-    wrap.className = 'node-video-wrap';
-    const vid = document.createElement('video');
-    vid.className = 'node-video node-video-portrait';
-    const vk = getVersionKey(entry.finalVideoUrl);
-    vid.src = entry.finalVideoUrl + '?v=' + vk;
-    vid.setAttribute('data-url', entry.finalVideoUrl);
-    vid.controls = true;
-    vid.preload = 'metadata';
-    vid.playsInline = true;
-    wrap.appendChild(vid);
-    body.appendChild(wrap);
+    const furl = entry.finalVideoUrl;
+    const placeholder = document.createElement('div');
+    placeholder.className = 'node-video-placeholder';
+    placeholder.setAttribute('data-url', furl);
+    placeholder.title = 'Click to open detail';
+    body.appendChild(placeholder);
 
     if (entry.totalCost != null) body.appendChild(field('Total Cost', '$' + parseFloat(entry.totalCost).toFixed(4), 'cost'));
     if (entry.completedAt) body.appendChild(field('Completed', new Date(entry.completedAt).toLocaleTimeString()));

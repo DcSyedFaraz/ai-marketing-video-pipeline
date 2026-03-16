@@ -261,6 +261,39 @@
     .media-picker-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 32px 0; }
     .dz-from-uploads { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--accent); cursor: pointer; margin-top: 5px; padding: 3px 7px; border: 1px solid var(--accent); border-radius: 4px; background: none; transition: background .15s; }
     .dz-from-uploads:hover { background: rgba(124,58,237,.1); }
+
+    /* Marketing Angle Cards */
+    .angle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+    .angle-card { border: 2px solid var(--border); border-radius: var(--rs); padding: 10px 12px; cursor: pointer; transition: all .15s; background: var(--surface2); position: relative; user-select: none; }
+    .angle-card:hover { border-color: var(--accent); }
+    .angle-card.selected { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+    .angle-card-name { font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+    .angle-card-msg { font-size: 11px; color: var(--muted); line-height: 1.3; }
+    .angle-card-status { font-size: 10px; margin-top: 4px; font-weight: 500; }
+    .angle-card-status.in-pipeline { color: var(--green); }
+    .angle-card-status.untested-gap { color: var(--yellow); }
+    .angle-card-status.untested { color: var(--muted); }
+
+    /* Video Description Output */
+    .video-desc-box { display: none; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs); padding: 12px 14px; font-size: 12px; color: var(--text); line-height: 1.7; white-space: pre-wrap; max-height: 240px; overflow-y: auto; margin-top: 8px; font-family: 'Menlo', 'Consolas', monospace; }
+    .video-desc-box.show { display: block; }
+
+    /* Multi-Hero Pills */
+    .hero-pills-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .hero-pill-item { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs); padding: 4px 8px; font-size: 11px; }
+    .hero-pill-item img { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: var(--border); flex-shrink: 0; }
+    .hero-pill-item .pill-label { color: var(--muted); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hero-pill-item .pill-rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; }
+    .hero-pill-item .pill-rm:hover { color: var(--red); }
+
+    /* Hero Catalog Modal */
+    .hero-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 50vh; overflow-y: auto; padding: 2px; margin-top: 10px; }
+    .hero-catalog-item { border: 2px solid var(--border); border-radius: var(--rs); padding: 10px 10px 8px; cursor: pointer; transition: all .15s; background: var(--surface2); user-select: none; }
+    .hero-catalog-item:hover { border-color: var(--accent); }
+    .hero-catalog-item.selected { border-color: var(--accent); background: rgba(124,58,237,0.12); }
+    .hero-catalog-item .hc-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .hero-catalog-item .hc-class { font-size: 10px; color: var(--accent2); }
+    .hero-catalog-item .hc-check { float: right; margin-top: 1px; accent-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -805,6 +838,26 @@
       <div class="card">
         <div class="card-title">📖 Story to Video Pipeline</div>
 
+        <!-- ── Marketing Angle Selector ──────────────────────────────── -->
+        <div class="fg" id="marketing-angle-section" style="margin-bottom:14px">
+          <label>Marketing Angle <small style="font-weight:400">(optional — generate a video brief first)</small></label>
+          <div class="angle-grid" id="angle-card-grid">
+            <div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">Loading angles…</div>
+          </div>
+          <div id="angle-actions" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap;align-items:center">
+            <button class="btn-sm" id="btn-gen-video-desc" onclick="generateVideoDescriptionBrief()" style="gap:6px">
+              <span class="spinner" id="gen-desc-spinner" style="width:12px;height:12px;border-width:2px"></span>
+              ✨ Generate Video Brief
+            </button>
+            <button class="btn-sm" onclick="clearAngleSelection()">✕ Clear</button>
+          </div>
+          <div class="video-desc-box" id="video-desc-output"></div>
+          <div id="video-desc-copy-row" style="display:none;margin-top:6px;gap:6px;align-items:center">
+            <button class="btn-sm green" onclick="copyDescToStory()">📋 Copy to Story textarea</button>
+            <span style="font-size:11px;color:var(--muted)">Review, then copy to use as story input</span>
+          </div>
+        </div>
+
         <div class="fg">
           <label>Story / Script <span class="req">*</span></label>
           <textarea id="story-text" style="min-height:120px" placeholder="Write your story here... Each scene will be auto-planned by AI.&#10;e.g. A brave warrior discovers a magical sword in a dark cave. She uses it to defeat the dragon and save her kingdom..."></textarea>
@@ -854,22 +907,19 @@
         <!-- Hero + Background reference image uploads -->
         <div class="row2" style="margin-bottom:14px">
           <div class="fg" style="margin-bottom:0">
-            <label>Hero Reference Image <small style="font-weight:400">(optional)</small></label>
+            <label>Hero Reference Images <small style="font-weight:400">(up to 6, optional)</small></label>
             <div class="dropzone" id="dz-story-hero">
-              <input type="file" id="story-hero-image" accept="image/*" onchange="handleStoryImagePick(this,'hero')" />
+              <input type="file" id="story-hero-image" accept="image/*" multiple onchange="handleHeroImagesPick(this)" />
               <div class="dz-icon">🦸</div>
-              <div class="dz-text">Drop hero image or <strong>browse</strong></div>
-              <div class="dz-hint">Gemini sees this to keep hero consistent</div>
+              <div class="dz-text">Drop hero images or <strong>browse</strong></div>
+              <div class="dz-hint">Claude sees these to keep heroes consistent</div>
             </div>
-            <button class="dz-from-uploads" onclick="openMediaPicker('hero','image')">📂 Choose from uploads</button>
-            <div class="file-pill" id="pill-story-hero">
-              <img class="file-pill-thumb" id="thumb-story-hero" />
-              <div class="file-pill-info">
-                <div class="file-pill-name" id="name-story-hero"></div>
-                <div class="file-pill-size" id="size-story-hero"></div>
-              </div>
-              <button class="file-pill-rm" onclick="clearStoryImage('hero')">✕</button>
+            <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
+              <button class="dz-from-uploads" onclick="openMediaPicker('hero','image')">📂 From uploads</button>
+              <button class="dz-from-uploads" onclick="openHeroCatalog()">🦸 Hero Catalog</button>
             </div>
+            <div class="hero-pills-list" id="hero-pills-list"></div>
+            <div id="named-heroes-badges" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"></div>
           </div>
           <div class="fg" style="margin-bottom:0">
             <label>Background Reference Image <small style="font-weight:400">(optional)</small></label>
@@ -912,6 +962,27 @@
           </div>
         </div>
 
+        <!-- Run Mode -->
+        <div class="fg" style="margin-top:8px">
+          <label>Run Mode</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+            <label style="display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:10px 12px;cursor:pointer;transition:border-color .15s" id="run-mode-opt-auto">
+              <input type="radio" name="runMode" value="auto" checked style="margin-top:2px;flex-shrink:0" />
+              <div>
+                <div style="font-size:12px;font-weight:600">🤖 Automatic</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Runs all phases end-to-end without stopping</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:10px 12px;cursor:pointer;transition:border-color .15s" id="run-mode-opt-manual">
+              <input type="radio" name="runMode" value="manual" style="margin-top:2px;flex-shrink:0" />
+              <div>
+                <div style="font-size:12px;font-weight:600">🎛 Manual</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Pauses after each phase — you approve before continuing</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- Background Music (shown only in Fast-Paced mode) -->
         <div class="fg" id="story-music-section" style="display:none;margin-top:4px">
           <label>Background Music <small style="font-weight:400">(optional — mixed at low volume into final video)</small></label>
@@ -927,6 +998,24 @@
         <div class="fg">
           <label>Voice Description <small style="font-weight:400">(for consistent narration)</small></label>
           <input type="text" id="story-voice-desc" placeholder="e.g. Male, 30s, deep warm baritone, calm and authoritative pacing" />
+        </div>
+
+        <!-- Planning JSON inject -->
+        <div id="planning-json-section">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <button type="button" class="btn" id="btn-toggle-plan-json" onclick="togglePlanJsonPanel()" style="padding:5px 12px;font-size:12px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)">
+              📋 Paste Planning JSON
+            </button>
+            <small style="color:var(--muted)">Skip AI planning — use your own scene plan</small>
+          </div>
+          <div id="plan-json-panel" style="display:none">
+            <textarea id="plan-json-input" style="min-height:160px;font-family:monospace;font-size:12px;background:var(--surface2);color:var(--fg)" placeholder='Paste scenes array or full planning JSON, e.g.&#10;[&#10;  { "sceneNumber": 1, "imagePrompt": "...", "videoPrompt": "...", "duration": 5, "useHeroRef": false, "useBgRef": false },&#10;  { "sceneNumber": 2, "ctaImagePrompt": "...", "videoPrompt": "...", "duration": 4, "useHeroRef": false, "useBgRef": false }&#10;]&#10;&#10;voiceOverCharacteristics is optional — falls back to Voice Desc field.'></textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+              <button type="button" class="btn" onclick="validatePlanJson()" style="padding:4px 12px;font-size:12px;background:rgba(6,182,212,.15);color:var(--accent);border:1px solid var(--accent)">✔ Validate</button>
+              <button type="button" class="btn" onclick="clearPlanJson()" style="padding:4px 12px;font-size:12px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)">✕ Clear</button>
+              <span id="plan-json-status" style="font-size:12px"></span>
+            </div>
+          </div>
         </div>
 
         <button class="btn btn-purple" id="btn-story" onclick="submitStory()">
@@ -968,6 +1057,13 @@
 
         <!-- Voice-over info (shown after Gemini planning) -->
         <div id="story-voice-info" style="display:none;font-size:12px;color:var(--accent2);background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:var(--rs);padding:8px 12px;margin-bottom:10px"></div>
+
+        <!-- Copy planning JSON (shown once scenes are planned) -->
+        <div id="copy-plan-json-wrap" style="display:none;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <button type="button" class="btn" onclick="copyPlanningJson()" style="padding:4px 12px;font-size:12px;background:rgba(124,58,237,.15);color:#a78bfa;border:1px solid rgba(124,58,237,.4)">📋 Copy Planning JSON</button>
+          <button type="button" class="btn" onclick="loadPlanJsonIntoEditor()" style="padding:4px 12px;font-size:12px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)">✏️ Edit & Re-use</button>
+          <span id="copy-plan-json-msg" style="font-size:12px;color:var(--green)"></span>
+        </div>
 
         <!-- Scene list -->
         <div class="scene-tracker" id="scene-tracker">
@@ -1028,6 +1124,21 @@
       <div class="modal-actions">
         <button class="btn btn-purple" style="flex:1" id="media-picker-select-btn" onclick="confirmMediaPick()" disabled>✔ Use Selected</button>
         <button class="btn-sm" onclick="closeMediaPicker()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ HERO CATALOG MODAL ═══ -->
+  <div class="modal-overlay" id="hero-catalog-modal" onclick="if(event.target===this)closeHeroCatalog()">
+    <div class="modal-box" style="max-width:520px">
+      <h3>🦸 Select Heroes from Catalog</h3>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">Selected heroes will be explicitly named in the AI image prompts even without a reference image.</p>
+      <div class="hero-catalog-grid" id="hero-catalog-grid">
+        <div style="color:var(--muted);font-size:12px;padding:16px;grid-column:1/-1">Loading…</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-purple" style="flex:1" onclick="confirmHeroCatalogSelection()">✔ Add Selected Heroes</button>
+        <button class="btn-sm" onclick="closeHeroCatalog()">Cancel</button>
       </div>
     </div>
   </div>
@@ -1095,6 +1206,7 @@ async function init() {
   await loadGallery();
   await loadCombineVideos();
   await loadStoryHistoryList();
+  loadMarketingAngles(); // non-blocking — populates angle cards
   // Initialize pipeline mode selection visual state
   onPipelineModeChange('standard');
 }
@@ -1870,9 +1982,333 @@ async function loadStoryGameContext() {
 }
 
 // ── Story hero/background image upload helpers ──
-let storyHeroFile = null;
-let storyBgFile = null;
-let storyMusicFile = null;
+let storyHeroFiles = [];     // Array of { file: File, isUploadRef: bool, serverPath?: string, name: string, size: number, thumbUrl: string }
+let storyBgFile = null;      // { file: File } or { isUploadRef: true, serverPath, name } or null
+let storyMusicFile = null;   // { file: File } or { isUploadRef: true, serverPath, name } or null
+let storyNamedHeroes = [];   // string[] — hero names from catalog (no image)
+let selectedAngleId = null;  // number | null
+let _marketingAngles = [];   // cached from /api/marketing-angles
+let _heroCatalogData = [];   // cached from /api/hero-catalog
+let _heroCatalogSelected = new Set(); // currently ticked in the modal
+
+// ── Marketing Angle functions ─────────────────────────────────────────────────
+async function loadMarketingAngles() {
+  try {
+    const res = await fetch('/api/marketing-angles');
+    if (!res.ok) return;
+    const data = await res.json();
+    _marketingAngles = data.angles || [];
+    renderAngleCards(_marketingAngles);
+  } catch (e) {
+    console.warn('Could not load marketing angles:', e);
+    document.getElementById('angle-card-grid').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">Marketing angles unavailable.</div>';
+  }
+}
+
+function renderAngleCards(angles) {
+  const grid = document.getElementById('angle-card-grid');
+  if (!grid) return;
+  if (!angles.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No angles found.</div>'; return; }
+  grid.innerHTML = angles.map(a => {
+    const statusClass = a.status === 'in_pipeline' ? 'in-pipeline' : a.status === 'untested_gap' ? 'untested-gap' : 'untested';
+    const statusLabel = a.status === 'in_pipeline' ? '▶ In Pipeline' : a.status === 'untested_gap' ? `★ Gap (Priority ${a.test_priority})` : '○ Untested';
+    return `<div class="angle-card" id="angle-card-${a.id}" onclick="selectAngle(${a.id})">
+      <div class="angle-card-name">${a.name}</div>
+      <div class="angle-card-msg">${a.core_message}</div>
+      <div class="angle-card-status ${statusClass}">${statusLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectAngle(id) {
+  selectedAngleId = id;
+  document.querySelectorAll('.angle-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`angle-card-${id}`);
+  if (card) card.classList.add('selected');
+  const actions = document.getElementById('angle-actions');
+  actions.style.display = 'flex';
+  document.getElementById('video-desc-output').classList.remove('show');
+  document.getElementById('video-desc-copy-row').style.display = 'none';
+}
+
+function clearAngleSelection() {
+  selectedAngleId = null;
+  document.querySelectorAll('.angle-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('angle-actions').style.display = 'none';
+  document.getElementById('video-desc-output').classList.remove('show');
+  document.getElementById('video-desc-copy-row').style.display = 'none';
+}
+
+async function generateVideoDescriptionBrief() {
+  if (!selectedAngleId) return;
+  const gameContext = document.getElementById('story-game-context').value.trim();
+  const heroDesc = document.getElementById('story-hero-desc').value.trim();
+  const btn = document.getElementById('btn-gen-video-desc');
+  const spinner = document.getElementById('gen-desc-spinner');
+  const outputBox = document.getElementById('video-desc-output');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  outputBox.textContent = 'Generating video brief…';
+  outputBox.classList.add('show');
+  document.getElementById('video-desc-copy-row').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/generate-video-desc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ angleId: selectedAngleId, gameContext, heroDesc, namedHeroes: storyNamedHeroes }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Generation failed');
+    outputBox.textContent = data.description;
+    document.getElementById('video-desc-copy-row').style.display = 'flex';
+  } catch (err) {
+    outputBox.textContent = '❌ ' + err.message;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function copyDescToStory() {
+  const desc = document.getElementById('video-desc-output').textContent;
+  if (!desc || desc.startsWith('❌')) return;
+  document.getElementById('story-text').value = desc;
+  const btn = event.currentTarget;
+  const orig = btn.textContent;
+  btn.textContent = '✅ Copied!';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+
+// ── Planning JSON inject ───────────────────────────────────────────────────────
+function togglePlanJsonPanel() {
+  const panel = document.getElementById('plan-json-panel');
+  const btn = document.getElementById('btn-toggle-plan-json');
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  btn.style.background = open ? 'rgba(124,58,237,.2)' : 'var(--surface2)';
+  btn.style.color = open ? '#a78bfa' : 'var(--muted)';
+  btn.style.borderColor = open ? 'rgba(124,58,237,.5)' : 'var(--border)';
+  btn.textContent = open ? '📋 Planning JSON ▲' : '📋 Paste Planning JSON';
+}
+
+/** Normalize whatever the user pastes into { scenes:[], voiceOverCharacteristics:"" }.
+ *  Accepts:
+ *   - A bare array:           [ { sceneNumber:1, ... }, ... ]
+ *   - An object with scenes:  { "scenes": [...], "voiceOverCharacteristics": "..." }
+ *   - An object that IS a scene (single scene wrapped in {}): auto-wraps into array
+ * Returns null on parse failure or if no valid scenes found. */
+function _normalizePlanInput(raw) {
+  if (!raw) return null;
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { return null; }
+
+  let scenes, voiceOver = '';
+
+  if (Array.isArray(parsed)) {
+    // Bare array of scenes
+    scenes = parsed;
+  } else if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.scenes)) {
+      // Full object { scenes: [...], voiceOverCharacteristics: "..." }
+      scenes = parsed.scenes;
+      voiceOver = parsed.voiceOverCharacteristics || '';
+    } else if (parsed.sceneNumber !== undefined || parsed.videoPrompt !== undefined) {
+      // Single scene object accidentally — wrap it
+      scenes = [parsed];
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  if (!scenes || scenes.length === 0) return null;
+  return { scenes, voiceOverCharacteristics: voiceOver };
+}
+
+function validatePlanJson() {
+  const raw = document.getElementById('plan-json-input').value.trim();
+  const statusEl = document.getElementById('plan-json-status');
+  if (!raw) { statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Empty — will use AI planning'; return; }
+
+  // Try to parse raw first for error message
+  try { JSON.parse(raw); } catch(e) {
+    statusEl.style.color = 'var(--red,#ef4444)'; statusEl.textContent = `❌ JSON parse error: ${e.message}`; return;
+  }
+
+  const plan = _normalizePlanInput(raw);
+  if (!plan) {
+    statusEl.style.color = 'var(--red,#ef4444)'; statusEl.textContent = '❌ Could not find a scenes array — paste an array [...] or { "scenes": [...] }'; return;
+  }
+  const missingFields = plan.scenes.filter(s => !s.videoPrompt || !s.duration);
+  if (missingFields.length > 0) {
+    statusEl.style.color = 'orange';
+    statusEl.textContent = `⚠ ${missingFields.length} scene(s) missing videoPrompt or duration — still usable`; return;
+  }
+  const totalSec = plan.scenes.reduce((s,c) => s + (c.duration || 0), 0);
+  const note = plan.voiceOverCharacteristics ? '' : ' · voice-over from Voice Desc field';
+  statusEl.style.color = 'var(--green)';
+  statusEl.textContent = `✅ Valid — ${plan.scenes.length} scenes, total ${totalSec}s${note}`;
+}
+
+function clearPlanJson() {
+  document.getElementById('plan-json-input').value = '';
+  document.getElementById('plan-json-status').textContent = '';
+}
+
+/** Build the minimal planning JSON from the current active entry's scenes */
+function _buildPlanningJson(entry) {
+  if (!entry?.scenes?.length) return null;
+  const scenes = entry.scenes.map(s => {
+    const out = {
+      sceneNumber: s.sceneNumber,
+      videoPrompt: s.videoPrompt,
+      duration: s.duration,
+      useHeroRef: s.useHeroRef || false,
+      useBgRef: s.useBgRef || false,
+    };
+    if (s.imagePrompt) out.imagePrompt = s.imagePrompt;
+    if (s.imageBPrompt) out.imageBPrompt = s.imageBPrompt;
+    if (s.ctaImagePrompt) out.ctaImagePrompt = s.ctaImagePrompt;
+    return out;
+  });
+  return { scenes, voiceOverCharacteristics: entry.voiceOverCharacteristics || '' };
+}
+
+function copyPlanningJson() {
+  const wrap = document.getElementById('copy-plan-json-wrap');
+  const entry = wrap?._entry;
+  const plan = _buildPlanningJson(entry);
+  if (!plan) return;
+  navigator.clipboard.writeText(JSON.stringify(plan, null, 2)).then(() => {
+    const msg = document.getElementById('copy-plan-json-msg');
+    msg.textContent = '✅ Copied!';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  });
+}
+
+function loadPlanJsonIntoEditor() {
+  const wrap = document.getElementById('copy-plan-json-wrap');
+  const entry = wrap?._entry;
+  const plan = _buildPlanningJson(entry);
+  if (!plan) return;
+  // Open the panel and populate it
+  const panel = document.getElementById('plan-json-panel');
+  if (panel.style.display === 'none') togglePlanJsonPanel();
+  document.getElementById('plan-json-input').value = JSON.stringify(plan, null, 2);
+  validatePlanJson();
+  // Scroll left panel into view
+  document.getElementById('plan-json-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ── Multi-Hero image management ───────────────────────────────────────────────
+const MAX_HERO_IMAGES = 6;
+
+function handleHeroImagesPick(input) {
+  const files = Array.from(input.files);
+  for (const file of files) {
+    if (storyHeroFiles.length >= MAX_HERO_IMAGES) break;
+    const thumbUrl = URL.createObjectURL(file);
+    storyHeroFiles.push({ file, isUploadRef: false, name: file.name, size: file.size, thumbUrl });
+  }
+  input.value = '';
+  renderHeroPills();
+  updateHeroDropzoneVisibility();
+}
+
+function renderHeroPills() {
+  const list = document.getElementById('hero-pills-list');
+  if (!list) return;
+  list.innerHTML = storyHeroFiles.map((h, i) => {
+    const sizeStr = h.size > 1024 * 1024 ? (h.size / 1024 / 1024).toFixed(1) + ' MB' : (h.size / 1024).toFixed(0) + ' KB';
+    const thumb = h.thumbUrl ? `<img src="${h.thumbUrl}" alt="Hero ${i+1}">` : `<span style="font-size:18px">🦸</span>`;
+    const shortName = h.name.replace(/^\d+-[\da-f]+-?/, '').slice(0, 18) || `Hero ${i+1}`;
+    return `<div class="hero-pill-item">
+      ${thumb}
+      <span class="pill-label" title="${h.name}">Hero ${i+1} · ${sizeStr}</span>
+      <button class="pill-rm" onclick="removeHeroFile(${i})" title="Remove ${shortName}">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function removeHeroFile(index) {
+  storyHeroFiles.splice(index, 1);
+  renderHeroPills();
+  updateHeroDropzoneVisibility();
+}
+
+function updateHeroDropzoneVisibility() {
+  const dz = document.getElementById('dz-story-hero');
+  if (!dz) return;
+  const atMax = storyHeroFiles.length >= MAX_HERO_IMAGES;
+  dz.style.opacity = atMax ? '0.4' : '';
+  dz.querySelector('input[type=file]').disabled = atMax;
+}
+
+// ── Hero Catalog Modal ────────────────────────────────────────────────────────
+async function openHeroCatalog() {
+  if (_heroCatalogData.length === 0) {
+    try {
+      const res = await fetch('/api/hero-catalog');
+      const data = await res.json();
+      _heroCatalogData = data.heroes || [];
+    } catch { _heroCatalogData = []; }
+  }
+  _heroCatalogSelected = new Set(storyNamedHeroes);
+
+  const grid = document.getElementById('hero-catalog-grid');
+  grid.innerHTML = _heroCatalogData.map(h => {
+    const isSel = _heroCatalogSelected.has(h.name);
+    return `<div class="hero-catalog-item${isSel ? ' selected' : ''}" onclick="toggleCatalogHero('${h.name.replace(/'/g,"\\'")}', this)">
+      <input type="checkbox" class="hc-check" ${isSel ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleCatalogHero('${h.name.replace(/'/g,"\\'")}', this.closest('.hero-catalog-item'))">
+      <div class="hc-name">${h.name}</div>
+      <div class="hc-class">${h.class}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('hero-catalog-modal').classList.add('show');
+}
+
+function toggleCatalogHero(name, cardEl) {
+  const cb = cardEl.querySelector('input[type=checkbox]');
+  if (_heroCatalogSelected.has(name)) {
+    _heroCatalogSelected.delete(name);
+    cardEl.classList.remove('selected');
+    if (cb) cb.checked = false;
+  } else {
+    _heroCatalogSelected.add(name);
+    cardEl.classList.add('selected');
+    if (cb) cb.checked = true;
+  }
+}
+
+function confirmHeroCatalogSelection() {
+  storyNamedHeroes = Array.from(_heroCatalogSelected);
+  renderNamedHeroBadges();
+  closeHeroCatalog();
+}
+
+function closeHeroCatalog() {
+  document.getElementById('hero-catalog-modal').classList.remove('show');
+}
+
+function renderNamedHeroBadges() {
+  const container = document.getElementById('named-heroes-badges');
+  if (!container) return;
+  container.innerHTML = storyNamedHeroes.map(name =>
+    `<span style="background:rgba(6,182,212,.12);color:var(--accent2);border:1px solid rgba(6,182,212,.3);border-radius:4px;font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:5px">
+      🦸 ${name}
+      <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0" onclick="removeNamedHero('${name.replace(/'/g,"\\'")}')">✕</button>
+    </span>`
+  ).join('');
+}
+
+function removeNamedHero(name) {
+  storyNamedHeroes = storyNamedHeroes.filter(n => n !== name);
+  renderNamedHeroBadges();
+}
 
 function onDurationRangeChange(value) {
   const customDiv = document.getElementById('story-duration-custom');
@@ -1908,8 +2344,9 @@ function onPipelineModeChange(mode) {
 
 function handleMusicFilePick(input) {
   if (input.files[0]) {
-    storyMusicFile = input.files[0];
-    document.getElementById('music-label').innerHTML = `🎵 <strong>${storyMusicFile.name}</strong> (${(storyMusicFile.size / 1024).toFixed(0)} KB)`;
+    const file = input.files[0];
+    storyMusicFile = { file, isUploadRef: false, name: file.name };
+    document.getElementById('music-label').innerHTML = `🎵 <strong>${file.name}</strong> (${(file.size / 1024).toFixed(0)} KB)`;
   }
 }
 
@@ -1987,54 +2424,46 @@ function selectMediaItem(el) {
   document.getElementById('media-picker-select-btn').disabled = false;
 }
 
-async function confirmMediaPick() {
+// BUG FIX: confirmMediaPick no longer re-uploads files — uses server path reference instead
+function confirmMediaPick() {
   if (!_mpSelected || !_mpTarget) return;
 
-  const btn = document.getElementById('media-picker-select-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Loading…';
+  const serverPath = _mpSelected.url;   // e.g. /uploads/1234-abcd.png
+  const filename = _mpSelected.filename;
+  const sizeStr = '(from uploads)';
 
-  try {
-    // Fetch the file from /uploads/ as a Blob, then wrap in a File object
-    const response = await fetch(_mpSelected.url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const blob = await response.blob();
-    const file = new File([blob], _mpSelected.filename, { type: blob.type || 'application/octet-stream' });
-
-    if (_mpTarget === 'hero' || _mpTarget === 'bg') {
-      // Assign to the correct file variable and show the pill
-      if (_mpTarget === 'hero') storyHeroFile = file;
-      else storyBgFile = file;
-
-      const pill = document.getElementById(`pill-story-${_mpTarget}`);
-      const thumb = document.getElementById(`thumb-story-${_mpTarget}`);
-      const name = document.getElementById(`name-story-${_mpTarget}`);
-      const size = document.getElementById(`size-story-${_mpTarget}`);
-      const dz = document.getElementById(`dz-story-${_mpTarget}`);
-
-      thumb.src = URL.createObjectURL(file);
-      name.textContent = file.name;
-      size.textContent = (file.size / 1024).toFixed(0) + ' KB';
-      pill.classList.add('show');
-      dz.style.display = 'none';
-    } else if (_mpTarget === 'music') {
-      storyMusicFile = file;
-      document.getElementById('music-label').innerHTML = `🎵 <strong>${file.name}</strong> (${(file.size / 1024).toFixed(0)} KB)`;
+  if (_mpTarget === 'hero') {
+    // Push as upload reference — no binary re-upload
+    if (storyHeroFiles.length < MAX_HERO_IMAGES) {
+      storyHeroFiles.push({ file: null, isUploadRef: true, serverPath, name: filename, size: 0, thumbUrl: serverPath });
+      renderHeroPills();
+      updateHeroDropzoneVisibility();
     }
-
-    closeMediaPicker();
-  } catch (err) {
-    btn.textContent = '✔ Use Selected';
-    btn.disabled = false;
-    alert('Failed to load file: ' + err.message);
+  } else if (_mpTarget === 'bg') {
+    storyBgFile = { file: null, isUploadRef: true, serverPath, name: filename };
+    const pill = document.getElementById('pill-story-bg');
+    const thumb = document.getElementById('thumb-story-bg');
+    const nameEl = document.getElementById('name-story-bg');
+    const sizeEl = document.getElementById('size-story-bg');
+    const dz = document.getElementById('dz-story-bg');
+    thumb.src = serverPath;
+    nameEl.textContent = filename;
+    sizeEl.textContent = sizeStr;
+    pill.classList.add('show');
+    dz.style.display = 'none';
+  } else if (_mpTarget === 'music') {
+    storyMusicFile = { file: null, isUploadRef: true, serverPath, name: filename };
+    document.getElementById('music-label').innerHTML = `🎵 <strong>${filename}</strong> (from uploads)`;
   }
+
+  closeMediaPicker();
 }
 
 function handleStoryImagePick(input, type) {
+  // Only used for bg (hero now uses handleHeroImagesPick)
   const file = input.files[0];
   if (!file) return;
-  if (type === 'hero') storyHeroFile = file;
-  else storyBgFile = file;
+  storyBgFile = { file, isUploadRef: false, name: file.name };
 
   const pill = document.getElementById(`pill-story-${type}`);
   const thumb = document.getElementById(`thumb-story-${type}`);
@@ -2050,11 +2479,12 @@ function handleStoryImagePick(input, type) {
 }
 
 function clearStoryImage(type) {
-  if (type === 'hero') { storyHeroFile = null; document.getElementById('story-hero-image').value = ''; }
-  else { storyBgFile = null; document.getElementById('story-bg-image').value = ''; }
-
-  document.getElementById(`pill-story-${type}`).classList.remove('show');
-  document.getElementById(`dz-story-${type}`).style.display = '';
+  if (type === 'bg') {
+    storyBgFile = null;
+    document.getElementById('story-bg-image').value = '';
+    document.getElementById('pill-story-bg').classList.remove('show');
+    document.getElementById('dz-story-bg').style.display = '';
+  }
 }
 
 // Drag-and-drop for story image dropzones
@@ -2065,13 +2495,23 @@ function clearStoryImage(type) {
   dz.addEventListener('dragleave', () => dz.classList.remove('over'));
   dz.addEventListener('drop', e => {
     e.preventDefault(); dz.classList.remove('over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const input = document.getElementById(type === 'hero' ? 'story-hero-image' : 'story-bg-image');
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      input.files = dt.files;
-      handleStoryImagePick(input, type);
+    if (type === 'hero') {
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      for (const file of files) {
+        if (storyHeroFiles.length >= MAX_HERO_IMAGES) break;
+        storyHeroFiles.push({ file, isUploadRef: false, name: file.name, size: file.size, thumbUrl: URL.createObjectURL(file) });
+      }
+      renderHeroPills();
+      updateHeroDropzoneVisibility();
+    } else {
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const input = document.getElementById('story-bg-image');
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        handleStoryImagePick(input, type);
+      }
     }
   });
 });
@@ -2084,8 +2524,11 @@ async function submitStory() {
   const heroDesc = document.getElementById('story-hero-desc').value.trim();
   const voiceDesc = document.getElementById('story-voice-desc').value.trim();
 
-  if (!storyText) {
-    setStatus('story', 'error', '⚠ Please enter a story or script.');
+  // Story text is optional when a valid planning JSON is provided
+  const planJsonRaw = document.getElementById('plan-json-input')?.value?.trim();
+  const hasPlanJson = !!(_normalizePlanInput(planJsonRaw));
+  if (!storyText && !hasPlanJson) {
+    setStatus('story', 'error', '⚠ Please enter a story or script, or paste a Planning JSON.');
     return;
   }
 
@@ -2101,16 +2544,39 @@ async function submitStory() {
     // Use FormData for multipart upload (hero/bg images + text fields)
     const fd = new FormData();
     const pipelineMode = document.querySelector('input[name="pipelineMode"]:checked')?.value || 'standard';
+    const runMode = document.querySelector('input[name="runMode"]:checked')?.value || 'auto';
     fd.append('storyText', storyText);
     fd.append('durationRange', durationRange);
     fd.append('videoModel', videoModel);
     fd.append('pipelineMode', pipelineMode);
+    fd.append('runMode', runMode);
     fd.append('gameContext', gameContext);
     fd.append('heroDesc', heroDesc);
     fd.append('voiceDesc', voiceDesc);
-    if (storyHeroFile) fd.append('heroImage', storyHeroFile);
-    if (storyBgFile) fd.append('bgImage', storyBgFile);
-    if (storyMusicFile) fd.append('musicFile', storyMusicFile);
+    // Hero images: binary uploads or upload-refs (no re-upload)
+    for (const h of storyHeroFiles) {
+      if (h.isUploadRef) fd.append('heroImagePaths[]', h.serverPath);
+      else fd.append('heroImages', h.file);
+    }
+    // Named heroes from catalog
+    if (storyNamedHeroes.length > 0) fd.append('namedHeroes', JSON.stringify(storyNamedHeroes));
+    // Background image
+    if (storyBgFile) {
+      if (storyBgFile.isUploadRef) fd.append('bgImageRef', storyBgFile.serverPath);
+      else fd.append('bgImage', storyBgFile.file);
+    }
+    // Music file
+    if (storyMusicFile) {
+      if (storyMusicFile.isUploadRef) fd.append('musicFileRef', storyMusicFile.serverPath);
+      else fd.append('musicFile', storyMusicFile.file);
+    }
+    // Planning JSON (optional — skips AI planning if valid)
+    // Normalize first: accept bare array or full object
+    const planJsonRaw = document.getElementById('plan-json-input')?.value?.trim();
+    if (planJsonRaw) {
+      const normalized = _normalizePlanInput(planJsonRaw);
+      if (normalized) fd.append('planningJson', JSON.stringify(normalized));
+    }
 
     const res = await fetch('/api/generate-story', {
       method: 'POST',
@@ -2199,6 +2665,17 @@ function renderStoryProgress(entry) {
     voiceInfoEl.innerHTML = `<strong>🎙 Voice-over:</strong> ${entry.voiceOverCharacteristics}`;
   } else {
     voiceInfoEl.style.display = 'none';
+  }
+
+  // Copy Planning JSON button — shown once scenes are available
+  const planJsonBtnWrap = document.getElementById('copy-plan-json-wrap');
+  if (planJsonBtnWrap) {
+    if (entry.scenes && entry.scenes.length > 0) {
+      planJsonBtnWrap.style.display = 'flex';
+      planJsonBtnWrap._entry = entry;
+    } else {
+      planJsonBtnWrap.style.display = 'none';
+    }
   }
 
   // Scene tracker

@@ -235,6 +235,14 @@
     .detail-field-value.cost { color: var(--green); font-weight: 600; background: rgba(16,185,129,.08); }
     .detail-field-value.error { color: var(--red); background: rgba(239,68,68,.08); }
     .detail-field-value.muted { color: var(--muted); font-style: italic; }
+    .detail-field-textarea {
+      width: 100%; box-sizing: border-box;
+      background: var(--surface2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; font-size: 12px; line-height: 1.5;
+      resize: vertical; font-family: inherit; min-height: 70px;
+    }
+    .detail-field-textarea:focus { outline: none; border-color: var(--accent); }
 
     .detail-actions {
       padding: 14px 18px; border-top: 1px solid var(--border);
@@ -271,6 +279,81 @@
       background: var(--surface2); border-radius: 8px; border: 1px solid var(--border);
       color: var(--yellow); font-size: 13px; font-weight: 500;
     }
+
+    /* ── New Story Modal ── */
+    .ns-overlay {
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,.8); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fade-in .15s ease;
+    }
+    .ns-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); width: min(94vw, 640px); max-height: 90vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,.8);
+      animation: slide-up .18s ease;
+    }
+    .ns-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .ns-header h2 { font-size: 16px; font-weight: 700; flex: 1; }
+    .ns-body { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    .ns-fg label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
+    .ns-fg textarea, .ns-fg input, .ns-fg select {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 12px; font-family: inherit;
+      transition: border .15s;
+    }
+    .ns-fg textarea:focus, .ns-fg input:focus, .ns-fg select:focus { outline: none; border-color: var(--accent); }
+    .ns-fg textarea { min-height: 80px; resize: vertical; }
+    .ns-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .ns-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .ns-radio-row { display: flex; gap: 12px; }
+    .ns-radio-opt { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+    .ns-radio-opt input[type="radio"] { accent-color: var(--accent); }
+    .ns-footer { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; }
+    .ns-btn { padding: 8px 18px; font-size: 12px; font-weight: 600; border-radius: var(--rs); cursor: pointer; border: none; transition: all .15s; }
+    .ns-btn.primary { background: var(--accent); color: #fff; flex: 1; }
+    .ns-btn.primary:hover { background: var(--accent-h); }
+    .ns-btn.primary:disabled { opacity: .5; cursor: not-allowed; }
+    .ns-btn.ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .ns-btn.ghost:hover { border-color: var(--accent); }
+
+    /* ── Toolbar action group ── */
+    .topbar-actions { display: flex; gap: 4px; }
+    .topbar-actions .btn-sm { font-size: 10px; padding: 4px 8px; }
+
+    /* ── NS file-btn ── */
+    .ns-file-btn {
+      padding: 4px 10px; font-size: 11px; font-weight: 500; border: 1px solid var(--border);
+      border-radius: var(--rs); background: var(--surface2); color: var(--text); cursor: pointer;
+      transition: all .15s; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .ns-file-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── NS hero pill ── */
+    .ns-pill {
+      display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 4px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 20px;
+      font-size: 11px; max-width: 160px;
+    }
+    .ns-pill img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+    .ns-pill .ns-pill-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex:1; }
+    .ns-pill .ns-pill-x { cursor: pointer; color: var(--muted); font-size: 13px; flex-shrink:0; }
+    .ns-pill .ns-pill-x:hover { color: var(--red); }
+
+    /* ── NS catalog / picker item ── */
+    .ns-catalog-item {
+      border: 2px solid var(--border); border-radius: var(--rs); padding: 8px; cursor: pointer;
+      transition: all .15s; background: var(--surface2); text-align: center;
+    }
+    .ns-catalog-item:hover { border-color: var(--accent); }
+    .ns-catalog-item.selected { border-color: var(--accent); background: rgba(124,58,237,.12); }
+    .ns-catalog-item img { width: 100%; aspect-ratio:1; object-fit: cover; border-radius: 6px; margin-bottom: 4px; }
+    .ns-catalog-item .ns-ci-name { font-size: 11px; font-weight: 600; word-break: break-word; }
+    .ns-catalog-item .ns-ci-sub { font-size: 10px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -291,10 +374,18 @@
   <div class="topbar-info" id="topbar-info">No story loaded</div>
   <div id="topbar-status" class="topbar-status pending" style="display:none"></div>
 
+  <div class="topbar-actions" id="pipeline-actions" style="display:none">
+    <button class="btn-sm green" onclick="resumePipeline()" title="Resume pipeline from where it stopped">▶ Resume</button>
+    <button class="btn-sm" onclick="resubmitAllImages()" title="Resubmit all pending/failed images">🖼 Redo Images</button>
+    <button class="btn-sm" onclick="resubmitAllVideos()" title="Resubmit all pending/failed videos">🎬 Redo Videos</button>
+  </div>
+
+  <div class="topbar-sep"></div>
   <div class="refresh-dot" id="refresh-dot" title="Auto-refresh active"></div>
   <button class="btn-sm" onclick="fitCanvas()" title="Fit all nodes in view">⊞ Fit</button>
   <button class="btn-sm" onclick="toggleAutoRefresh()" id="btn-auto-refresh">⏸ Pause</button>
   <button class="btn-sm" onclick="manualRefresh()" id="btn-refresh">↺ Refresh</button>
+  <button class="btn-sm accent" onclick="openNewStoryModal()" title="Create a new story from canvas">+ New Story</button>
   <button class="btn-sm" onclick="window.open('/','_blank')" title="Open main GUI">↗ Main GUI</button>
 </div>
 
@@ -323,6 +414,200 @@
   <div class="minimap" id="minimap">
     <canvas class="minimap-canvas" id="minimap-canvas"></canvas>
     <div class="minimap-label">overview</div>
+  </div>
+</div>
+
+<!-- New Story Modal -->
+<div id="ns-overlay" class="ns-overlay" style="display:none" onclick="if(event.target===this) closeNewStoryModal()">
+  <div class="ns-modal">
+    <div class="ns-header">
+      <span style="font-size:20px">✨</span>
+      <h2>New Story</h2>
+      <button class="btn-sm" onclick="closeNewStoryModal()" style="margin-left:auto">✕</button>
+    </div>
+    <div class="ns-body">
+
+      <!-- Marketing Angles -->
+      <div class="ns-fg">
+        <label>Marketing Angle <span style="color:var(--muted);font-size:10px;font-weight:400">(optional — generate a video brief first)</span></label>
+        <div id="ns-angle-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+          <div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">Loading angles…</div>
+        </div>
+        <div id="ns-angle-actions" style="display:none;margin-top:4px;gap:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="ns-file-btn" id="ns-btn-gen-brief" onclick="nsGenerateBrief()">
+            <span id="ns-brief-spinner" style="display:none;width:11px;height:11px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0"></span>
+            ✨ Generate Video Brief
+          </button>
+          <button type="button" class="ns-file-btn" onclick="nsClearAngle()">✕ Clear</button>
+        </div>
+        <div id="ns-brief-output" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:180px;overflow-y:auto;margin-top:6px;font-family:monospace"></div>
+        <div id="ns-brief-copy-row" style="display:none;margin-top:6px;gap:6px;align-items:center">
+          <button type="button" class="ns-file-btn" style="border-color:var(--green);color:var(--green)" onclick="nsCopyBriefToStory()">📋 Copy to Story</button>
+          <span style="font-size:11px;color:var(--muted)">Review brief, then copy to use as story script</span>
+        </div>
+      </div>
+
+      <!-- Story text -->
+      <div class="ns-fg">
+        <label>Story / Script <span style="color:var(--red)">*</span></label>
+        <textarea id="ns-story-text" placeholder="Write or paste your story script here…" style="min-height:90px"></textarea>
+      </div>
+
+      <!-- Duration + Mode -->
+      <div class="ns-row">
+        <div class="ns-fg">
+          <label>Duration Range</label>
+          <select id="ns-duration" onchange="nsToggleCustomDuration()">
+            <option value="10-15">10–15s (Short)</option>
+            <option value="15-30" selected>15–30s (Medium)</option>
+            <option value="30-45">30–45s (Long)</option>
+            <option value="45-60">45–60s (XL)</option>
+            <option value="60-90">60–90s (XXL)</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <div id="ns-custom-dur" style="display:none;margin-top:6px;display:none">
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" id="ns-dur-min" value="20" min="5" max="600" style="width:70px" placeholder="Min" />
+              <span style="color:var(--muted);font-size:11px">–</span>
+              <input type="number" id="ns-dur-max" value="40" min="5" max="600" style="width:70px" placeholder="Max" />
+              <span style="color:var(--muted);font-size:10px">seconds</span>
+            </div>
+          </div>
+        </div>
+        <div class="ns-fg">
+          <label>Pipeline Mode</label>
+          <div class="ns-radio-row" style="margin-top:6px">
+            <label class="ns-radio-opt"><input type="radio" name="ns-mode" value="standard" checked onchange="nsToggleMusicSection()" /> Standard</label>
+            <label class="ns-radio-opt"><input type="radio" name="ns-mode" value="fast-paced" onchange="nsToggleMusicSection()" /> Fast-Paced</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run Mode -->
+      <div class="ns-fg">
+        <label>Run Mode</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <label id="ns-run-auto-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="ns-runmode" value="auto" checked onchange="nsHighlightRunMode()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">🤖 Automatic</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4">Runs all phases end-to-end without stopping</div>
+            </div>
+          </label>
+          <label id="ns-run-manual-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="ns-runmode" value="manual" onchange="nsHighlightRunMode()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">🎛 Manual</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4">Pauses after each phase — you approve before continuing</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Video Model -->
+      <div class="ns-fg">
+        <label>Video Model</label>
+        <select id="ns-video-model"><option value="">Loading…</option></select>
+      </div>
+
+      <!-- Game Context -->
+      <div class="ns-fg">
+        <label>Game / Brand Context</label>
+        <textarea id="ns-game-context" placeholder="Game-specific context for AI scene planning (optional)" style="min-height:55px"></textarea>
+      </div>
+
+      <!-- Hero desc + Voice desc -->
+      <div class="ns-row">
+        <div class="ns-fg">
+          <label>Hero Description</label>
+          <textarea id="ns-hero-desc" placeholder="Describe the main character (optional)" style="min-height:55px"></textarea>
+        </div>
+        <div class="ns-fg">
+          <label>Voice Description</label>
+          <textarea id="ns-voice-desc" placeholder="Voice-over style (optional)" style="min-height:55px"></textarea>
+        </div>
+      </div>
+
+      <!-- Hero Images -->
+      <div class="ns-fg">
+        <label>Hero Reference Image(s) <span style="color:var(--muted);font-size:10px">(up to 6)</span></label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <label class="ns-file-btn">📁 Upload <input type="file" id="ns-hero-images" accept="image/*" multiple style="display:none" onchange="nsUpdateHeroPills()" /></label>
+          <button type="button" class="ns-file-btn" onclick="nsOpenUploadPicker('hero')">📂 From Uploads</button>
+          <button type="button" class="ns-file-btn" onclick="nsOpenHeroCatalog()">🦸 Hero Catalog</button>
+        </div>
+        <div id="ns-hero-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+        <div id="ns-named-heroes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
+
+      <!-- BG Image -->
+      <div class="ns-fg">
+        <label>Background Reference Image</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label class="ns-file-btn">📁 Upload <input type="file" id="ns-bg-image" accept="image/*" style="display:none" onchange="nsUpdateBgPill()" /></label>
+          <button type="button" class="ns-file-btn" onclick="nsOpenUploadPicker('bg')">📂 From Uploads</button>
+          <span id="ns-bg-pill" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+
+      <!-- Music (fast-paced only) -->
+      <div id="ns-music-section" class="ns-fg" style="display:none">
+        <label>Background Music</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label class="ns-file-btn">📁 Upload <input type="file" id="ns-music-file" accept=".mp3,.wav,.m4a,.aac,.ogg" style="display:none" onchange="nsUpdateMusicPill()" /></label>
+          <button type="button" class="ns-file-btn" onclick="nsOpenUploadPicker('music')">📂 From Uploads</button>
+          <span id="ns-music-pill" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+
+      <!-- Planning JSON (advanced) -->
+      <div class="ns-fg">
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="margin:0">Inject Planning JSON</label>
+          <button type="button" class="ns-file-btn" onclick="nsTogglePlanJson()" id="ns-plan-toggle">▸ Show</button>
+          <span id="ns-plan-status" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div id="ns-plan-panel" style="display:none;margin-top:6px">
+          <textarea id="ns-plan-json" placeholder='[{"duration":5,"imagePrompt":"…","videoPrompt":"…"},…]' style="min-height:80px;font-family:monospace;font-size:11px" oninput="nsValidatePlanJson()"></textarea>
+        </div>
+      </div>
+
+    </div><!-- /.ns-body -->
+    <div class="ns-footer">
+      <button class="ns-btn ghost" onclick="closeNewStoryModal()">Cancel</button>
+      <button class="ns-btn primary" id="ns-submit-btn" onclick="submitNewStory()">🚀 Generate Story</button>
+    </div>
+  </div>
+</div>
+
+<!-- NS Hero Catalog Modal -->
+<div id="ns-catalog-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center" onclick="if(event.target===this)nsCloseHeroCatalog()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,560px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🦸</span>
+      <span style="font-size:15px;font-weight:700;flex:1">Hero Catalog</span>
+      <button class="btn-sm" onclick="nsCloseHeroCatalog()">✕</button>
+    </div>
+    <div id="ns-catalog-grid" style="flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+      <div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+      <button class="ns-btn primary" onclick="nsCloseHeroCatalog()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- NS Upload Picker Modal -->
+<div id="ns-picker-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.8);align-items:center;justify-content:center" onclick="if(event.target===this)nsClosePicker()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,600px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">📂</span>
+      <span id="ns-picker-title" style="font-size:15px;font-weight:700;flex:1">Choose from Uploads</span>
+      <button class="btn-sm" onclick="nsClosePicker()">✕</button>
+    </div>
+    <div id="ns-picker-grid" style="flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+      <div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>
+    </div>
   </div>
 </div>
 
@@ -436,6 +721,7 @@ async function refreshStory() {
       patchCanvas();
     }
     updateTopbar();
+    updatePipelineActions();
   } catch(e) { console.warn('refreshStory:', e); }
 }
 
@@ -482,7 +768,9 @@ function updateTopbar() {
 
   statusEl.style.display = '';
   statusEl.className = `topbar-status ${entry.status}`;
-  const labels = { processing:'⏳ Processing', completed:'✅ Done', paused:'⚠ Paused', failed:'❌ Failed', pending:'🕐 Pending' };
+  const phaseLabels = { images: 'Images', videos: 'Videos', concat: 'Concat', planning: 'Planning' };
+  const manualWaiting = entry.status === 'paused' && entry.pauseReason === 'manual';
+  const labels = { processing:'⏳ Processing', completed:'✅ Done', paused: manualWaiting ? `⏸ Waiting · ${phaseLabels[entry.currentPhase] || ''}` : '⚠ Paused', failed:'❌ Failed', pending:'🕐 Pending' };
   statusEl.textContent = labels[entry.status] || entry.status;
 }
 
@@ -1366,6 +1654,19 @@ function detailField(label, value, cls = '') {
   return d;
 }
 
+function detailEditableField(label, value, fieldId) {
+  const d = document.createElement('div');
+  d.className = 'detail-field';
+  d.innerHTML = `<div class="detail-field-label">${escHtml(label)}</div>`;
+  const ta = document.createElement('textarea');
+  ta.id = fieldId;
+  ta.className = 'detail-field-textarea';
+  ta.value = value || '';
+  ta.rows = 3;
+  d.appendChild(ta);
+  return d;
+}
+
 function detailSectionTitle(text) {
   const d = document.createElement('div');
   d.className = 'detail-section-title';
@@ -1423,35 +1724,143 @@ function detailFooter(buttons) {
   return f;
 }
 
+// ── Helper: convert absolute disk path → web URL for display ──
+function diskPathToUrl(p) {
+  if (!p) return null;
+  // Already a web URL
+  if (p.startsWith('/') || p.startsWith('http')) return p;
+  // Windows absolute path — extract filename and serve from /uploads/ or /public/
+  const filename = p.replace(/\\/g, '/').split('/').pop();
+  if (p.includes('uploads')) return `/uploads/${filename}`;
+  if (p.includes('public'))  return `/${filename}`;
+  return `/uploads/${filename}`; // fallback
+}
+
 // ── Detail: Input ──
 function buildDetailInput(entry) {
   const pm = entry.pipelineMode === 'fast-paced' ? '⚡ Fast-Paced' : '📽 Standard';
   const header = detailHeader('📋', 'Story Input', 'Input', 'completed');
 
-  const body = document.createElement('div');
-  body.className = 'detail-body single-col';
+  // Collect all reference images to display
+  const heroPaths = entry.heroImagePaths?.length > 0
+    ? entry.heroImagePaths
+    : (entry.heroImagePath ? [entry.heroImagePath] : []);
+  const heroUrls = heroPaths.map(diskPathToUrl).filter(Boolean);
+  const bgUrl    = diskPathToUrl(entry.bgImagePath);
+  const ctaUrl   = '/reference.jpg'; // always available as CTA ref
+  const hasMedia = heroUrls.length > 0 || bgUrl;
 
+  const body = document.createElement('div');
+  body.className = hasMedia ? 'detail-body' : 'detail-body single-col';
+
+  // ── LEFT: reference image grid ──────────────────────────────────────────
+  if (hasMedia) {
+    const media = document.createElement('div');
+    media.className = 'detail-media';
+
+    if (heroUrls.length > 0) {
+      const secTitle = document.createElement('div');
+      secTitle.className = 'detail-section-title';
+      secTitle.textContent = `🦸 Hero Reference${heroUrls.length > 1 ? 's' : ''} (${heroUrls.length})`;
+      media.appendChild(secTitle);
+
+      // Grid of hero thumbnails
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px';
+      heroUrls.forEach((url, idx) => {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;border-radius:6px;overflow:hidden;border:1px solid var(--border)';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = `Hero ${idx + 1}`;
+        img.title = 'Click to open full size';
+        img.style.cssText = 'width:100%;aspect-ratio:9/16;object-fit:cover;display:block;cursor:pointer';
+        img.onclick = () => window.open(url, '_blank');
+        img.onerror = () => { img.style.opacity = '.3'; };
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);font-size:10px;color:#fff;text-align:center;padding:2px 4px';
+        lbl.textContent = `Hero ${idx + 1}`;
+        wrap.appendChild(img);
+        wrap.appendChild(lbl);
+        grid.appendChild(wrap);
+      });
+      media.appendChild(grid);
+    }
+
+    if (bgUrl) {
+      const secTitle = document.createElement('div');
+      secTitle.className = 'detail-section-title';
+      secTitle.style.marginTop = '12px';
+      secTitle.textContent = '🖼 Background Reference';
+      media.appendChild(secTitle);
+      const img = detailImg(bgUrl, 'Background Reference');
+      img.style.borderRadius = '6px';
+      media.appendChild(img);
+    }
+
+    // Always show CTA reference
+    const ctaTitle = document.createElement('div');
+    ctaTitle.className = 'detail-section-title';
+    ctaTitle.style.marginTop = '12px';
+    ctaTitle.textContent = '🎯 CTA Reference';
+    media.appendChild(ctaTitle);
+    const ctaImg = detailImg(ctaUrl, 'CTA Reference');
+    ctaImg.style.cssText = 'border-radius:6px;border:1px solid rgba(249,115,22,.4)';
+    media.appendChild(ctaImg);
+
+    body.appendChild(media);
+  }
+
+  // ── RIGHT: info fields ───────────────────────────────────────────────────
   const info = document.createElement('div');
   info.className = 'detail-info';
 
   info.appendChild(detailStatusRow([
     { label: pm, cls: 'green' },
     { label: (entry.durationRange || '—') + 's', cls: 'muted' },
-    { label: entry.videoModel || '—', cls: 'muted' },
+    { label: entry.videoModelLabel || entry.videoModel || '—', cls: 'muted' },
   ]));
 
   if (entry.storyText) info.appendChild(detailField('Story / Script', entry.storyText));
   if (entry.voiceDesc) info.appendChild(detailField('Voice Description', entry.voiceDesc));
   if (entry.heroDesc)  info.appendChild(detailField('Hero Description', entry.heroDesc));
   if (entry.gameContext) info.appendChild(detailField('Game Context', entry.gameContext));
-  if (entry.heroImagePath) info.appendChild(detailField('Hero Image', entry.heroImagePath));
-  if (entry.bgImagePath) info.appendChild(detailField('Background Image', entry.bgImagePath));
-  if (entry.musicFilePath) info.appendChild(detailField('Music File', entry.musicFilePath));
+
+  // Named heroes from catalog
+  if (entry.namedHeroes?.length > 0) {
+    info.appendChild(detailField('Named Heroes (Catalog)', entry.namedHeroes.join(', ')));
+  }
+
+  // Hero image filenames (compact — full images shown on left)
+  if (heroUrls.length > 0) {
+    const names = heroPaths.map(p => p.replace(/\\/g, '/').split('/').pop()).join(', ');
+    info.appendChild(detailField(`Hero Image${heroUrls.length > 1 ? 's' : ''} (${heroUrls.length})`, names));
+  }
+  if (bgUrl) {
+    const name = (entry.bgImagePath || '').replace(/\\/g, '/').split('/').pop();
+    info.appendChild(detailField('Background Image', name));
+  }
+  if (entry.musicFilePath) {
+    const name = entry.musicFilePath.replace(/\\/g, '/').split('/').pop();
+    info.appendChild(detailField('Music File', name));
+  }
+  if (entry.injectedPlan?.scenes?.length > 0) {
+    info.appendChild(detailField('Planning Source', `⚡ Injected JSON (${entry.injectedPlan.scenes.length} scenes — Claude skipped)`));
+  }
+
   info.appendChild(detailField('Task UUID', entry.taskUUID || '—'));
-  if (entry.createdAt) info.appendChild(detailField('Created', new Date(entry.createdAt).toLocaleString()));
+  if (entry.submittedAt) info.appendChild(detailField('Submitted', new Date(entry.submittedAt).toLocaleString()));
 
   body.appendChild(info);
-  return { header, body };
+
+  const idle = entry.status !== 'processing';
+  const footerBtns = [];
+  if (idle && entry.status === 'paused') {
+    footerBtns.push(makeResumeBtn(entry));
+  }
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
 }
 
 // ── Detail: Planning ──
@@ -1494,13 +1903,28 @@ function buildDetailPlanning(entry) {
   if (entry.error && ph === 'planning') info.appendChild(detailField('Error', entry.error, 'error'));
 
   body.appendChild(info);
-  return { header, body };
+
+  const idle = entry.status !== 'processing';
+  const footerBtns = [];
+  if (idle && (entry.status === 'paused' || !entry.scenes?.length)) {
+    footerBtns.push(makeResumeBtn(entry));
+  }
+  if (idle && entry.scenes?.length) {
+    footerBtns.push({ text: '🖼 Resubmit All Images', fn: () => { callApi(`/api/resubmit-images/${entry.taskUUID}`, 'POST'); closeDetail(); } });
+    footerBtns.push({ text: '🎬 Resubmit All Videos', fn: () => { callApi(`/api/resubmit-videos/${entry.taskUUID}`, 'POST'); closeDetail(); } });
+  }
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
 }
 
 // ── Detail: Image A ──
 function buildDetailImageA(scene, i, entry, idle) {
   const status = scene.imageStatus || 'pending';
   const url = scene.imageUrl;
+  // canRun: scene is pending/failed (not generating) — works even while pipeline is running
+  const canRun = status === 'pending' || status === 'failed';
+  const editable = status !== 'generating'; // allow prompt editing unless actively generating
   const header = detailHeader('🖼', `Scene ${i + 1} — Image A (Opening Frame)`, statusBadgeText(status), status);
 
   const body = document.createElement('div');
@@ -1526,14 +1950,41 @@ function buildDetailImageA(scene, i, entry, idle) {
   if (scene.useBgRef) chips.push({ label: '🖼 BG ref', cls: '' });
   info.appendChild(detailStatusRow(chips));
 
-  if (scene.imagePrompt) info.appendChild(detailField('Image Prompt', scene.imagePrompt));
+  if (scene.imagePrompt) info.appendChild(editable ? detailEditableField('Image Prompt', scene.imagePrompt, 'edit-img-prompt') : detailField('Image Prompt', scene.imagePrompt));
 
   body.appendChild(media);
   body.appendChild(info);
 
   const footerBtns = [];
   if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
-  if (idle) footerBtns.push({ text: '🖼 Regenerate Image', fn: () => { callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  if (canRun) {
+    // If pipeline is idle: retry-scene runs this scene + all following pending scenes
+    // If pipeline is busy: run-single-scene runs ONLY this one scene independently
+    const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
+    const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
+    footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
+      const p = document.getElementById('edit-img-prompt')?.value;
+      const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
+      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      closeDetail();
+    }});
+    if (!idle) {
+      // Also offer "run all pending from here" even while busy (retry-scene will queue after current)
+      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+        const p = document.getElementById('edit-img-prompt')?.value;
+        const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
+        callApi(fullEndpoint, 'POST', body);
+        closeDetail();
+      }});
+    }
+  }
+  if (idle && status === 'completed') {
+    footerBtns.push({ text: '🖼 Regenerate Image', fn: () => {
+      const p = document.getElementById('edit-img-prompt')?.value;
+      callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST', p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined);
+      closeDetail();
+    }});
+  }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
@@ -1543,6 +1994,8 @@ function buildDetailImageA(scene, i, entry, idle) {
 function buildDetailImageB(scene, i, entry, idle) {
   const status = scene.imageBStatus || 'pending';
   const url = scene.imageBUrl;
+  const canRun = status === 'pending' || status === 'failed';
+  const editable = status !== 'generating';
   const header = detailHeader('🖼', `Scene ${i + 1} — Image B (End Frame)`, statusBadgeText(status), status);
 
   const body = document.createElement('div');
@@ -1565,14 +2018,37 @@ function buildDetailImageB(scene, i, entry, idle) {
   if (scene.imageBCost != null) chips.push({ label: '$' + parseFloat(scene.imageBCost).toFixed(4), cls: 'green' });
   info.appendChild(detailStatusRow(chips));
 
-  if (scene.imageBPrompt) info.appendChild(detailField('Image B Prompt', scene.imageBPrompt));
+  if (scene.imageBPrompt) info.appendChild(editable ? detailEditableField('Image B Prompt', scene.imageBPrompt, 'edit-imgb-prompt') : detailField('Image B Prompt', scene.imageBPrompt));
 
   body.appendChild(media);
   body.appendChild(info);
 
   const footerBtns = [];
   if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
-  if (idle) footerBtns.push({ text: '🖼 Regenerate Image', fn: () => { callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  if (canRun) {
+    const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
+    const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
+    footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
+      const p = document.getElementById('edit-imgb-prompt')?.value;
+      const body = p && p !== scene.imageBPrompt ? { imagePrompt: p } : undefined;
+      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      closeDetail();
+    }});
+    if (!idle) {
+      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+        const p = document.getElementById('edit-imgb-prompt')?.value;
+        callApi(fullEndpoint, 'POST', p && p !== scene.imageBPrompt ? { imagePrompt: p } : undefined);
+        closeDetail();
+      }});
+    }
+  }
+  if (idle && status === 'completed') {
+    footerBtns.push({ text: '🖼 Regenerate Image', fn: () => {
+      const p = document.getElementById('edit-imgb-prompt')?.value;
+      callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST', p && p !== scene.imageBPrompt ? { imagePrompt: p } : undefined);
+      closeDetail();
+    }});
+  }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
@@ -1582,6 +2058,8 @@ function buildDetailImageB(scene, i, entry, idle) {
 function buildDetailCta(scene, i, entry, idle) {
   const status = scene.ctaImageStatus || 'pending';
   const url = scene.ctaImageUrl;
+  const canRun = status === 'pending' || status === 'failed';
+  const editable = status !== 'generating';
   const header = detailHeader('🎯', `Scene ${i + 1} — CTA Image`, statusBadgeText(status), status);
 
   const body = document.createElement('div');
@@ -1604,14 +2082,37 @@ function buildDetailCta(scene, i, entry, idle) {
   if (scene.ctaImageCost != null) chips.push({ label: '$' + parseFloat(scene.ctaImageCost).toFixed(4), cls: 'green' });
   info.appendChild(detailStatusRow(chips));
 
-  if (scene.ctaImagePrompt) info.appendChild(detailField('CTA Prompt', scene.ctaImagePrompt));
+  if (scene.ctaImagePrompt) info.appendChild(editable ? detailEditableField('CTA Prompt', scene.ctaImagePrompt, 'edit-cta-prompt') : detailField('CTA Prompt', scene.ctaImagePrompt));
 
   body.appendChild(media);
   body.appendChild(info);
 
   const footerBtns = [];
   if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
-  if (idle) footerBtns.push({ text: '🎯 Regenerate CTA', fn: () => { callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  if (canRun) {
+    const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
+    const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
+    footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
+      const p = document.getElementById('edit-cta-prompt')?.value;
+      const body = p && p !== scene.ctaImagePrompt ? { ctaImagePrompt: p } : undefined;
+      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      closeDetail();
+    }});
+    if (!idle) {
+      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+        const p = document.getElementById('edit-cta-prompt')?.value;
+        callApi(fullEndpoint, 'POST', p && p !== scene.ctaImagePrompt ? { ctaImagePrompt: p } : undefined);
+        closeDetail();
+      }});
+    }
+  }
+  if (idle && status === 'completed') {
+    footerBtns.push({ text: '🎯 Regenerate CTA', fn: () => {
+      const p = document.getElementById('edit-cta-prompt')?.value;
+      callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST', p && p !== scene.ctaImagePrompt ? { ctaImagePrompt: p } : undefined);
+      closeDetail();
+    }});
+  }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
@@ -1621,6 +2122,9 @@ function buildDetailCta(scene, i, entry, idle) {
 function buildDetailVideo(scene, i, entry, idle, isFP) {
   const status = scene.videoStatus || 'pending';
   const url = scene.videoUrl;
+  // canRunVideo: scene is pending/failed (not currently generating) — works even while pipeline runs
+  const canRunVideo = status === 'pending' || status === 'failed';
+  const editable = status !== 'generating';
   const header = detailHeader('🎥', `Scene ${i + 1} — Video (${scene.duration || '?'}s)`, statusBadgeText(status), status);
 
   const body = document.createElement('div');
@@ -1645,9 +2149,7 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
   if (!isFP && i > 0) chips.push({ label: 'Frame-chained', cls: '' });
   info.appendChild(detailStatusRow(chips));
 
-  if (scene.videoPrompt) {
-    info.appendChild(detailField('Video / V/O Prompt', scene.videoPrompt));
-  }
+  if (scene.videoPrompt) info.appendChild(editable ? detailEditableField('Video / V/O Prompt', scene.videoPrompt, 'edit-vid-prompt') : detailField('Video / V/O Prompt', scene.videoPrompt));
   if (scene.imagePrompt) info.appendChild(detailField('Opening Frame Prompt', scene.imagePrompt));
   if (!isFP && i === 0 && scene.imageBPrompt) info.appendChild(detailField('End Frame Prompt', scene.imageBPrompt));
 
@@ -1656,7 +2158,34 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
 
   const footerBtns = [];
   if (url) footerBtns.push({ text: '⬇ Download Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); } });
-  if (idle) footerBtns.push({ text: '🎬 Regenerate Video', fn: () => { callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST'); closeDetail(); } });
+  if (canRunVideo) {
+    const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
+    const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
+    footerBtns.push({ text: '▶ Run This Video', cls: 'green', fn: () => {
+      const p = document.getElementById('edit-vid-prompt')?.value;
+      const body = p && p !== scene.videoPrompt ? { videoPrompt: p } : undefined;
+      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      closeDetail();
+    }});
+    if (!idle) {
+      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+        const p = document.getElementById('edit-vid-prompt')?.value;
+        callApi(fullEndpoint, 'POST', p && p !== scene.videoPrompt ? { videoPrompt: p } : undefined);
+        closeDetail();
+      }});
+    }
+  }
+  if (idle && status === 'completed') {
+    footerBtns.push({ text: '🎬 Regenerate Video', fn: () => {
+      const p = document.getElementById('edit-vid-prompt')?.value;
+      callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST', p && p !== scene.videoPrompt ? { videoPrompt: p } : undefined);
+      closeDetail();
+    }});
+    footerBtns.push({ text: '🎞 Re-run Final Concat', fn: () => {
+      callApi(`/api/resume-story/${entry.taskUUID}`, 'POST', { forcePhase: 'concat' });
+      closeDetail();
+    }});
+  }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
@@ -1683,11 +2212,26 @@ function buildDetailConcat(entry) {
   info.appendChild(detailStatusRow(chips));
 
   info.appendChild(detailField('Mode', entry.pipelineMode === 'fast-paced' ? 'Fast-Paced (parallel)' : 'Standard (sequential + frame extraction)'));
-  if (entry.musicFilePath) info.appendChild(detailField('Music File', entry.musicFilePath));
+  if (entry.musicFilePath) {
+    const name = entry.musicFilePath.replace(/\\/g, '/').split('/').pop();
+    info.appendChild(detailField('Music File', name));
+  }
   if (entry.finalVideoUrl) info.appendChild(detailField('Output', entry.finalVideoUrl));
+  if (entry.error && ph === 'concat') info.appendChild(detailField('Error', entry.error, 'error'));
 
   body.appendChild(info);
-  return { header, body, footer: detailFooter([{ text: 'Close', fn: closeDetail }]) };
+
+  const idle = entry.status !== 'processing';
+  const footerBtns = [];
+  if (idle && entry.status === 'paused') {
+    footerBtns.push(makeResumeBtn(entry));
+  }
+  if (idle && entry.scenes?.length) {
+    footerBtns.push({ text: '🎬 Resubmit All Videos', fn: () => { callApi(`/api/resubmit-videos/${entry.taskUUID}`, 'POST'); closeDetail(); } });
+  }
+  footerBtns.push({ text: 'Close', fn: closeDetail });
+
+  return { header, body, footer: detailFooter(footerBtns) };
 }
 
 // ── Detail: Output ──
@@ -1725,6 +2269,9 @@ function buildDetailOutput(entry, idle) {
   const footerBtns = [];
   if (done && entry.finalVideoUrl) {
     footerBtns.push({ text: '⬇ Download Final Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click(); } });
+  }
+  if (idle && entry.status === 'paused') {
+    footerBtns.push(makeResumeBtn(entry));
   }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
@@ -1907,8 +2454,478 @@ function statusBadgeText(status) {
   return { pending: '— Pending', generating: '⏳ Generating', completed: '✅ Done', failed: '❌ Failed', skipped: '— Skipped' }[status] || status;
 }
 
+// Returns the right label + fn for the resume/run-next-phase button
+function makeResumeBtn(entry) {
+  const isManual = entry.pauseReason === 'manual';
+  const phaseLabels = { images: '▶ Run Images', videos: '▶ Run Videos', concat: '▶ Run Concat' };
+  const text = isManual ? (phaseLabels[entry.currentPhase] || '▶ Run Next Phase') : '▶ Resume Pipeline';
+  return { text, cls: 'green', fn: () => { callApi(`/api/resume-story/${entry.taskUUID}`, 'POST'); closeDetail(); } };
+}
+
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PIPELINE ACTION BUTTONS (toolbar)
+// ══════════════════════════════════════════════════════════════════
+function updatePipelineActions() {
+  const el = document.getElementById('pipeline-actions');
+  if (!entry || !currentUUID) { el.style.display = 'none'; return; }
+  const show = entry.status === 'paused' || entry.status === 'completed';
+  el.style.display = show ? 'flex' : 'none';
+
+  // Update Resume button label based on manual mode context
+  const resumeBtn = el.querySelector('.btn-sm.green');
+  if (resumeBtn && entry.status === 'paused') {
+    if (entry.pauseReason === 'manual') {
+      const phaseLabels = { images: '▶ Run Images', videos: '▶ Run Videos', concat: '▶ Run Concat' };
+      resumeBtn.textContent = phaseLabels[entry.currentPhase] || '▶ Resume';
+    } else {
+      resumeBtn.textContent = '▶ Resume';
+    }
+  } else if (resumeBtn) {
+    resumeBtn.textContent = '▶ Resume';
+  }
+}
+
+async function resumePipeline() {
+  if (!currentUUID) return;
+  const isManual = entry?.pauseReason === 'manual';
+  if (!isManual && !confirm('Resume pipeline from where it stopped?')) return;
+  await callApi(`/api/resume-story/${currentUUID}`, 'POST');
+}
+
+async function resubmitAllImages() {
+  if (!currentUUID) return;
+  if (!confirm('Resubmit all pending/failed images?')) return;
+  await callApi(`/api/resubmit-images/${currentUUID}`, 'POST');
+}
+
+async function resubmitAllVideos() {
+  if (!currentUUID) return;
+  if (!confirm('Resubmit all pending/failed videos?')) return;
+  await callApi(`/api/resubmit-videos/${currentUUID}`, 'POST');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  NEW STORY MODAL
+// ══════════════════════════════════════════════════════════════════
+let storyModelsLoaded = false;
+let nsHeroFiles = [];       // { file, serverPath, isUploadRef, name, thumbUrl }
+let nsBgFile = null;        // { file, serverPath, isUploadRef, name, thumbUrl }
+let nsMusicFile = null;     // { file, serverPath, isUploadRef, name }
+let nsNamedHeroes = [];     // string[] — selected from catalog
+let nsPickerTarget = null;  // 'hero' | 'bg' | 'music'
+let _nsCatalogData = [];
+let _nsAngles = [];
+let nsSelectedAngleId = null;
+
+function openNewStoryModal() {
+  document.getElementById('ns-overlay').style.display = 'flex';
+  if (!storyModelsLoaded) loadStoryModels();
+  if (!_nsAngles.length) nsLoadAngles();
+  // Load game context default
+  fetch('/game-context.txt').then(r => r.ok ? r.text() : '').then(t => {
+    const el = document.getElementById('ns-game-context');
+    if (el && !el.value && t) el.value = t.trim();
+  }).catch(() => {});
+}
+
+// ── Marketing Angles ─────────────────────────────────────────────
+async function nsLoadAngles() {
+  try {
+    const res = await fetch('/api/marketing-angles');
+    if (!res.ok) throw new Error('unavailable');
+    const data = await res.json();
+    _nsAngles = data.angles || [];
+    nsRenderAngles();
+  } catch(e) {
+    document.getElementById('ns-angle-grid').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:4px;grid-column:1/-1">Marketing angles unavailable.</div>';
+  }
+}
+
+function nsRenderAngles() {
+  const grid = document.getElementById('ns-angle-grid');
+  if (!_nsAngles.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No angles found.</div>'; return; }
+  grid.innerHTML = _nsAngles.map(a => {
+    const sc = a.status === 'in_pipeline' ? 'color:var(--green)' : a.status === 'untested_gap' ? 'color:var(--yellow)' : 'color:var(--muted)';
+    const sl = a.status === 'in_pipeline' ? '▶ In Pipeline' : a.status === 'untested_gap' ? `★ Gap (Priority ${a.test_priority})` : '○ Untested';
+    return `<div class="ns-angle-card" id="ns-angle-${a.id}" onclick="nsSelectAngle(${a.id})" style="border:2px solid var(--border);border-radius:var(--rs);padding:10px 12px;cursor:pointer;background:var(--surface2);transition:all .15s">
+      <div style="font-size:12px;font-weight:600;margin-bottom:3px">${escHtml(a.name)}</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.3">${escHtml(a.core_message)}</div>
+      <div style="font-size:10px;margin-top:4px;font-weight:500;${sc}">${sl}</div>
+    </div>`;
+  }).join('');
+}
+
+function nsSelectAngle(id) {
+  nsSelectedAngleId = id;
+  document.querySelectorAll('.ns-angle-card').forEach(c => {
+    c.style.borderColor = 'var(--border)';
+    c.style.background = 'var(--surface2)';
+  });
+  const card = document.getElementById(`ns-angle-${id}`);
+  if (card) { card.style.borderColor = 'var(--accent)'; card.style.background = 'rgba(124,58,237,0.1)'; }
+  document.getElementById('ns-angle-actions').style.display = 'flex';
+  document.getElementById('ns-brief-output').style.display = 'none';
+  document.getElementById('ns-brief-copy-row').style.display = 'none';
+}
+
+function nsClearAngle() {
+  nsSelectedAngleId = null;
+  document.querySelectorAll('.ns-angle-card').forEach(c => {
+    c.style.borderColor = 'var(--border)';
+    c.style.background = 'var(--surface2)';
+  });
+  document.getElementById('ns-angle-actions').style.display = 'none';
+  document.getElementById('ns-brief-output').style.display = 'none';
+  document.getElementById('ns-brief-copy-row').style.display = 'none';
+}
+
+async function nsGenerateBrief() {
+  if (!nsSelectedAngleId) return;
+  const btn     = document.getElementById('ns-btn-gen-brief');
+  const spinner = document.getElementById('ns-brief-spinner');
+  const output  = document.getElementById('ns-brief-output');
+  const copyRow = document.getElementById('ns-brief-copy-row');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  output.style.display = 'block';
+  output.textContent = 'Generating video brief…';
+  copyRow.style.display = 'none';
+
+  try {
+    const gameContext = document.getElementById('ns-game-context').value.trim();
+    const heroDesc    = document.getElementById('ns-hero-desc').value.trim();
+    const res = await fetch('/api/generate-video-desc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ angleId: nsSelectedAngleId, gameContext, heroDesc, namedHeroes: nsNamedHeroes }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Generation failed');
+    output.textContent = data.description;
+    copyRow.style.display = 'flex';
+  } catch(e) {
+    output.textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function nsCopyBriefToStory() {
+  const text = document.getElementById('ns-brief-output').textContent;
+  if (!text || text.startsWith('❌')) return;
+  document.getElementById('ns-story-text').value = text;
+  const btn = event.currentTarget;
+  const orig = btn.textContent;
+  btn.textContent = '✅ Copied!';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+
+function closeNewStoryModal() {
+  document.getElementById('ns-overlay').style.display = 'none';
+}
+
+async function loadStoryModels() {
+  try {
+    const res = await fetch('/api/story-models');
+    const data = await res.json();
+    const sel = document.getElementById('ns-video-model');
+    sel.innerHTML = '';
+    for (const m of data.models) {
+      const opt = document.createElement('option');
+      opt.value = m.id || m.value || m.model;
+      opt.textContent = m.label || m.name || opt.value;
+      if (m.default) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    storyModelsLoaded = true;
+  } catch(e) { console.error('Failed to load models:', e); }
+}
+
+function nsToggleCustomDuration() {
+  const val = document.getElementById('ns-duration').value;
+  const div = document.getElementById('ns-custom-dur');
+  div.style.display = val === 'custom' ? 'block' : 'none';
+}
+
+function nsHighlightRunMode() {
+  const manual = document.querySelector('input[name="ns-runmode"]:checked')?.value === 'manual';
+  document.getElementById('ns-run-auto-opt').style.borderColor   = manual ? 'var(--border)' : 'var(--accent)';
+  document.getElementById('ns-run-manual-opt').style.borderColor = manual ? 'var(--accent)' : 'var(--border)';
+}
+
+function nsToggleMusicSection() {
+  const fp = document.querySelector('input[name="ns-mode"]:checked')?.value === 'fast-paced';
+  document.getElementById('ns-music-section').style.display = fp ? 'block' : 'none';
+}
+
+function nsTogglePlanJson() {
+  const panel = document.getElementById('ns-plan-panel');
+  const btn   = document.getElementById('ns-plan-toggle');
+  const show  = panel.style.display === 'none';
+  panel.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? '▾ Hide' : '▸ Show';
+}
+
+function nsValidatePlanJson() {
+  const raw = document.getElementById('ns-plan-json').value.trim();
+  const status = document.getElementById('ns-plan-status');
+  if (!raw) { status.textContent = ''; return; }
+  try {
+    const p = JSON.parse(raw);
+    const scenes = Array.isArray(p) ? p : p.scenes;
+    if (!Array.isArray(scenes)) throw new Error('Expected array or {scenes:[…]}');
+    status.textContent = `✅ ${scenes.length} scene${scenes.length!==1?'s':''}`;
+    status.style.color = 'var(--green)';
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+}
+
+// ── Hero images ──────────────────────────────────────────────────
+function nsUpdateHeroPills() {
+  const files = document.getElementById('ns-hero-images').files;
+  for (const f of files) {
+    if (nsHeroFiles.length >= 6) break;
+    nsHeroFiles.push({ file: f, name: f.name, thumbUrl: URL.createObjectURL(f) });
+  }
+  document.getElementById('ns-hero-images').value = '';
+  nsRenderHeroPills();
+}
+
+function nsRenderHeroPills() {
+  const container = document.getElementById('ns-hero-pills');
+  container.innerHTML = '';
+  nsHeroFiles.forEach((h, idx) => {
+    const pill = document.createElement('div');
+    pill.className = 'ns-pill';
+    pill.innerHTML = `<img src="${h.thumbUrl}" /><span class="ns-pill-name">${escHtml(h.name)}</span><span class="ns-pill-x" onclick="nsRemoveHero(${idx})">✕</span>`;
+    container.appendChild(pill);
+  });
+}
+
+function nsRemoveHero(idx) {
+  nsHeroFiles.splice(idx, 1);
+  nsRenderHeroPills();
+}
+
+// ── BG / Music pills ─────────────────────────────────────────────
+function nsUpdateBgPill() {
+  const f = document.getElementById('ns-bg-image').files[0];
+  if (!f) return;
+  nsBgFile = { file: f, name: f.name };
+  document.getElementById('ns-bg-pill').textContent = '✓ ' + f.name;
+}
+
+function nsUpdateMusicPill() {
+  const f = document.getElementById('ns-music-file').files[0];
+  if (!f) return;
+  nsMusicFile = { file: f, name: f.name };
+  document.getElementById('ns-music-pill').textContent = '✓ ' + f.name;
+}
+
+// ── Upload picker ────────────────────────────────────────────────
+async function nsOpenUploadPicker(target) {
+  nsPickerTarget = target;
+  const titles = { hero: 'Choose Hero Images', bg: 'Choose Background Image', music: 'Choose Music File' };
+  document.getElementById('ns-picker-title').textContent = titles[target] || 'Choose from Uploads';
+  const overlay = document.getElementById('ns-picker-overlay');
+  overlay.style.display = 'flex';
+  const grid = document.getElementById('ns-picker-grid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>';
+  try {
+    const res = await fetch('/api/uploads');
+    const data = await res.json();
+    const filter = target === 'music' ? /\.(mp3|wav|m4a|aac|ogg)$/i : /\.(jpg|jpeg|png|webp|gif)$/i;
+    // API returns f.filename (not f.name) — normalise to always have both
+    const files = (data.files || []).map(f => ({ ...f, name: f.filename || f.name })).filter(f => filter.test(f.name));
+    grid.innerHTML = '';
+    if (!files.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No matching files.</div>'; return; }
+    for (const f of files) {
+      const item = document.createElement('div');
+      item.className = 'ns-catalog-item';
+      const isImg = /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name);
+      item.innerHTML = isImg
+        ? `<img src="${f.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px" onerror="this.style.display='none'" />`
+        : `<div style="font-size:28px;margin-bottom:4px">🎵</div>`;
+      item.innerHTML += `<div class="ns-ci-name">${escHtml(f.name)}</div>`;
+      item.onclick = () => nsPickerSelect(f);
+      grid.appendChild(item);
+    }
+  } catch(e) {
+    grid.innerHTML = `<div style="color:var(--red);font-size:12px;grid-column:1/-1">${e.message}</div>`;
+  }
+}
+
+function nsPickerSelect(f) {
+  const serverPath = f.url || ('/uploads/' + f.name);
+  const url = f.url || serverPath;
+  if (nsPickerTarget === 'hero') {
+    if (nsHeroFiles.length < 6) {
+      nsHeroFiles.push({ file: null, isUploadRef: true, serverPath, name: f.name, thumbUrl: url });
+      nsRenderHeroPills();
+    }
+  } else if (nsPickerTarget === 'bg') {
+    nsBgFile = { file: null, isUploadRef: true, serverPath, name: f.name };
+    document.getElementById('ns-bg-pill').textContent = '✓ ' + f.name;
+  } else if (nsPickerTarget === 'music') {
+    nsMusicFile = { file: null, isUploadRef: true, serverPath, name: f.name };
+    document.getElementById('ns-music-pill').textContent = '✓ ' + f.name;
+  }
+  nsClosePicker();
+}
+
+function nsClosePicker() {
+  document.getElementById('ns-picker-overlay').style.display = 'none';
+}
+
+// ── Hero catalog ─────────────────────────────────────────────────
+async function nsOpenHeroCatalog() {
+  const overlay = document.getElementById('ns-catalog-overlay');
+  overlay.style.display = 'flex';
+  const grid = document.getElementById('ns-catalog-grid');
+  if (!_nsCatalogData.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>';
+    try {
+      const res = await fetch('/api/hero-catalog');
+      _nsCatalogData = await res.json();
+    } catch(e) { grid.innerHTML = `<div style="color:var(--red);font-size:12px">${e.message}</div>`; return; }
+  }
+  grid.innerHTML = '';
+  for (const h of _nsCatalogData) {
+    const sel = nsNamedHeroes.includes(h.name);
+    const item = document.createElement('div');
+    item.className = 'ns-catalog-item' + (sel ? ' selected' : '');
+    item.dataset.name = h.name;
+    if (h.imageUrl) item.innerHTML = `<img src="${h.imageUrl}" />`;
+    item.innerHTML += `<div class="ns-ci-name">${escHtml(h.name)}</div><div class="ns-ci-sub">${escHtml(h.class || '')}</div>`;
+    item.onclick = () => {
+      const idx = nsNamedHeroes.indexOf(h.name);
+      if (idx >= 0) { nsNamedHeroes.splice(idx, 1); item.classList.remove('selected'); }
+      else { nsNamedHeroes.push(h.name); item.classList.add('selected'); }
+      nsRenderNamedHeroBadges();
+    };
+    grid.appendChild(item);
+  }
+}
+
+function nsRenderNamedHeroBadges() {
+  const container = document.getElementById('ns-named-heroes');
+  container.innerHTML = '';
+  nsNamedHeroes.forEach((name, idx) => {
+    const badge = document.createElement('div');
+    badge.className = 'ns-pill';
+    badge.style.borderColor = 'var(--accent)';
+    badge.innerHTML = `<span style="font-size:14px">🦸</span><span class="ns-pill-name">${escHtml(name)}</span><span class="ns-pill-x" onclick="nsRemoveNamedHero(${idx})">✕</span>`;
+    container.appendChild(badge);
+  });
+}
+
+function nsRemoveNamedHero(idx) {
+  nsNamedHeroes.splice(idx, 1);
+  nsRenderNamedHeroBadges();
+  // deselect in catalog grid if open
+  document.querySelectorAll('#ns-catalog-grid .ns-catalog-item').forEach(el => {
+    if (el.dataset.name === nsNamedHeroes[idx]) el.classList.remove('selected');
+  });
+}
+
+function nsCloseHeroCatalog() {
+  document.getElementById('ns-catalog-overlay').style.display = 'none';
+}
+
+// ── Submit ───────────────────────────────────────────────────────
+async function submitNewStory() {
+  const storyText = document.getElementById('ns-story-text').value.trim();
+  const planRaw   = document.getElementById('ns-plan-json').value.trim();
+  if (!storyText && !planRaw) { alert('Please enter a story/script or inject a planning JSON.'); return; }
+
+  const btn = document.getElementById('ns-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Submitting…';
+
+  try {
+    const fd = new FormData();
+
+    // Duration
+    const durSel = document.getElementById('ns-duration').value;
+    if (durSel === 'custom') {
+      const min = parseInt(document.getElementById('ns-dur-min').value) || 20;
+      const max = parseInt(document.getElementById('ns-dur-max').value) || 40;
+      fd.append('durationRange', `${min}-${max}`);
+    } else {
+      fd.append('durationRange', durSel);
+    }
+
+    fd.append('storyText', storyText);
+    fd.append('videoModel', document.getElementById('ns-video-model').value);
+    fd.append('pipelineMode', document.querySelector('input[name="ns-mode"]:checked').value);
+    fd.append('runMode', document.querySelector('input[name="ns-runmode"]:checked')?.value || 'auto');
+
+    const gameContext = document.getElementById('ns-game-context').value.trim();
+    const heroDesc   = document.getElementById('ns-hero-desc').value.trim();
+    const voiceDesc  = document.getElementById('ns-voice-desc').value.trim();
+    if (gameContext) fd.append('gameContext', gameContext);
+    if (heroDesc)    fd.append('heroDesc', heroDesc);
+    if (voiceDesc)   fd.append('voiceDesc', voiceDesc);
+
+    // Named heroes
+    if (nsNamedHeroes.length) fd.append('namedHeroes', JSON.stringify(nsNamedHeroes));
+
+    // Hero images
+    for (const h of nsHeroFiles) {
+      if (h.isUploadRef) fd.append('heroImagePaths[]', h.serverPath);
+      else if (h.file)   fd.append('heroImages', h.file);
+    }
+
+    // BG image
+    if (nsBgFile) {
+      if (nsBgFile.isUploadRef) fd.append('bgImageRef', nsBgFile.serverPath);
+      else if (nsBgFile.file)   fd.append('bgImage', nsBgFile.file);
+    }
+
+    // Music
+    if (nsMusicFile) {
+      if (nsMusicFile.isUploadRef) fd.append('musicFileRef', nsMusicFile.serverPath);
+      else if (nsMusicFile.file)   fd.append('musicFile', nsMusicFile.file);
+    }
+
+    // Planning JSON
+    if (planRaw) {
+      try {
+        const p = JSON.parse(planRaw);
+        const scenes = Array.isArray(p) ? p : p.scenes;
+        if (!Array.isArray(scenes)) throw new Error('Invalid JSON structure');
+        fd.append('planningJson', JSON.stringify({ scenes, voiceOverCharacteristics: p.voiceOverCharacteristics || '' }));
+      } catch(e) { alert('Planning JSON error: ' + e.message); btn.disabled = false; btn.textContent = '🚀 Generate Story'; return; }
+    }
+
+    const res = await fetch('/api/generate-story', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) { alert('Error: ' + (data.error || 'Failed to create story')); return; }
+
+    // Reset state
+    nsHeroFiles = []; nsBgFile = null; nsMusicFile = null; nsNamedHeroes = [];
+
+    closeNewStoryModal();
+    await loadStoryList();
+    if (data.taskUUID) {
+      document.getElementById('story-select').value = data.taskUUID;
+      loadStory(data.taskUUID);
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 Generate Story';
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════

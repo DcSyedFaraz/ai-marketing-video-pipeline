@@ -15,7 +15,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 
 import { STORY_VIDEO_MODELS } from '../lib/models.js';
-import { planScenes } from '../lib/gemini.js';
+import { planScenes, generateVideoDescription } from '../lib/gemini.js';
 import { fileToDataURI, downloadVideo, downloadImage, getMimeType } from '../lib/helpers.js';
 import { concatMultipleVideos, extractLastFrame, mixMusicIntoVideo } from '../lib/ffmpeg.js';
 import { submitAndPoll, imageSubmitAndPollOwn } from '../lib/runware.js';
@@ -39,6 +39,33 @@ try {
   }
 } catch (e) {
   console.warn(`[Story] Failed to load hero catalog: ${e.message}`);
+}
+
+// ─── Load marketing angles (marketing_angles.json) once at startup ────────────
+let MARKETING_ANGLES_DATA = null;
+try {
+  const maPath = path.resolve('public', 'marketing_angles.json');
+  if (existsSync(maPath)) {
+    MARKETING_ANGLES_DATA = JSON.parse(readFileSync(maPath, 'utf8'));
+    console.log(`[Story] Loaded ${MARKETING_ANGLES_DATA.marketing_angles?.length ?? 0} marketing angles`);
+  } else {
+    console.log('[Story] No marketing_angles.json found — marketing angles disabled');
+  }
+} catch (e) {
+  console.warn(`[Story] Failed to load marketing_angles.json: ${e.message}`);
+}
+
+// ─── Helper: convert /uploads/filename.ext → absolute disk path ──────────────
+function uploadRefToDiskPath(ref) {
+  if (!ref || typeof ref !== 'string') return null;
+  const filename = ref.replace(/^\/uploads\//, '');
+  if (!filename || filename === 'undefined' || filename === 'null') {
+    console.warn(`[Story] ⚠ uploadRefToDiskPath got invalid ref: "${ref}"`);
+    return null;
+  }
+  const p = path.resolve('uploads', filename);
+  if (!existsSync(p)) { console.warn(`[Story] ⚠ uploadRefToDiskPath: file not found at ${p}`); return null; }
+  return p;
 }
 
 // ─── Helper: create blank scene progress from Gemini output ──────────────────
@@ -128,13 +155,13 @@ function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrame
 }
 
 // ─── Fast-Paced video phase: generate ALL scene videos in parallel ────────────
-async function runFastPacedVideoPhase(taskUUID, current, dir) {
+async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0, endSceneIdx = null) {
   const lastIdx = current.scenes.length - 1;
   const isKling = current.videoModel.startsWith('klingai:');
 
   const pendingScenes = current.scenes
     .map((s, i) => ({ s, i }))
-    .filter(({ s }) => s.videoStatus !== 'completed');
+    .filter(({ s, i }) => s.videoStatus !== 'completed' && i >= startSceneIdx && (endSceneIdx === null || i <= endSceneIdx));
 
   if (pendingScenes.length === 0) {
     console.log(`[Story/FastPaced] All videos already completed, skipping.`);
@@ -218,7 +245,7 @@ async function runFastPacedVideoPhase(taskUUID, current, dir) {
 }
 
 // ─── Core pipeline runner (works for both initial and resume) ────────────────
-async function runPipeline(taskUUID, startPhase, startSceneIdx) {
+async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = null) {
   const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
   if (!entry) return;
 
@@ -236,36 +263,59 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
       updateStoryEntry(taskUUID, { status: 'processing', currentPhase: 'planning', error: null });
 
       try {
-        // Look up selected model's exact allowed durations for Claude
-        const modelInfo = STORY_VIDEO_MODELS.find(m => m.id === entry.videoModel);
-        const allowedDurations = modelInfo?.allowedDurations || [5, 8];
+        let geminiResult;
 
-        const geminiResult = await planScenes(
-          entry.storyText,
-          { min: entry.durationMin || 15, max: entry.durationMax || 30 },
-          entry.gameContext, entry.voiceDesc, entry.heroDesc,
-          { heroImagePath: entry.heroImagePath || null, backgroundImagePath: entry.bgImagePath || null },
-          allowedDurations,
-          entry.pipelineMode || 'standard',
-          HEROES_DATA,
-        );
+        if (entry.injectedPlan?.scenes?.length > 0) {
+          // ── Use injected planning JSON — skip Claude entirely ──────────────
+          console.log(`[Story] ⚡ Using injected planning JSON (${entry.injectedPlan.scenes.length} scenes)`);
+          geminiResult = entry.injectedPlan;
+        } else {
+          // ── Let Claude plan scenes ─────────────────────────────────────────
+          const modelInfo = STORY_VIDEO_MODELS.find(m => m.id === entry.videoModel);
+          const allowedDurations = modelInfo?.allowedDurations || [5, 8];
+
+          geminiResult = await planScenes(
+            entry.storyText,
+            { min: entry.durationMin || 15, max: entry.durationMax || 30 },
+            entry.gameContext, entry.voiceDesc, entry.heroDesc,
+            {
+              heroImagePath: entry.heroImagePaths?.length > 0 ? entry.heroImagePaths : (entry.heroImagePath || null),
+              backgroundImagePath: entry.bgImagePath || null,
+            },
+            allowedDurations,
+            entry.pipelineMode || 'standard',
+            HEROES_DATA,
+            entry.namedHeroes || [],
+          );
+        }
+
         const scenes = initSceneProgress(geminiResult.scenes, entry.pipelineMode || 'standard');
         const sceneCount = scenes.length;
         const totalDuration = scenes.reduce((sum, s) => sum + (s.duration || 0), 0);
         const voiceOver = geminiResult.voiceOverCharacteristics || entry.voiceDesc || '';
+        // Reload to get latest runMode (may have been updated)
+        const runModeEntry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+        const afterPlanningPhase = runModeEntry?.runMode === 'manual' ? 'paused_before_images' : 'images';
+
         updateStoryEntry(taskUUID, {
           scenes,
           sceneCount,
           voiceOverCharacteristics: voiceOver,
-          currentPhase: 'images',
+          currentPhase: afterPlanningPhase === 'paused_before_images' ? 'images' : 'images',
           currentSceneIndex: 0,
+          ...(afterPlanningPhase === 'paused_before_images' && { status: 'paused', pauseReason: 'manual' }),
         });
-        console.log(`[Story] ✅ Claude planned ${sceneCount} scenes | Total: ${totalDuration}s | Voice: ${voiceOver}`);
+        console.log(`[Story] ✅ Planning done — ${sceneCount} scenes | Total: ${totalDuration}s | Voice: ${voiceOver}`);
+
+        if (afterPlanningPhase === 'paused_before_images') {
+          console.log(`[Story] ⏸ Manual mode — paused before images. Waiting for user.`);
+          return;
+        }
       } catch (err) {
-        console.error(`[Story] ❌ Claude planning failed:`, err.message);
+        console.error(`[Story] ❌ Planning failed:`, err.message);
         updateStoryEntry(taskUUID, {
           status: 'paused', currentPhase: 'planning',
-          error: `Claude planning failed: ${err.message}`,
+          error: `Planning failed: ${err.message}`,
         });
         return;
       }
@@ -299,6 +349,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
         .map((s, i) => i)
         .filter(i => {
           if (i < startSceneIdx) return false;
+          if (endSceneIdx !== null && i > endSceneIdx) return false;
           const s = current.scenes[i];
           const isFirst = (i === 0);
           const isLast = (i === lastIdx);
@@ -329,16 +380,24 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
         console.log(`[Story] All images already completed, skipping image phase.`);
       } else {
         // Pre-load hero/bg reference data URIs once (reused across scenes)
-        let heroDataURI = null;
+        // Support multiple hero images — load all from heroImagePaths array (fall back to heroImagePath)
+        const heroPaths = (current.heroImagePaths?.length > 0)
+          ? current.heroImagePaths
+          : (current.heroImagePath ? [current.heroImagePath] : []);
+        const heroDataURIs = heroPaths
+          .filter(p => p && existsSync(p))
+          .map(p => fileToDataURI(p, getMimeType(p)));
+
         let bgDataURI = null;
-        if (entry.heroImagePath && existsSync(entry.heroImagePath)) {
-          heroDataURI = fileToDataURI(entry.heroImagePath, getMimeType(entry.heroImagePath));
-        }
-        if (entry.bgImagePath && existsSync(entry.bgImagePath)) {
-          bgDataURI = fileToDataURI(entry.bgImagePath, getMimeType(entry.bgImagePath));
+        if (current.bgImagePath && existsSync(current.bgImagePath)) {
+          bgDataURI = fileToDataURI(current.bgImagePath, getMimeType(current.bgImagePath));
         }
         const ctaRefPath = path.join('public', 'reference.jpg');
         const ctaDataURI = existsSync(ctaRefPath) ? fileToDataURI(ctaRefPath, 'image/jpeg') : null;
+
+        if (heroDataURIs.length > 0) {
+          console.log(`[Story] Loaded ${heroDataURIs.length} hero ref image(s) for this run`);
+        }
 
         // Build all image jobs: mode-aware
         const allImageJobs = [];
@@ -348,10 +407,12 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
           const isFirst = (i === 0);
           const isLast = (i === lastIdx);
 
+          // Attach hero refs whenever images were uploaded — ignore useHeroRef from JSON
+          // (useHeroRef was Claude's suggestion; if user uploaded images, always use them)
           const referenceImages = [];
-          if (scene.useHeroRef && heroDataURI) {
-            referenceImages.push(heroDataURI);
-            console.log(`[Story] Scene ${scene.sceneNumber}: will attach hero ref`);
+          if (heroDataURIs.length > 0) {
+            referenceImages.push(...heroDataURIs);
+            console.log(`[Story] Scene ${scene.sceneNumber}: attaching ${heroDataURIs.length} hero ref(s)`);
           }
           if (scene.useBgRef && bgDataURI) {
             referenceImages.push(bgDataURI);
@@ -564,6 +625,24 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
         }
       }
 
+      // Single-scene run: pause after processing target scene, move to next pending
+      if (endSceneIdx !== null) {
+        const reloaded = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+        const nextPending = (reloaded?.scenes || []).findIndex((s, i) => i > endSceneIdx && (s.imageStatus !== 'completed' || (i === lastIdx && s.ctaImagePrompt && s.ctaImageStatus !== 'completed')));
+        const nextIdx = nextPending >= 0 ? nextPending : endSceneIdx + 1;
+        updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'images', currentSceneIndex: Math.min(nextIdx, current.scenes.length - 1), pauseReason: 'manual' });
+        console.log(`[Story] ⏸ Single-scene run done for images scene ${endSceneIdx + 1}. Paused.`);
+        return;
+      }
+
+      // Manual mode pause before videos
+      const afterImagesEntry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+      if (afterImagesEntry?.runMode === 'manual') {
+        updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: 0, pauseReason: 'manual' });
+        console.log(`[Story] ⏸ Manual mode — paused before videos. Waiting for user.`);
+        return;
+      }
+
       startPhase = 'videos';
       startSceneIdx = 0;
     }
@@ -581,7 +660,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
 
       if (isFastPacedVid) {
         // ── Fast-Paced: parallel video generation ──
-        const anyVidFailed = await runFastPacedVideoPhase(taskUUID, current, dir);
+        const anyVidFailed = await runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx, endSceneIdx);
         if (anyVidFailed) return;
       } else {
         // ── Standard: sequential video generation with frame extraction ──
@@ -606,7 +685,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
 
           let anyVidFailed = false;
 
-          for (let i = videoStartIdx; i <= lastIdx; i++) {
+          for (let i = videoStartIdx; i <= (endSceneIdx !== null ? Math.min(endSceneIdx, lastIdx) : lastIdx); i++) {
             // Reload to get latest state
             current = loadStoryHistory().find(h => h.taskUUID === taskUUID);
             const scene = current.scenes[i];
@@ -740,6 +819,24 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
         }
       }
 
+      // Single-scene run: pause after processing target video scene
+      if (endSceneIdx !== null) {
+        const reloadedV = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+        const nextVidPending = (reloadedV?.scenes || []).findIndex((s, i) => i > endSceneIdx && s.videoStatus !== 'completed');
+        const nextVidIdx = nextVidPending >= 0 ? nextVidPending : endSceneIdx + 1;
+        updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: Math.min(nextVidIdx, current.scenes.length - 1), pauseReason: 'manual' });
+        console.log(`[Story] ⏸ Single-scene run done for video scene ${endSceneIdx + 1}. Paused.`);
+        return;
+      }
+
+      // Manual mode pause before concat
+      const afterVideosEntry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+      if (afterVideosEntry?.runMode === 'manual') {
+        updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'concat', pauseReason: 'manual' });
+        console.log(`[Story] ⏸ Manual mode — paused before concat. Waiting for user.`);
+        return;
+      }
+
       startPhase = 'concat';
     }
 
@@ -766,16 +863,26 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx) {
 
         // Mix in background music if provided
         let finalOutputUrl = `/output/stories/${taskUUID}/final.mp4`;
-        if (current.musicFilePath && existsSync(current.musicFilePath)) {
+
+        // Resolve music path — stored path may be absolute or relative to project root
+        let resolvedMusicPath = current.musicFilePath || null;
+        if (resolvedMusicPath && !path.isAbsolute(resolvedMusicPath)) {
+          resolvedMusicPath = path.resolve(resolvedMusicPath);
+        }
+        console.log(`[Story] Music path: ${resolvedMusicPath || 'none'} | exists: ${resolvedMusicPath ? existsSync(resolvedMusicPath) : false}`);
+
+        if (resolvedMusicPath && existsSync(resolvedMusicPath)) {
           console.log(`[Story] Mixing background music into final video...`);
           const musicFinalPath = path.join(dir, 'final_with_music.mp4');
           try {
-            await mixMusicIntoVideo(finalPath, current.musicFilePath, musicFinalPath, 0.3);
+            await mixMusicIntoVideo(finalPath, resolvedMusicPath, musicFinalPath, 0.3);
             finalOutputUrl = `/output/stories/${taskUUID}/final_with_music.mp4`;
             console.log(`[Story] ✅ Music mixed in → final_with_music.mp4`);
           } catch (musicErr) {
             console.warn(`[Story] ⚠ Music mix failed (non-fatal), using video without music: ${musicErr.message}`);
           }
+        } else if (current.musicFilePath) {
+          console.warn(`[Story] ⚠ Music file not found at: ${current.musicFilePath} — skipping music mix`);
         }
 
         // Calculate total cost (imageA + imageB + CTA + video costs)
@@ -860,19 +967,69 @@ router.get('/api/story-models', (req, res) => {
   res.json({ models: STORY_VIDEO_MODELS });
 });
 
+// ── GET /api/marketing-angles ────────────────────────────────────────────────
+router.get('/api/marketing-angles', (req, res) => {
+  if (!MARKETING_ANGLES_DATA) return res.status(404).json({ error: 'Marketing angles not loaded.' });
+  res.json({
+    angles: MARKETING_ANGLES_DATA.marketing_angles,
+    game: MARKETING_ANGLES_DATA.game,
+    creative_guardrails: MARKETING_ANGLES_DATA.creative_guardrails,
+  });
+});
+
+// ── GET /api/hero-catalog ─────────────────────────────────────────────────────
+router.get('/api/hero-catalog', (req, res) => {
+  if (!HEROES_DATA) return res.json({ heroes: [] });
+  const heroes = (HEROES_DATA.heroes || []).map(h => ({
+    name: h.name,
+    class: h.class,
+    lore_description: h.lore_description,
+  }));
+  res.json({ heroes });
+});
+
+// ── POST /api/generate-video-desc ────────────────────────────────────────────
+router.post('/api/generate-video-desc', async (req, res) => {
+  const { angleId, gameContext, heroDesc, namedHeroes } = req.body;
+  if (!angleId) return res.status(400).json({ error: 'angleId is required.' });
+  if (!MARKETING_ANGLES_DATA) return res.status(503).json({ error: 'Marketing angles data not loaded.' });
+
+  const angle = MARKETING_ANGLES_DATA.marketing_angles.find(a => a.id === Number(angleId));
+  if (!angle) return res.status(404).json({ error: `Angle ID ${angleId} not found.` });
+
+  try {
+    const description = await generateVideoDescription(
+      angle,
+      MARKETING_ANGLES_DATA,
+      gameContext || '',
+      heroDesc || '',
+      Array.isArray(namedHeroes) ? namedHeroes : [],
+    );
+    res.json({ description });
+  } catch (err) {
+    console.error('[Story] generateVideoDescription error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/generate-story ─────────────────────────────────────────────────
-// Multipart: heroImage (optional), bgImage (optional) + form fields
+// Multipart: heroImages[] (optional, up to 6), bgImage (optional) + form fields
 const storyUpload = uploadStory.fields([
-  { name: 'heroImage', maxCount: 1 },
+  { name: 'heroImages', maxCount: 6 },
   { name: 'bgImage', maxCount: 1 },
   { name: 'musicFile', maxCount: 1 },
 ]);
 
 router.post('/api/generate-story', storyUpload, async (req, res) => {
-  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel, pipelineMode } = req.body;
+  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel, pipelineMode, runMode } = req.body;
 
-  if (!storyText || !storyText.trim()) {
-    return res.status(400).json({ error: 'Story text is required.' });
+  // storyText is optional when a valid planningJson is injected
+  const hasInjectedPlan = (() => {
+    try { const p = JSON.parse(req.body.planningJson || ''); return Array.isArray(p?.scenes) && p.scenes.length > 0; }
+    catch { return false; }
+  })();
+  if (!storyText?.trim() && !hasInjectedPlan) {
+    return res.status(400).json({ error: 'Story text is required (or provide a planning JSON).' });
   }
 
   // Parse duration range "15-30" → { min: 15, max: 30 }
@@ -882,20 +1039,51 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
   const taskUUID = randomUUID();
   const mode = (pipelineMode === 'fast-paced') ? 'fast-paced' : 'standard';
 
-  // Hero, background and music file paths (from multer uploads)
-  const heroImagePath = req.files?.heroImage?.[0]?.path || null;
-  const bgImagePath = req.files?.bgImage?.[0]?.path || null;
-  const musicFilePath = req.files?.musicFile?.[0]?.path || null;
+  // Hero images: accept uploaded files AND/OR server-path refs from media picker.
+  // Multer v2 with multipart stores bracket fields as the LITERAL key 'heroImagePaths[]'.
+  // We also check 'heroImagePaths' (no brackets) as a fallback.
+  const heroImagePathsFromFiles = (req.files?.heroImages || []).map(f => f.path);
+  // Multer strips [] from field names: 'heroImagePaths[]' arrives as 'heroImagePaths'
+  const rawHeroRefs =
+    req.body['heroImagePaths'] ??
+    req.body['heroImagePaths[]'] ??
+    [];
+  const heroImageRefs = [].concat(rawHeroRefs).filter(v => v && typeof v === 'string').map(uploadRefToDiskPath).filter(Boolean);
+  const heroImagePaths = [...heroImagePathsFromFiles, ...heroImageRefs];
+
+  // Background image: uploaded file OR server-path ref
+  const bgImagePath = req.files?.bgImage?.[0]?.path || uploadRefToDiskPath(req.body.bgImageRef) || null;
+
+  // Music file: uploaded file OR server-path ref
+  const musicFilePath = req.files?.musicFile?.[0]?.path || uploadRefToDiskPath(req.body.musicFileRef) || null;
+
+  // Named heroes (from catalog, no image)
+  const namedHeroes = (() => { try { return JSON.parse(req.body.namedHeroes || '[]'); } catch { return []; } })();
+
+  // Optional pre-built planning JSON — skips Claude planning phase entirely
+  const injectedPlan = (() => {
+    const raw = req.body.planningJson;
+    if (!raw || !raw.trim()) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed.scenes) || parsed.scenes.length === 0) return null;
+      return parsed; // { scenes: [...], voiceOverCharacteristics: "..." }
+    } catch {
+      return null;
+    }
+  })();
 
   console.log(`\n[Story] ── New Story Request ──────────────────────`);
-  console.log(`[Story]  taskUUID : ${taskUUID}`);
-  console.log(`[Story]  Duration : ${durMin}-${durMax}s (AI picks scene count)`);
-  console.log(`[Story]  Mode     : ${mode}`);
-  console.log(`[Story]  Model    : ${model}`);
-  console.log(`[Story]  HeroImg  : ${heroImagePath || 'none'}`);
-  console.log(`[Story]  BgImg    : ${bgImagePath || 'none'}`);
-  console.log(`[Story]  Music    : ${musicFilePath || 'none'}`);
-  console.log(`[Story]  Story    : ${storyText.slice(0, 80)}...`);
+  console.log(`[Story]  taskUUID    : ${taskUUID}`);
+  console.log(`[Story]  Duration    : ${durMin}-${durMax}s (AI picks scene count)`);
+  console.log(`[Story]  Mode        : ${mode}`);
+  console.log(`[Story]  Model       : ${model}`);
+  console.log(`[Story]  HeroImages  : ${heroImagePaths.length > 0 ? heroImagePaths.join(', ') : 'none'}`);
+  console.log(`[Story]  NamedHeroes : ${namedHeroes.length > 0 ? namedHeroes.join(', ') : 'none'}`);
+  console.log(`[Story]  BgImg       : ${bgImagePath || 'none'}`);
+  console.log(`[Story]  Music       : ${musicFilePath || 'none'}`);
+  console.log(`[Story]  PlanJSON    : ${injectedPlan ? `✅ injected (${injectedPlan.scenes.length} scenes — skipping Claude)` : 'none (Claude will plan)'}`);
+  console.log(`[Story]  Story       : ${storyText.slice(0, 80)}...`);
 
   addStoryEntry({
     taskUUID,
@@ -915,9 +1103,14 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
     videoModelLabel: modelInfo?.label || model,
     pipelineMode: mode,
     voiceOverCharacteristics: null, // Claude will populate this during planning
-    heroImagePath,    // saved for resume — Claude + Nano Bana 2 reference
+    heroImagePath: heroImagePaths[0] || null,   // backward compat — first hero image path
+    heroImagePaths,   // full array of hero image paths
+    namedHeroes,      // hero names from catalog (no image)
     bgImagePath,      // saved for resume — Claude + Nano Bana 2 reference
     musicFilePath,    // saved for resume — mixed into final video at low volume
+    injectedPlan,     // pre-built planning JSON (null = let Claude plan)
+    runMode: runMode === 'manual' ? 'manual' : 'auto',  // 'auto' | 'manual'
+    pauseReason: null,
     currentPhase: 'planning',
     currentSceneIndex: null,
     scenes: [],
@@ -951,13 +1144,20 @@ router.post('/api/resume-story/:taskUUID', async (req, res) => {
     }
   }
 
-  const phase = entry.currentPhase || 'planning';
-  const sceneIdx = entry.currentSceneIndex || 0;
+  // forcePhase lets the caller jump directly to a specific phase (e.g. 'concat')
+  const { forcePhase } = req.body || {};
+  if (forcePhase) {
+    updateStoryEntry(taskUUID, { currentPhase: forcePhase, currentSceneIndex: 0 });
+  }
+
+  const reloaded = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  const phase = reloaded?.currentPhase || 'planning';
+  const sceneIdx = reloaded?.currentSceneIndex || 0;
 
   console.log(`[Story] ── Resume Request ──────────────────────`);
-  console.log(`[Story]  taskUUID: ${taskUUID} | phase: ${phase} | scene: ${sceneIdx}`);
+  console.log(`[Story]  taskUUID: ${taskUUID} | phase: ${phase} | scene: ${sceneIdx}${forcePhase ? ` (forced to ${forcePhase})` : ''}`);
 
-  updateStoryEntry(taskUUID, { status: 'processing', error: null });
+  updateStoryEntry(taskUUID, { status: 'processing', error: null, pauseReason: null });
   res.json({ success: true, message: `Resuming from ${phase} phase, scene ${sceneIdx}` });
 
   // Resume pipeline
@@ -1035,6 +1235,188 @@ router.post('/api/retry-scene/:taskUUID/:sceneIndex', async (req, res) => {
 
   // Resume pipeline from that scene
   runPipeline(taskUUID, retryPhase, idx);
+});
+
+// ── POST /api/run-single-scene/:taskUUID/:sceneIndex ─────────────────────────
+// Run image or video generation for exactly ONE scene, even while the pipeline is running.
+// This allows node-by-node manual execution without blocking on overall status.
+router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
+  const { taskUUID, sceneIndex } = req.params;
+  const idx = parseInt(sceneIndex);
+  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+
+  if (!entry) return res.status(404).json({ error: 'Story not found.' });
+  if (!entry.scenes?.[idx]) return res.status(400).json({ error: 'Invalid scene index.' });
+
+  const scene = entry.scenes[idx];
+  const isFP = entry.pipelineMode === 'fast-paced';
+  const isFirst = (idx === 0);
+  const isLast = (idx === entry.scenes.length - 1);
+
+  // Apply optional prompt overrides
+  const { imagePrompt, videoPrompt, ctaImagePrompt } = req.body || {};
+  if (imagePrompt) updateSceneInStory(taskUUID, idx, { imagePrompt });
+  if (videoPrompt) updateSceneInStory(taskUUID, idx, { videoPrompt });
+  if (ctaImagePrompt) updateSceneInStory(taskUUID, idx, { ctaImagePrompt });
+
+  // Determine what needs to run for this scene
+  const needsImage = isFP
+    ? scene.imageStatus === 'pending' || scene.imageStatus === 'failed'
+    : !isLast && (scene.imageStatus === 'pending' || scene.imageStatus === 'failed');
+  const needsImageB = !isFP && isFirst && scene.imageBPrompt &&
+    (scene.imageBStatus === 'pending' || scene.imageBStatus === 'failed');
+  const needsCTA = isLast && scene.ctaImagePrompt &&
+    (scene.ctaImageStatus === 'pending' || scene.ctaImageStatus === 'failed');
+  const needsVideo = !needsImage && !needsImageB && !needsCTA &&
+    (scene.videoStatus === 'pending' || scene.videoStatus === 'failed');
+
+  if (!needsImage && !needsImageB && !needsCTA && !needsVideo) {
+    return res.status(400).json({ error: 'Scene has nothing pending to run.' });
+  }
+
+  const phase = needsVideo ? 'video' : 'image';
+  console.log(`[Story] ── Run Single Scene ${idx + 1} (${phase}) ──────────────────────`);
+  res.json({ success: true, message: `Running scene ${idx + 1} (${phase})` });
+
+  // Run independently without blocking on / modifying entry.status
+  const dir = path.join('output', 'stories', taskUUID);
+  const freshEntry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  const freshScene = freshEntry?.scenes?.[idx];
+  if (!freshScene) return;
+
+  // Load reference images
+  const heroPaths = (freshEntry.heroImagePaths?.length > 0)
+    ? freshEntry.heroImagePaths
+    : (freshEntry.heroImagePath ? [freshEntry.heroImagePath] : []);
+  const heroDataURIs = heroPaths.filter(p => p && existsSync(p)).map(p => fileToDataURI(p, getMimeType(p)));
+  const bgDataURI = freshEntry.bgImagePath && existsSync(freshEntry.bgImagePath)
+    ? fileToDataURI(freshEntry.bgImagePath, getMimeType(freshEntry.bgImagePath)) : null;
+  const ctaRefPath = path.join('public', 'reference.jpg');
+  const ctaDataURI = existsSync(ctaRefPath) ? fileToDataURI(ctaRefPath, 'image/jpeg') : null;
+
+  const referenceImages = [...heroDataURIs];
+  if (freshScene.useBgRef && bgDataURI) referenceImages.push(bgDataURI);
+
+  if (needsVideo) {
+    // ── Run video for this scene ──
+    updateSceneInStory(taskUUID, idx, { videoStatus: 'generating', videoError: null });
+    try {
+      const s = loadStoryHistory().find(h => h.taskUUID === taskUUID)?.scenes?.[idx];
+      if (!s) return;
+
+      // Build first frame data URI (image A)
+      const imgPath = path.join(dir, `scene_${s.sceneNumber}_image.jpg`);
+      const firstFrameDataURI = existsSync(imgPath) ? fileToDataURI(imgPath, 'image/jpeg') : null;
+      // Build last frame data URI (image B for scene 1 standard mode)
+      const imgBPath = path.join(dir, `scene_${s.sceneNumber}_imageB.jpg`);
+      const lastFrameDataURI = (!isFP && isFirst && existsSync(imgBPath))
+        ? fileToDataURI(imgBPath, 'image/jpeg') : null;
+
+      const isKling = freshEntry.videoModel?.startsWith?.('klingai');
+      const videoTaskUUID = randomUUID();
+      const payload = buildVideoPayload(isKling, freshEntry.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI);
+      const label = `Story-Scene${s.sceneNumber}-Vid-Solo`;
+      console.log(`[Story] Scene ${s.sceneNumber}: run-single video | taskUUID: ${videoTaskUUID}`);
+      const vid = await submitAndPoll(API_KEY, payload, label);
+      const vidURL = vid?.videoURL || vid?.url;
+      if (!vidURL) throw new Error(`No video URL in response`);
+      const vidFilename = `scene_${s.sceneNumber}_video.mp4`;
+      const vidPath = path.join(dir, vidFilename);
+      await downloadVideo(vidURL, vidPath);
+      const cost = vid?.cost ?? vid?.taskCost ?? null;
+      updateSceneInStory(taskUUID, idx, {
+        videoStatus: 'completed', videoUrl: `/output/stories/${taskUUID}/${vidFilename}`, videoCost: cost,
+      });
+      console.log(`[Story] ✅ Scene ${s.sceneNumber} solo video done | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      console.error(`[Story] ❌ Scene ${idx + 1} solo video failed: ${msg}`);
+      updateSceneInStory(taskUUID, idx, { videoStatus: 'failed', videoError: msg });
+    }
+    return;
+  }
+
+  // ── Run image(s) for this scene ──
+  const jobs = [];
+  if (needsImage && freshScene.imagePrompt) {
+    const t = randomUUID();
+    const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.imagePrompt,
+      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
+    if (referenceImages.length > 0) payload.inputs = { referenceImages };
+    jobs.push({ type: 'scene', task: { payload, taskUUID: t } });
+  }
+  if (needsImageB && freshScene.imageBPrompt) {
+    const t = randomUUID();
+    const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.imageBPrompt,
+      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
+    if (referenceImages.length > 0) payload.inputs = { referenceImages };
+    jobs.push({ type: 'imageB', task: { payload, taskUUID: t } });
+  }
+  if (needsCTA && freshScene.ctaImagePrompt) {
+    const t = randomUUID();
+    const ctaRefs = [...referenceImages];
+    if (ctaDataURI) ctaRefs.push(ctaDataURI);
+    const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.ctaImagePrompt,
+      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
+    if (ctaRefs.length > 0) payload.inputs = { referenceImages: ctaRefs };
+    jobs.push({ type: 'cta', task: { payload, taskUUID: t } });
+  }
+
+  if (jobs.length === 0) return;
+
+  // Mark all as generating
+  for (const job of jobs) {
+    if (job.type === 'scene') updateSceneInStory(taskUUID, idx, { imageStatus: 'generating', imageError: null });
+    else if (job.type === 'imageB') updateSceneInStory(taskUUID, idx, { imageBStatus: 'generating', imageBError: null });
+    else if (job.type === 'cta') updateSceneInStory(taskUUID, idx, { ctaImageStatus: 'generating', ctaImageError: null });
+  }
+
+  const results = await Promise.allSettled(
+    jobs.map(async (job) => {
+      const label = `Story-Scene${freshScene.sceneNumber}${job.type === 'cta' ? '-CTA' : job.type === 'imageB' ? '-FrameB' : ''}-Img-Solo`;
+      const img = await imageSubmitAndPollOwn(API_KEY, job.task.payload, label);
+      return { type: job.type, img };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled') {
+      const msg = result.reason?.message || String(result.reason);
+      const { type } = result.value || result.reason || {};
+      // mark failed — we need the type from jobs array
+      continue; // handle below
+    }
+    const { type, img } = result.value;
+    try {
+      const imgURL = img?.imageURL || img?.url || img?.outputURL;
+      if (!imgURL) throw new Error(`No image URL in response`);
+      const suffix = type === 'cta' ? '_cta_image' : type === 'imageB' ? '_imageB' : '_image';
+      const filename = `scene_${freshScene.sceneNumber}${suffix}.jpg`;
+      await downloadImage(imgURL, path.join(dir, filename));
+      const cost = img?.cost ?? img?.taskCost ?? null;
+      if (type === 'cta') updateSceneInStory(taskUUID, idx, { ctaImageStatus: 'completed', ctaImageUrl: `/output/stories/${taskUUID}/${filename}`, ctaImageCost: cost });
+      else if (type === 'imageB') updateSceneInStory(taskUUID, idx, { imageBStatus: 'completed', imageBUrl: `/output/stories/${taskUUID}/${filename}`, imageBCost: cost });
+      else updateSceneInStory(taskUUID, idx, { imageStatus: 'completed', imageUrl: `/output/stories/${taskUUID}/${filename}`, imageCost: cost });
+      console.log(`[Story] ✅ Scene ${freshScene.sceneNumber} solo ${type} image done`);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (type === 'cta') updateSceneInStory(taskUUID, idx, { ctaImageStatus: 'failed', ctaImageError: msg });
+      else if (type === 'imageB') updateSceneInStory(taskUUID, idx, { imageBStatus: 'failed', imageBError: msg });
+      else updateSceneInStory(taskUUID, idx, { imageStatus: 'failed', imageError: msg });
+      console.error(`[Story] ❌ Scene ${freshScene.sceneNumber} solo ${type} image failed: ${msg}`);
+    }
+  }
+  // Handle rejected promises
+  for (let ri = 0; ri < results.length; ri++) {
+    if (results[ri].status === 'rejected') {
+      const msg = results[ri].reason?.message || String(results[ri].reason);
+      const type = jobs[ri].type;
+      if (type === 'cta') updateSceneInStory(taskUUID, idx, { ctaImageStatus: 'failed', ctaImageError: msg });
+      else if (type === 'imageB') updateSceneInStory(taskUUID, idx, { imageBStatus: 'failed', imageBError: msg });
+      else updateSceneInStory(taskUUID, idx, { imageStatus: 'failed', imageError: msg });
+      console.error(`[Story] ❌ Scene ${freshScene.sceneNumber} solo ${type} image rejected: ${msg}`);
+    }
+  }
 });
 
 // ── POST /api/resubmit-images/:taskUUID ─────────────────────────────────────
@@ -1186,6 +1568,56 @@ router.post('/api/resubmit-videos/:taskUUID', async (req, res) => {
 
   // Run pipeline from videos phase
   runPipeline(taskUUID, 'videos', firstPending);
+});
+
+// ── POST /api/run-scene-only/:taskUUID/:sceneIndex ───────────────────────────
+// Runs ONLY a single scene node (image or video) then pauses with pauseReason:'manual'.
+// Used by manual-mode canvas to run nodes one-by-one.
+router.post('/api/run-scene-only/:taskUUID/:sceneIndex', async (req, res) => {
+  const { taskUUID, sceneIndex } = req.params;
+  const idx = parseInt(sceneIndex);
+  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+
+  if (!entry) return res.status(404).json({ error: 'Story not found.' });
+  if (!entry.scenes?.[idx]) return res.status(400).json({ error: 'Invalid scene index.' });
+  if (entry.status === 'processing') return res.status(400).json({ error: 'Pipeline already running.' });
+
+  const scene = entry.scenes[idx];
+  const isFastPaced = (entry.pipelineMode === 'fast-paced');
+  const isLast = (idx === entry.scenes.length - 1);
+
+  // Determine which phase this scene needs to run
+  // Images phase: image/imageB/CTA not completed
+  const needsImage = isFastPaced
+    ? (scene.imageStatus !== 'completed' || (isLast && scene.ctaImagePrompt && scene.ctaImageStatus !== 'completed'))
+    : (scene.imageStatus !== 'completed' || (idx === 0 && scene.imageBPrompt && scene.imageBStatus !== 'completed') || (isLast && scene.ctaImagePrompt && scene.ctaImageStatus !== 'completed'));
+
+  // Videos phase: video not completed (only if images are done)
+  const needsVideo = !needsImage && scene.videoStatus !== 'completed';
+
+  if (!needsImage && !needsVideo) {
+    return res.status(400).json({ error: 'Scene already completed — nothing to run.' });
+  }
+
+  const phase = needsImage ? 'images' : 'videos';
+
+  // Reset the target scene's status to pending
+  if (phase === 'images') {
+    const updates = {};
+    if (scene.imageStatus !== 'completed') { updates.imageStatus = 'pending'; updates.imageError = null; }
+    if (idx === 0 && scene.imageBPrompt && scene.imageBStatus !== 'completed') { updates.imageBStatus = 'pending'; updates.imageBError = null; }
+    if (isLast && scene.ctaImagePrompt && scene.ctaImageStatus !== 'completed') { updates.ctaImageStatus = 'pending'; updates.ctaImageError = null; }
+    updateSceneInStory(taskUUID, idx, updates);
+  } else {
+    updateSceneInStory(taskUUID, idx, { videoStatus: 'pending', videoError: null });
+  }
+
+  console.log(`[Story] ── Run Scene Only: scene ${idx + 1} | phase: ${phase} ──────────────`);
+  updateStoryEntry(taskUUID, { status: 'processing', currentPhase: phase, currentSceneIndex: idx, error: null, pauseReason: null });
+  res.json({ success: true, message: `Running ${phase} for scene ${idx + 1} only...` });
+
+  // Run pipeline with endSceneIdx = idx to stop after this one scene
+  runPipeline(taskUUID, phase, idx, idx);
 });
 
 // ── POST /api/regen-image/:taskUUID/:sceneIndex ──────────────────────────────

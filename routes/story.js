@@ -427,7 +427,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                 taskUUID: imgTaskUUID,
                 model: 'google:4@3',
                 positivePrompt: scene.imagePrompt,
-                width: 768, height: 1376,
+                width: 3072, height: 5504,
                 numberResults: 1, includeCost: true, outputType: ['URL'],
               };
               if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
@@ -445,7 +445,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                 taskUUID: ctaTaskUUID,
                 model: 'google:4@3',
                 positivePrompt: scene.ctaImagePrompt,
-                width: 45, height: 91,
+                width: 3072, height: 5504,
                 numberResults: 1, includeCost: true, outputType: ['URL'],
               };
               if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
@@ -467,7 +467,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   taskUUID: ctaTaskUUID,
                   model: 'google:4@3',
                   positivePrompt: scene.ctaImagePrompt,
-                  width: 45, height: 91,
+                  width: 3072, height: 5504,
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
@@ -482,7 +482,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   taskUUID: imgTaskUUID,
                   model: 'google:4@3',
                   positivePrompt: scene.imagePrompt,
-                  width: 768, height: 1376,
+                  width: 3072, height: 5504,
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
@@ -496,7 +496,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   taskUUID: imgBTaskUUID,
                   model: 'google:4@3',
                   positivePrompt: scene.imageBPrompt,
-                  width: 768, height: 1376,
+                  width: 3072, height: 5504,
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (referenceImages.length > 0) imgBPayload.inputs = { referenceImages };
@@ -1353,14 +1353,14 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
   if (needsImage && freshScene.imagePrompt) {
     const t = randomUUID();
     const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.imagePrompt,
-      width: 768, height: 1376, numberResults: 1, includeCost: true, outputType: ['URL'] };
+      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
     if (referenceImages.length > 0) payload.inputs = { referenceImages };
     jobs.push({ type: 'scene', task: { payload, taskUUID: t } });
   }
   if (needsImageB && freshScene.imageBPrompt) {
     const t = randomUUID();
     const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.imageBPrompt,
-      width: 768, height: 1376, numberResults: 1, includeCost: true, outputType: ['URL'] };
+      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
     if (referenceImages.length > 0) payload.inputs = { referenceImages };
     jobs.push({ type: 'imageB', task: { payload, taskUUID: t } });
   }
@@ -1369,7 +1369,7 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
     const ctaRefs = [...referenceImages];
     if (ctaDataURI) ctaRefs.push(ctaDataURI);
     const payload = { taskUUID: t, model: 'google:4@3', positivePrompt: freshScene.ctaImagePrompt,
-      width: 768, height: 1376, numberResults: 1, includeCost: true, outputType: ['URL'] };
+      width: 3072, height: 5504, numberResults: 1, includeCost: true, outputType: ['URL'] };
     if (ctaRefs.length > 0) payload.inputs = { referenceImages: ctaRefs };
     jobs.push({ type: 'cta', task: { payload, taskUUID: t } });
   }

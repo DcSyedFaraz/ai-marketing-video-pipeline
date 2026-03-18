@@ -361,6 +361,19 @@
     .ns-catalog-item img { width: 100%; aspect-ratio:1; object-fit: cover; border-radius: 6px; margin-bottom: 4px; }
     .ns-catalog-item .ns-ci-name { font-size: 11px; font-weight: 600; word-break: break-word; }
     .ns-catalog-item .ns-ci-sub { font-size: 10px; color: var(--muted); }
+    .ns-ci-badge { font-size: 9px; color: var(--accent); margin-top: 2px; }
+    .ns-ci-manage { font-size: 10px; color: var(--accent); cursor: pointer; margin-top: 4px; opacity: .7; }
+    .ns-ci-manage:hover { opacity: 1; text-decoration: underline; }
+    /* Hero image management panel */
+    .ns-hero-mgmt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin-top: 10px; }
+    .ns-hero-mgmt-thumb { position: relative; border-radius: 6px; overflow: hidden; aspect-ratio: 1; background: var(--surface2); }
+    .ns-hero-mgmt-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .ns-hero-mgmt-thumb .ns-hm-del {
+      position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(0,0,0,.7); color: #fff; border: none; cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .ns-hero-mgmt-thumb .ns-hm-del:hover { background: var(--red, #e74c3c); }
   </style>
 </head>
 <body>
@@ -511,6 +524,27 @@
         </div>
       </div>
 
+      <!-- Transition Style -->
+      <div class="ns-fg">
+        <label>Transition Style</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <label id="ns-trans-cut-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="ns-transition" value="cut" checked onchange="nsHighlightTransition()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">⚡ Hard Cut</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4">Instant switch between scenes</div>
+            </div>
+          </label>
+          <label id="ns-trans-fade-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="ns-transition" value="fade" onchange="nsHighlightTransition()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">✨ Fade</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4">Smooth fade to black between scenes</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
       <!-- Video Model -->
       <div class="ns-fg">
         <label>Video Model</label>
@@ -523,28 +557,17 @@
         <textarea id="ns-game-context" placeholder="Game-specific context for AI scene planning (optional)" style="min-height:55px"></textarea>
       </div>
 
-      <!-- Hero desc + Voice desc -->
-      <div class="ns-row">
-        <div class="ns-fg">
-          <label>Hero Description</label>
-          <textarea id="ns-hero-desc" placeholder="Describe the main character (optional)" style="min-height:55px"></textarea>
-        </div>
-        <div class="ns-fg">
-          <label>Voice Description</label>
-          <textarea id="ns-voice-desc" placeholder="Voice-over style (optional)" style="min-height:55px"></textarea>
-        </div>
+      <!-- Voice desc -->
+      <div class="ns-fg">
+        <label>Voice Description</label>
+        <textarea id="ns-voice-desc" placeholder="Voice-over style (optional)" style="min-height:55px"></textarea>
       </div>
 
-      <!-- Hero Images -->
+      <!-- Heroes (catalog only) -->
       <div class="ns-fg">
-        <label>Hero Reference Image(s) <span style="color:var(--muted);font-size:10px">(up to 6)</span></label>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <label class="ns-file-btn">📁 Upload <input type="file" id="ns-hero-images" accept="image/*" multiple style="display:none" onchange="nsUpdateHeroPills()" /></label>
-          <button type="button" class="ns-file-btn" onclick="nsOpenUploadPicker('hero')">📂 From Uploads</button>
-          <button type="button" class="ns-file-btn" onclick="nsOpenHeroCatalog()">🦸 Hero Catalog</button>
-        </div>
-        <div id="ns-hero-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-        <div id="ns-named-heroes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        <label>Heroes</label>
+        <button type="button" class="ns-file-btn" onclick="nsOpenHeroCatalog()">🦸 Select from Hero Catalog</button>
+        <div id="ns-named-heroes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
       </div>
 
       <!-- BG Image -->
@@ -600,6 +623,29 @@
     </div>
     <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
       <button class="ns-btn primary" onclick="nsCloseHeroCatalog()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- NS Hero Image Management Modal -->
+<div id="ns-hero-mgmt-overlay" style="display:none;position:fixed;inset:0;z-index:3100;background:rgba(0,0,0,.85);align-items:center;justify-content:center" onclick="if(event.target===this)nsCloseHeroMgmt()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,480px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <span style="font-size:16px">🖼</span>
+      <span id="ns-hero-mgmt-title" style="font-size:14px;font-weight:700;flex:1">Manage Images</span>
+      <button class="btn-sm" onclick="nsCloseHeroMgmt()">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:14px">
+      <div id="ns-hero-mgmt-images"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <label class="ns-file-btn" style="font-size:11px">📁 Upload Images
+          <input type="file" id="ns-hero-mgmt-input" accept="image/*" multiple style="display:none" onchange="nsUploadHeroImages()" />
+        </label>
+        <span id="ns-hero-mgmt-status" style="font-size:10px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+      <button class="ns-btn primary" onclick="nsCloseHeroMgmt()">Done</button>
     </div>
   </div>
 </div>
@@ -1513,6 +1559,11 @@ function buildOutputNode(entry) {
     actions.appendChild(actionBtn('⬇ Download', 'green', () => {
       const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click();
     }));
+    if (entry.finalVideoAltUrl) {
+      actions.appendChild(actionBtn('⬇ Alt', 'default', () => {
+        const a = document.createElement('a'); a.href = entry.finalVideoAltUrl; a.download = ''; a.click();
+      }));
+    }
     body.appendChild(actions);
   } else if (entry.status === 'paused' && entry.error) {
     body.appendChild(field('Error', escHtml(entry.error.slice(0, 100)), 'error'));
@@ -2295,7 +2346,45 @@ function buildDetailOutput(entry, idle) {
   info.className = 'detail-info';
 
   if (done) {
-    media.appendChild(detailVideo(entry.finalVideoUrl));
+    const hasAlt = !!entry.finalVideoAltUrl;
+    const isFade = entry.finalVideoUrl?.includes('fade') || entry.transitionStyle === 'fade';
+    const mainLabel = isFade ? '✨ Fade' : '⚡ Hard Cut';
+    const altLabel  = isFade ? '⚡ Hard Cut' : '✨ Fade';
+
+    if (hasAlt) {
+      // Toggle tabs
+      const tabs = document.createElement('div');
+      tabs.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;';
+      const mainTab = document.createElement('button');
+      mainTab.textContent = mainLabel;
+      mainTab.style.cssText = 'flex:1;padding:5px 8px;font-size:11px;font-weight:600;border-radius:6px;border:2px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;';
+      const altTab = document.createElement('button');
+      altTab.textContent = altLabel;
+      altTab.style.cssText = 'flex:1;padding:5px 8px;font-size:11px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer;';
+
+      const mainVid = detailVideo(entry.finalVideoUrl);
+      const altVid  = detailVideo(entry.finalVideoAltUrl);
+      altVid.style.display = 'none';
+
+      mainTab.onclick = () => {
+        mainVid.style.display = ''; altVid.style.display = 'none';
+        mainTab.style.cssText = 'flex:1;padding:5px 8px;font-size:11px;font-weight:600;border-radius:6px;border:2px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;';
+        altTab.style.cssText  = 'flex:1;padding:5px 8px;font-size:11px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer;';
+      };
+      altTab.onclick = () => {
+        altVid.style.display = ''; mainVid.style.display = 'none';
+        altTab.style.cssText  = 'flex:1;padding:5px 8px;font-size:11px;font-weight:600;border-radius:6px;border:2px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;';
+        mainTab.style.cssText = 'flex:1;padding:5px 8px;font-size:11px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer;';
+      };
+
+      tabs.appendChild(mainTab);
+      tabs.appendChild(altTab);
+      media.appendChild(tabs);
+      media.appendChild(mainVid);
+      media.appendChild(altVid);
+    } else {
+      media.appendChild(detailVideo(entry.finalVideoUrl));
+    }
   } else {
     info.appendChild(field('', 'Final video not yet available.', 'muted'));
   }
@@ -2304,7 +2393,7 @@ function buildDetailOutput(entry, idle) {
     info.appendChild(detailStatusRow([{ label: 'Total cost: $' + parseFloat(entry.totalCost).toFixed(4), cls: 'green' }]));
   }
   if (entry.completedAt) info.appendChild(detailField('Completed At', new Date(entry.completedAt).toLocaleString()));
-  if (entry.finalVideoUrl) info.appendChild(detailField('File URL', entry.finalVideoUrl));
+  if (entry.transitionStyle) info.appendChild(detailField('Transition', entry.transitionStyle === 'fade' ? '✨ Fade' : '⚡ Hard Cut'));
   if (entry.error) info.appendChild(detailField('Error', entry.error, 'error'));
 
   body.appendChild(media);
@@ -2312,7 +2401,18 @@ function buildDetailOutput(entry, idle) {
 
   const footerBtns = [];
   if (done && entry.finalVideoUrl) {
-    footerBtns.push({ text: '⬇ Download Final Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click(); } });
+    footerBtns.push({ text: '⬇ Download', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = entry.finalVideoUrl; a.download = ''; a.click(); } });
+  }
+  if (done && entry.finalVideoAltUrl) {
+    footerBtns.push({ text: '⬇ Alt Version', cls: 'default', fn: () => { const a = document.createElement('a'); a.href = entry.finalVideoAltUrl; a.download = ''; a.click(); } });
+  }
+  if (done && !entry.finalVideoAltUrl) {
+    const isFadeMain = entry.finalVideoUrl?.includes('fade') || entry.transitionStyle === 'fade';
+    footerBtns.push({ text: `🔄 Generate ${isFadeMain ? 'Hard Cut' : 'Fade'} Version`, cls: 'default', fn: async () => {
+      const btn = document.querySelector('.detail-footer .btn-default');
+      if (btn) { btn.textContent = '⏳ Generating…'; btn.disabled = true; }
+      await fetch(`/api/generate-alt-concat/${entry.taskUUID}`, { method: 'POST' });
+    }});
   }
   if (idle && entry.status === 'paused') {
     footerBtns.push(makeResumeBtn(entry));
@@ -2703,6 +2803,11 @@ function nsHighlightRunMode() {
   document.getElementById('ns-run-auto-opt').style.borderColor   = manual ? 'var(--border)' : 'var(--accent)';
   document.getElementById('ns-run-manual-opt').style.borderColor = manual ? 'var(--accent)' : 'var(--border)';
 }
+function nsHighlightTransition() {
+  const fade = document.querySelector('input[name="ns-transition"]:checked')?.value === 'fade';
+  document.getElementById('ns-trans-cut-opt').style.borderColor  = fade ? 'var(--border)' : 'var(--accent)';
+  document.getElementById('ns-trans-fade-opt').style.borderColor = fade ? 'var(--accent)' : 'var(--border)';
+}
 
 function nsToggleMusicSection() {
   const fp = document.querySelector('input[name="ns-mode"]:checked')?.value === 'fast-paced';
@@ -2811,12 +2916,7 @@ async function nsOpenUploadPicker(target) {
 function nsPickerSelect(f) {
   const serverPath = f.url || ('/uploads/' + f.name);
   const url = f.url || serverPath;
-  if (nsPickerTarget === 'hero') {
-    if (nsHeroFiles.length < 6) {
-      nsHeroFiles.push({ file: null, isUploadRef: true, serverPath, name: f.name, thumbUrl: url });
-      nsRenderHeroPills();
-    }
-  } else if (nsPickerTarget === 'bg') {
+  if (nsPickerTarget === 'bg') {
     nsBgFile = { file: null, isUploadRef: true, serverPath, name: f.name };
     document.getElementById('ns-bg-pill').textContent = '✓ ' + f.name;
   } else if (nsPickerTarget === 'music') {
@@ -2831,25 +2931,46 @@ function nsClosePicker() {
 }
 
 // ── Hero catalog ─────────────────────────────────────────────────
+async function nsRefreshCatalogData() {
+  try {
+    const res = await fetch('/api/hero-catalog');
+    const data = await res.json();
+    _nsCatalogData = data.heroes || data;
+  } catch {}
+}
+
 async function nsOpenHeroCatalog() {
   const overlay = document.getElementById('ns-catalog-overlay');
   overlay.style.display = 'flex';
   const grid = document.getElementById('ns-catalog-grid');
   if (!_nsCatalogData.length) {
     grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>';
-    try {
-      const res = await fetch('/api/hero-catalog');
-      _nsCatalogData = await res.json();
-    } catch(e) { grid.innerHTML = `<div style="color:var(--red);font-size:12px">${e.message}</div>`; return; }
+    await nsRefreshCatalogData();
   }
+  nsRenderCatalogGrid();
+}
+
+function nsRenderCatalogGrid() {
+  const grid = document.getElementById('ns-catalog-grid');
   grid.innerHTML = '';
-  for (const h of _nsCatalogData) {
+  const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
+  for (const h of heroes) {
     const sel = nsNamedHeroes.includes(h.name);
+    const imgs = h.images || [];
     const item = document.createElement('div');
     item.className = 'ns-catalog-item' + (sel ? ' selected' : '');
     item.dataset.name = h.name;
-    if (h.imageUrl) item.innerHTML = `<img src="${h.imageUrl}" />`;
+    if (imgs.length) {
+      item.innerHTML = `<img src="${imgs[0]}" />`;
+    }
     item.innerHTML += `<div class="ns-ci-name">${escHtml(h.name)}</div><div class="ns-ci-sub">${escHtml(h.class || '')}</div>`;
+    if (imgs.length) {
+      item.innerHTML += `<div class="ns-ci-badge">${imgs.length} img${imgs.length > 1 ? 's' : ''}</div>`;
+    }
+    item.innerHTML += `<div class="ns-ci-manage" data-manage="${escHtml(h.name)}">Manage</div>`;
+    // Click on manage opens management view
+    item.querySelector('.ns-ci-manage').onclick = (e) => { e.stopPropagation(); nsOpenHeroMgmt(h.name); };
+    // Click on card toggles selection
     item.onclick = () => {
       const idx = nsNamedHeroes.indexOf(h.name);
       if (idx >= 0) { nsNamedHeroes.splice(idx, 1); item.classList.remove('selected'); }
@@ -2863,26 +2984,121 @@ async function nsOpenHeroCatalog() {
 function nsRenderNamedHeroBadges() {
   const container = document.getElementById('ns-named-heroes');
   container.innerHTML = '';
+  const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
   nsNamedHeroes.forEach((name, idx) => {
+    const h = heroes.find(x => x.name === name);
+    const imgCount = h?.images?.length || 0;
     const badge = document.createElement('div');
     badge.className = 'ns-pill';
     badge.style.borderColor = 'var(--accent)';
-    badge.innerHTML = `<span style="font-size:14px">🦸</span><span class="ns-pill-name">${escHtml(name)}</span><span class="ns-pill-x" onclick="nsRemoveNamedHero(${idx})">✕</span>`;
+    let html = `<span style="font-size:14px">🦸</span><span class="ns-pill-name">${escHtml(name)}</span>`;
+    if (imgCount) html += `<span style="font-size:9px;color:var(--accent);margin-left:2px">(${imgCount} img${imgCount > 1 ? 's' : ''})</span>`;
+    html += `<span class="ns-pill-x" onclick="nsRemoveNamedHero(${idx})">✕</span>`;
+    badge.innerHTML = html;
     container.appendChild(badge);
   });
+  // Show hint if any selected hero has stored images
+  const hasAuto = nsNamedHeroes.some(n => (heroes.find(x => x.name === n)?.images?.length || 0) > 0);
+  let hint = document.getElementById('ns-hero-auto-hint');
+  if (hasAuto) {
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'ns-hero-auto-hint';
+      hint.style.cssText = 'font-size:10px;color:var(--accent);margin-top:4px';
+      container.parentElement.appendChild(hint);
+    }
+    hint.textContent = 'Selected heroes with stored images will auto-use their references.';
+  } else if (hint) { hint.remove(); }
 }
 
 function nsRemoveNamedHero(idx) {
   nsNamedHeroes.splice(idx, 1);
   nsRenderNamedHeroBadges();
-  // deselect in catalog grid if open
   document.querySelectorAll('#ns-catalog-grid .ns-catalog-item').forEach(el => {
-    if (el.dataset.name === nsNamedHeroes[idx]) el.classList.remove('selected');
+    if (!nsNamedHeroes.includes(el.dataset.name)) el.classList.remove('selected');
   });
 }
 
 function nsCloseHeroCatalog() {
   document.getElementById('ns-catalog-overlay').style.display = 'none';
+}
+
+// ── Hero image management ────────────────────────────────────────
+let _nsHeroMgmtName = null;
+
+async function nsOpenHeroMgmt(heroName) {
+  _nsHeroMgmtName = heroName;
+  document.getElementById('ns-hero-mgmt-title').textContent = `${heroName} — Reference Images`;
+  document.getElementById('ns-hero-mgmt-overlay').style.display = 'flex';
+  document.getElementById('ns-hero-mgmt-status').textContent = '';
+  document.getElementById('ns-hero-mgmt-input').value = '';
+  nsRenderHeroMgmtImages();
+}
+
+function nsRenderHeroMgmtImages() {
+  const container = document.getElementById('ns-hero-mgmt-images');
+  const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
+  const h = heroes.find(x => x.name === _nsHeroMgmtName);
+  const imgs = h?.images || [];
+  if (!imgs.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0">No reference images yet. Upload some below.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'ns-hero-mgmt-grid';
+  for (const imgUrl of imgs) {
+    const thumb = document.createElement('div');
+    thumb.className = 'ns-hero-mgmt-thumb';
+    const filename = imgUrl.split('/').pop();
+    thumb.innerHTML = `<img src="${imgUrl}" /><button class="ns-hm-del" title="Delete" onclick="nsDeleteHeroImage('${escHtml(filename)}')">✕</button>`;
+    grid.appendChild(thumb);
+  }
+  container.appendChild(grid);
+}
+
+async function nsUploadHeroImages() {
+  const input = document.getElementById('ns-hero-mgmt-input');
+  const files = input.files;
+  if (!files.length || !_nsHeroMgmtName) return;
+  const status = document.getElementById('ns-hero-mgmt-status');
+  status.textContent = 'Uploading…';
+  const fd = new FormData();
+  for (const f of files) fd.append('images', f);
+  try {
+    const res = await fetch(`/api/hero-images/${encodeURIComponent(_nsHeroMgmtName)}`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { status.textContent = data.error; return; }
+    // Update cached catalog data
+    const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
+    const h = heroes.find(x => x.name === _nsHeroMgmtName);
+    if (h) h.images = data.images;
+    nsRenderHeroMgmtImages();
+    nsRenderCatalogGrid();
+    nsRenderNamedHeroBadges();
+    status.textContent = `${files.length} image${files.length > 1 ? 's' : ''} uploaded`;
+  } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
+  input.value = '';
+}
+
+async function nsDeleteHeroImage(filename) {
+  if (!_nsHeroMgmtName) return;
+  try {
+    const res = await fetch(`/api/hero-images/${encodeURIComponent(_nsHeroMgmtName)}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) return;
+    const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
+    const h = heroes.find(x => x.name === _nsHeroMgmtName);
+    if (h) h.images = data.images;
+    nsRenderHeroMgmtImages();
+    nsRenderCatalogGrid();
+    nsRenderNamedHeroBadges();
+  } catch {}
+}
+
+function nsCloseHeroMgmt() {
+  document.getElementById('ns-hero-mgmt-overlay').style.display = 'none';
+  _nsHeroMgmtName = null;
 }
 
 // ── Submit ───────────────────────────────────────────────────────
@@ -2912,21 +3128,25 @@ async function submitNewStory() {
     fd.append('videoModel', document.getElementById('ns-video-model').value);
     fd.append('pipelineMode', document.querySelector('input[name="ns-mode"]:checked').value);
     fd.append('runMode', document.querySelector('input[name="ns-runmode"]:checked')?.value || 'auto');
+    fd.append('transitionStyle', document.querySelector('input[name="ns-transition"]:checked')?.value || 'cut');
 
     const gameContext = document.getElementById('ns-game-context').value.trim();
-    const heroDesc   = document.getElementById('ns-hero-desc').value.trim();
     const voiceDesc  = document.getElementById('ns-voice-desc').value.trim();
     if (gameContext) fd.append('gameContext', gameContext);
-    if (heroDesc)    fd.append('heroDesc', heroDesc);
     if (voiceDesc)   fd.append('voiceDesc', voiceDesc);
 
     // Named heroes
     if (nsNamedHeroes.length) fd.append('namedHeroes', JSON.stringify(nsNamedHeroes));
 
-    // Hero images
-    for (const h of nsHeroFiles) {
-      if (h.isUploadRef) fd.append('heroImagePaths[]', h.serverPath);
-      else if (h.file)   fd.append('heroImages', h.file);
+    // Auto-inject catalog hero images for selected heroes
+    const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
+    for (const heroName of nsNamedHeroes) {
+      const catalogHero = heroes.find(x => x.name === heroName);
+      if (catalogHero?.images?.length) {
+        for (const imgPath of catalogHero.images) {
+          fd.append('heroImagePaths[]', imgPath);
+        }
+      }
     }
 
     // BG image
@@ -2956,7 +3176,7 @@ async function submitNewStory() {
     if (!res.ok) { alert('Error: ' + (data.error || 'Failed to create story')); return; }
 
     // Reset state
-    nsHeroFiles = []; nsBgFile = null; nsMusicFile = null; nsNamedHeroes = [];
+    nsBgFile = null; nsMusicFile = null; nsNamedHeroes = [];
 
     closeNewStoryModal();
     await loadStoryList();

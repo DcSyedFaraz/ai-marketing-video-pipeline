@@ -11,7 +11,7 @@ import { Router } from 'express';
 import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { mkdir, rm, unlink } from 'fs/promises';
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync, mkdirSync } from 'fs';
 import path from 'path';
 
 import { STORY_VIDEO_MODELS } from '../lib/models.js';
@@ -20,6 +20,7 @@ import { fileToDataURI, downloadVideo, downloadImage, getMimeType, generateImage
 import { concatMultipleVideos, extractLastFrame, mixMusicIntoVideo } from '../lib/ffmpeg.js';
 import { submitAndPoll, imageSubmitAndPollOwn } from '../lib/runware.js';
 import { uploadStory } from '../lib/multer.js';
+import multer from 'multer';
 import {
   loadStoryHistory, addStoryEntry, updateStoryEntry, updateSceneInStory,
 } from '../lib/storyHistory.js';
@@ -40,6 +41,18 @@ try {
 } catch (e) {
   console.warn(`[Story] Failed to load hero catalog: ${e.message}`);
 }
+
+// ─── Hero image storage helpers ────────────────────────────────────────────────
+function heroSlug(name) { return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, ''); }
+function heroImagesDir(name) { return path.resolve('uploads', 'heroes', heroSlug(name)); }
+function listHeroImages(name) {
+  const dir = heroImagesDir(name);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .map(f => `/uploads/heroes/${heroSlug(name)}/${f}`);
+}
+try { mkdirSync(path.resolve('uploads', 'heroes'), { recursive: true }); } catch {}
 
 // ─── Load marketing angles (marketing_angles.json) once at startup ────────────
 let MARKETING_ANGLES_DATA = null;
@@ -867,11 +880,13 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
           if (!existsSync(vp)) throw new Error(`Missing video: ${vp}`);
         }
 
-        const finalPath = path.join(dir, 'final.mp4');
-        await concatMultipleVideos(videoPaths, finalPath, { width: 1080, height: 1920 });
+        const fade = current.transitionStyle === 'fade';
+        const finalFilename = fade ? 'final_fade.mp4' : 'final_cut.mp4';
+        const finalPath = path.join(dir, finalFilename);
+        await concatMultipleVideos(videoPaths, finalPath, { width: 1080, height: 1920, fade });
 
         // Mix in background music if provided
-        let finalOutputUrl = `/output/stories/${taskUUID}/final.mp4`;
+        let finalOutputUrl = `/output/stories/${taskUUID}/${finalFilename}`;
 
         // Resolve music path — stored path may be absolute or relative to project root
         let resolvedMusicPath = current.musicFilePath || null;
@@ -993,8 +1008,59 @@ router.get('/api/hero-catalog', (req, res) => {
     name: h.name,
     class: h.class,
     lore_description: h.lore_description,
+    images: listHeroImages(h.name),
   }));
   res.json({ heroes });
+});
+
+// ── POST /api/hero-images/:heroName — upload reference images for a hero ─────
+const heroImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, _file, cb) => {
+      const dir = heroImagesDir(req.params.heroName);
+      mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${Date.now()}-${randomUUID().slice(0, 8)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    /\.(jpg|jpeg|png|webp)$/i.test(file.originalname) ? cb(null, true) : cb(new Error('Only image files allowed'));
+  },
+}).array('images', 6);
+
+router.post('/api/hero-images/:heroName', (req, res) => {
+  const heroName = req.params.heroName;
+  if (!HEROES_DATA?.heroes?.some(h => h.name === heroName)) {
+    return res.status(404).json({ error: `Hero "${heroName}" not found in catalog.` });
+  }
+  heroImageUpload(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    res.json({ images: listHeroImages(heroName) });
+  });
+});
+
+// ── DELETE /api/hero-images/:heroName/:filename — delete a hero reference image
+router.delete('/api/hero-images/:heroName/:filename', async (req, res) => {
+  const { heroName, filename } = req.params;
+  if (!HEROES_DATA?.heroes?.some(h => h.name === heroName)) {
+    return res.status(404).json({ error: `Hero "${heroName}" not found.` });
+  }
+  // Path traversal protection
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid filename.' });
+  }
+  const filePath = path.join(heroImagesDir(heroName), filename);
+  if (!existsSync(filePath)) return res.status(404).json({ error: 'Image not found.' });
+  try {
+    await unlink(filePath);
+    res.json({ images: listHeroImages(heroName) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── POST /api/generate-video-desc ────────────────────────────────────────────
@@ -1030,7 +1096,7 @@ const storyUpload = uploadStory.fields([
 ]);
 
 router.post('/api/generate-story', storyUpload, async (req, res) => {
-  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel, pipelineMode, runMode } = req.body;
+  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel, pipelineMode, runMode, transitionStyle } = req.body;
 
   // storyText is optional when a valid planningJson is injected
   const hasInjectedPlan = (() => {
@@ -1119,6 +1185,7 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
     musicFilePath,    // saved for resume — mixed into final video at low volume
     injectedPlan,     // pre-built planning JSON (null = let Claude plan)
     runMode: runMode === 'manual' ? 'manual' : 'auto',  // 'auto' | 'manual'
+    transitionStyle: transitionStyle === 'fade' ? 'fade' : 'cut',  // 'cut' | 'fade'
     pauseReason: null,
     currentPhase: 'planning',
     currentSceneIndex: null,
@@ -1821,6 +1888,48 @@ router.delete('/api/story-history/:taskUUID', async (req, res) => {
   try { await rm(dir, { recursive: true, force: true }); } catch {}
 
   res.json({ success: true });
+});
+
+// Generate the alternate transition version (cut→fade or fade→cut) on demand
+router.post('/api/generate-alt-concat/:taskUUID', async (req, res) => {
+  const { taskUUID } = req.params;
+  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  if (!entry) return res.status(404).json({ error: 'Story not found.' });
+  if (entry.status !== 'completed') return res.status(400).json({ error: 'Story not completed yet.' });
+
+  const dir = storyDir(taskUUID);
+  const videoPaths = entry.scenes.map(s => path.join(dir, `scene_${s.sceneNumber}_video.mp4`));
+  for (const vp of videoPaths) {
+    if (!existsSync(vp)) return res.status(400).json({ error: `Missing scene video: ${path.basename(vp)}` });
+  }
+
+  // Determine which version to generate (the one we don't have yet)
+  const altFade = !entry.finalVideoUrl?.includes('final_fade');
+  const altFilename = altFade ? 'final_fade.mp4' : 'final_cut.mp4';
+  const altPath = path.join(dir, altFilename);
+  const altUrl = `/output/stories/${taskUUID}/${altFilename}`;
+
+  res.json({ success: true, message: 'Generating alternate version…', url: altUrl });
+
+  // Run in background
+  try {
+    await concatMultipleVideos(videoPaths, altPath, { width: 1080, height: 1920, fade: altFade });
+    // Mix music if present
+    let finalAltUrl = altUrl;
+    let resolvedMusicPath = entry.musicFilePath || null;
+    if (resolvedMusicPath && !path.isAbsolute(resolvedMusicPath)) resolvedMusicPath = path.resolve(resolvedMusicPath);
+    if (resolvedMusicPath && existsSync(resolvedMusicPath)) {
+      const musicAltPath = path.join(dir, altFade ? 'final_fade_with_music.mp4' : 'final_cut_with_music.mp4');
+      try {
+        await mixMusicIntoVideo(altPath, resolvedMusicPath, musicAltPath, 0.3);
+        finalAltUrl = `/output/stories/${taskUUID}/${path.basename(musicAltPath)}`;
+      } catch {}
+    }
+    updateStoryEntry(taskUUID, { finalVideoAltUrl: finalAltUrl });
+    console.log(`[Story] ✅ Alt concat done: ${finalAltUrl}`);
+  } catch (err) {
+    console.error(`[Story] ❌ Alt concat failed:`, err.message);
+  }
 });
 
 export default router;

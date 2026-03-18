@@ -332,6 +332,9 @@
     .topbar-actions { display: flex; gap: 4px; }
     .topbar-actions .btn-sm { font-size: 10px; padding: 4px 8px; }
 
+    /* ── NS option row (run mode / transition cards) ── */
+    .ns-option-row { display: flex; gap: 8px; margin-top: 6px; }
+
     /* ── NS file-btn ── */
     .ns-file-btn {
       padding: 4px 10px; font-size: 11px; font-weight: 500; border: 1px solid var(--border);
@@ -374,6 +377,132 @@
       display: flex; align-items: center; justify-content: center; line-height: 1;
     }
     .ns-hero-mgmt-thumb .ns-hm-del:hover { background: var(--red, #e74c3c); }
+
+    /* ══════════════════════════════════════════════════════════════
+       MOBILE RESPONSIVE
+    ══════════════════════════════════════════════════════════════ */
+    @media (max-width: 640px) {
+
+      /* ── Top bar: two rows on mobile ── */
+      .topbar {
+        flex-wrap: wrap;
+        padding: 8px 10px;
+        gap: 6px;
+        row-gap: 6px;
+        align-items: center;
+      }
+      .topbar h1 { font-size: 13px; }
+      .topbar-sep { display: none; }
+      /* Row 1: logo + title + story select + New Story */
+      .topbar-logo { order: 1; }
+      .topbar h1 { order: 2; }
+      .story-select-wrap { order: 3; flex: 1; min-width: 0; }
+      .story-select-wrap select { max-width: 100%; width: 100%; font-size: 11px; }
+      #btn-new-story { order: 4; }
+      /* Row 2: status, actions, refresh buttons */
+      .topbar-info { order: 10; flex-basis: 100%; font-size: 11px; }
+      #topbar-status { order: 11; }
+      #pipeline-actions { order: 12; flex-basis: 100%; flex-wrap: wrap; }
+      .topbar-actions { order: 12; flex-basis: 100%; }
+      .refresh-dot { order: 8; }
+      /* Hide less critical buttons on mobile to save space */
+      #btn-fit, #btn-auto-refresh, #btn-refresh, #btn-main-gui { display: none; }
+      .btn-sm { font-size: 10px; padding: 5px 8px; }
+
+      /* ── Canvas controls: stack cleanly ── */
+      .controls { bottom: 10px; right: 10px; }
+      .ctrl-btn { width: 38px; height: 38px; font-size: 18px; }
+
+      /* ── Minimap: hide on small screens ── */
+      .minimap { display: none; }
+
+      /* ── Node detail modal: bottom sheet on mobile ── */
+      .detail-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 92dvh;
+        border-radius: var(--r) var(--r) 0 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+      }
+      .detail-overlay { align-items: flex-end; }
+      .detail-body {
+        grid-template-columns: 1fr;
+        padding: 12px;
+        gap: 12px;
+      }
+      .detail-header { padding: 12px 14px; }
+      .detail-header .dh-title { font-size: 14px; }
+      .detail-actions {
+        padding: 10px 14px;
+        gap: 6px;
+      }
+      .detail-actions .btn-sm { flex: 1; justify-content: center; font-size: 11px; }
+      .detail-video, .detail-img { max-height: 45vh; }
+      .detail-img-row { flex-direction: column; }
+
+      /* ── New Story modal: full-screen on mobile ── */
+      .ns-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100dvh;
+        border-radius: 0;
+        margin: 0;
+        border: none;
+      }
+      .ns-overlay { align-items: flex-end; padding: 0; }
+      .ns-body { padding: 14px 12px; gap: 12px; }
+      .ns-header { padding: 12px 14px; }
+      .ns-footer { padding: 10px 12px; }
+      .ns-row, .ns-row-3 { grid-template-columns: 1fr; gap: 10px; }
+
+      /* Run mode / transition style cards: stack vertically */
+      .ns-option-row {
+        flex-direction: column !important;
+      }
+
+      /* Bigger touch targets for form elements */
+      .ns-fg textarea, .ns-fg input, .ns-fg select {
+        font-size: 14px;
+        padding: 10px 12px;
+      }
+      .ns-btn { padding: 11px 18px; font-size: 13px; }
+      .ns-file-btn { font-size: 12px; padding: 7px 12px; }
+
+      /* ── Hero catalog / picker modals: bottom sheets on mobile ── */
+      #ns-catalog-overlay,
+      #ns-hero-mgmt-overlay,
+      #ns-picker-overlay { align-items: flex-end !important; }
+
+      #ns-catalog-modal,
+      #ns-hero-mgmt-modal,
+      #ns-picker-modal {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 90dvh !important;
+        border-radius: var(--r) var(--r) 0 0 !important;
+      }
+
+      /* ── Empty state ── */
+      .empty-state .big-icon { font-size: 38px; }
+      .empty-state p { font-size: 12px; }
+
+      /* ── Node card: slightly narrower to show more at once ── */
+      .node { min-width: 160px; max-width: 180px; }
+      .node-title { font-size: 11px; }
+      .node-field-value { font-size: 10px; }
+    }
+
+    /* Tablet adjustments */
+    @media (max-width: 900px) and (min-width: 641px) {
+      .topbar-info { display: none; }
+      .topbar-sep:nth-child(3) { display: none; }
+      .detail-body { grid-template-columns: 1fr; }
+      .detail-overlay { align-items: flex-end; }
+      .detail-modal { max-height: 92vh; }
+      .minimap { width: 120px; height: 75px; }
+    }
   </style>
 </head>
 <body>
@@ -402,11 +531,11 @@
 
   <div class="topbar-sep"></div>
   <div class="refresh-dot" id="refresh-dot" title="Auto-refresh active"></div>
-  <button class="btn-sm" onclick="fitCanvas()" title="Fit all nodes in view">⊞ Fit</button>
+  <button class="btn-sm" id="btn-fit" onclick="fitCanvas()" title="Fit all nodes in view">⊞ Fit</button>
   <button class="btn-sm" onclick="toggleAutoRefresh()" id="btn-auto-refresh">⏸ Pause</button>
   <button class="btn-sm" onclick="manualRefresh()" id="btn-refresh">↺ Refresh</button>
-  <button class="btn-sm accent" onclick="openNewStoryModal()" title="Create a new story from canvas">+ New Story</button>
-  <button class="btn-sm" onclick="window.open('/','_blank')" title="Open main GUI">↗ Main GUI</button>
+  <button class="btn-sm accent" id="btn-new-story" onclick="openNewStoryModal()" title="Create a new story from canvas">+ New Story</button>
+  <button class="btn-sm" id="btn-main-gui" onclick="window.open('/','_blank')" title="Open main GUI">↗ Main GUI</button>
 </div>
 
 <!-- ── Canvas Viewport ── -->
@@ -506,7 +635,7 @@
       <!-- Run Mode -->
       <div class="ns-fg">
         <label>Run Mode</label>
-        <div style="display:flex;gap:8px;margin-top:6px">
+        <div class="ns-option-row">
           <label id="ns-run-auto-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
             <input type="radio" name="ns-runmode" value="auto" checked onchange="nsHighlightRunMode()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
             <div>
@@ -527,7 +656,7 @@
       <!-- Transition Style -->
       <div class="ns-fg">
         <label>Transition Style</label>
-        <div style="display:flex;gap:8px;margin-top:6px">
+        <div class="ns-option-row">
           <label id="ns-trans-cut-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
             <input type="radio" name="ns-transition" value="cut" checked onchange="nsHighlightTransition()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
             <div>
@@ -561,6 +690,12 @@
       <div class="ns-fg">
         <label>Voice Description</label>
         <textarea id="ns-voice-desc" placeholder="Voice-over style (optional)" style="min-height:55px"></textarea>
+      </div>
+
+      <!-- Negative Prompt -->
+      <div class="ns-fg">
+        <label>Negative Prompt <span style="color:var(--muted);font-size:10px">(things to avoid)</span></label>
+        <textarea id="ns-negative-prompt" style="min-height:55px">blurry, distorted hands, extra fingers, deformed face, low quality, watermark, text overlay, inconsistent proportions, morphing weapons, color bleeding between characters, lip sync, talking mouth matching voice, character mouth movement synced to narration, foreground/dialog voice tied to any character</textarea>
       </div>
 
       <!-- Heroes (catalog only) -->
@@ -612,7 +747,7 @@
 
 <!-- NS Hero Catalog Modal -->
 <div id="ns-catalog-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center" onclick="if(event.target===this)nsCloseHeroCatalog()">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,560px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+  <div id="ns-catalog-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,560px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
     <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
       <span style="font-size:18px">🦸</span>
       <span style="font-size:15px;font-weight:700;flex:1">Hero Catalog</span>
@@ -629,7 +764,7 @@
 
 <!-- NS Hero Image Management Modal -->
 <div id="ns-hero-mgmt-overlay" style="display:none;position:fixed;inset:0;z-index:3100;background:rgba(0,0,0,.85);align-items:center;justify-content:center" onclick="if(event.target===this)nsCloseHeroMgmt()">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,480px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+  <div id="ns-hero-mgmt-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,480px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
     <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
       <span style="font-size:16px">🖼</span>
       <span id="ns-hero-mgmt-title" style="font-size:14px;font-weight:700;flex:1">Manage Images</span>
@@ -652,7 +787,7 @@
 
 <!-- NS Upload Picker Modal -->
 <div id="ns-picker-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.8);align-items:center;justify-content:center" onclick="if(event.target===this)nsClosePicker()">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,600px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+  <div id="ns-picker-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,600px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
     <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
       <span style="font-size:18px">📂</span>
       <span id="ns-picker-title" style="font-size:15px;font-weight:700;flex:1">Choose from Uploads</span>
@@ -2245,11 +2380,27 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
   info.appendChild(detailStatusRow(chips));
 
   if (scene.videoPrompt) info.appendChild(editable ? detailEditableField('Video / V/O Prompt', scene.videoPrompt, 'edit-vid-prompt') : detailField('Video / V/O Prompt', scene.videoPrompt));
+  const negPromptVal = scene.negativePrompt || entry.negativePrompt || '';
+  if (editable) {
+    info.appendChild(detailEditableField('Negative Prompt', negPromptVal, 'edit-neg-prompt'));
+  } else if (negPromptVal) {
+    info.appendChild(detailField('Negative Prompt', negPromptVal));
+  }
   if (scene.imagePrompt) info.appendChild(detailField('Opening Frame Prompt', scene.imagePrompt));
   if (!isFP && i === 0 && scene.imageBPrompt) info.appendChild(detailField('End Frame Prompt', scene.imageBPrompt));
 
   body.appendChild(media);
   body.appendChild(info);
+
+  // Helper to gather edited prompts for video actions
+  function getVideoEditBody() {
+    const p = document.getElementById('edit-vid-prompt')?.value;
+    const n = document.getElementById('edit-neg-prompt')?.value;
+    const body = {};
+    if (p && p !== scene.videoPrompt) body.videoPrompt = p;
+    if (n && n !== negPromptVal) body.negativePrompt = n;
+    return Object.keys(body).length ? body : undefined;
+  }
 
   const footerBtns = [];
   if (url) footerBtns.push({ text: '⬇ Download Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); } });
@@ -2257,23 +2408,19 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
     const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
     const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
     footerBtns.push({ text: '▶ Run This Video', cls: 'green', fn: () => {
-      const p = document.getElementById('edit-vid-prompt')?.value;
-      const body = p && p !== scene.videoPrompt ? { videoPrompt: p } : undefined;
-      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', getVideoEditBody());
       closeDetail();
     }});
     if (!idle) {
       footerBtns.push({ text: '▶ Run All Pending', fn: () => {
-        const p = document.getElementById('edit-vid-prompt')?.value;
-        callApi(fullEndpoint, 'POST', p && p !== scene.videoPrompt ? { videoPrompt: p } : undefined);
+        callApi(fullEndpoint, 'POST', getVideoEditBody());
         closeDetail();
       }});
     }
   }
   if (idle && status === 'completed') {
     footerBtns.push({ text: '🎬 Regenerate Video', fn: () => {
-      const p = document.getElementById('edit-vid-prompt')?.value;
-      callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST', p && p !== scene.videoPrompt ? { videoPrompt: p } : undefined);
+      callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST', getVideoEditBody());
       closeDetail();
     }});
     footerBtns.push({ text: '🎞 Re-run Final Concat', fn: () => {
@@ -2417,9 +2564,72 @@ function buildDetailOutput(entry, idle) {
   if (idle && entry.status === 'paused') {
     footerBtns.push(makeResumeBtn(entry));
   }
+  // Clone story with different model — available any time (even while generating)
+  footerBtns.push({ text: '🔄 New Generation — Different Model', fn: () => {
+    openCloneModelPicker(entry);
+  }});
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
+}
+
+function openCloneModelPicker(entry) {
+  closeDetail();
+  const hasImages = entry.scenes?.some(s => s.imageStatus === 'completed' || s.ctaImageStatus === 'completed');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+  const modal = document.createElement('div');
+  modal.style.cssText = `background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;width:min(90vw,440px);box-shadow:0 24px 80px rgba(0,0,0,.8)`;
+  modal.innerHTML = `
+    <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:var(--text)">🔄 New Generation — Different Model</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.5">Starts a brand-new story generation run with a different video model. The original story keeps running.</p>
+    <div style="margin-bottom:12px">
+      <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Video Model</label>
+      <select id="clone-model-select" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px"></select>
+    </div>
+    ${hasImages ? `
+    <label id="clone-use-images-label" style="display:flex;align-items:flex-start;gap:9px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:14px">
+      <input type="checkbox" id="clone-use-images" checked style="margin-top:2px;flex-shrink:0;accent-color:var(--accent);width:14px;height:14px" />
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text)">Use original story's images</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Skip planning &amp; image generation — generate only videos using the selected model</div>
+      </div>
+    </label>` : `<div style="margin-bottom:14px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:11px;color:var(--yellow)">⚠ No images available yet — will run full pipeline (planning + images + videos)</div>`}
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="clone-cancel-btn" class="btn-sm">Cancel</button>
+      <button id="clone-go-btn" class="btn-sm accent">🚀 Start Generation</button>
+    </div>`;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const sel = modal.querySelector('#clone-model-select');
+  const models = _storyModels || [];
+  for (const m of models) {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = `${m.label} (${m.cost})${m.id === entry.videoModel ? ' — current' : ''}`;
+    if (m.id !== entry.videoModel) sel.appendChild(opt);
+    else { opt.disabled = true; sel.prepend(opt); }
+  }
+  // Select first non-current model
+  const firstValid = [...sel.options].find(o => !o.disabled);
+  if (firstValid) firstValid.selected = true;
+
+  modal.querySelector('#clone-cancel-btn').onclick = () => overlay.remove();
+  modal.querySelector('#clone-go-btn').onclick = async () => {
+    const modelId = sel.value;
+    if (!modelId) return;
+    const useImagesChk = modal.querySelector('#clone-use-images');
+    const useOriginalImages = useImagesChk ? useImagesChk.checked : false;
+    overlay.remove();
+    const resp = await callApi(`/api/clone-story/${entry.taskUUID}`, 'POST', { videoModel: modelId, useOriginalImages });
+    if (resp?.taskUUID) {
+      await loadStoryList();
+      document.getElementById('story-select').value = resp.taskUUID;
+      loadStory(resp.taskUUID);
+    }
+  };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
 function genSpinner(msg) {
@@ -2584,11 +2794,12 @@ async function callApi(url, method, body) {
     if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
     const res = await fetch(url, opts);
     const data = await res.json();
-    if (!res.ok) { alert('Error: ' + (data.error || 'Request failed')); return; }
+    if (!res.ok) { alert('Error: ' + (data.error || 'Request failed')); return null; }
     // Force full rebuild on next refresh after API action
     canvasBuilt = false;
     await refreshStory();
-  } catch(e) { alert('Request failed: ' + e.message); }
+    return data;
+  } catch(e) { alert('Request failed: ' + e.message); return null; }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2743,11 +2954,10 @@ async function nsGenerateBrief() {
 
   try {
     const gameContext = document.getElementById('ns-game-context').value.trim();
-    const heroDesc    = document.getElementById('ns-hero-desc').value.trim();
     const res = await fetch('/api/generate-video-desc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ angleId: nsSelectedAngleId, gameContext, heroDesc, namedHeroes: nsNamedHeroes }),
+      body: JSON.stringify({ angleId: nsSelectedAngleId, gameContext, namedHeroes: nsNamedHeroes }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Generation failed');
@@ -2775,16 +2985,18 @@ function closeNewStoryModal() {
   document.getElementById('ns-overlay').style.display = 'none';
 }
 
+let _storyModels = [];
 async function loadStoryModels() {
   try {
     const res = await fetch('/api/story-models');
     const data = await res.json();
+    _storyModels = (data.models || []).map(m => ({ ...m, id: m.id || m.value || m.model, label: m.label || m.name || m.id }));
     const sel = document.getElementById('ns-video-model');
     sel.innerHTML = '';
-    for (const m of data.models) {
+    for (const m of _storyModels) {
       const opt = document.createElement('option');
-      opt.value = m.id || m.value || m.model;
-      opt.textContent = m.label || m.name || opt.value;
+      opt.value = m.id;
+      opt.textContent = m.label;
       if (m.default) opt.selected = true;
       sel.appendChild(opt);
     }
@@ -3132,8 +3344,10 @@ async function submitNewStory() {
 
     const gameContext = document.getElementById('ns-game-context').value.trim();
     const voiceDesc  = document.getElementById('ns-voice-desc').value.trim();
+    const negPrompt  = document.getElementById('ns-negative-prompt').value.trim();
     if (gameContext) fd.append('gameContext', gameContext);
     if (voiceDesc)   fd.append('voiceDesc', voiceDesc);
+    if (negPrompt)   fd.append('negativePrompt', negPrompt);
 
     // Named heroes
     if (nsNamedHeroes.length) fd.append('namedHeroes', JSON.stringify(nsNamedHeroes));

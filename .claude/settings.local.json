@@ -3,7 +3,8 @@
     "allow": [
       "Bash(*)",
       "WebFetch(*)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "WebSearch"
     ]
   }
 }

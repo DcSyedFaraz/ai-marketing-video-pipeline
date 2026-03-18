@@ -11,7 +11,7 @@ import { Router } from 'express';
 import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { mkdir, rm, unlink } from 'fs/promises';
-import { existsSync, readFileSync, readdirSync, statSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync, mkdirSync, copyFileSync } from 'fs';
 import path from 'path';
 
 import { STORY_VIDEO_MODELS } from '../lib/models.js';
@@ -90,6 +90,7 @@ function initSceneProgress(geminiScenes, pipelineMode = 'standard') {
 
     const scene = {
       sceneNumber: s.sceneNumber,
+      heroes: s.heroes || [],
       imagePrompt: s.imagePrompt || '',
       videoPrompt: s.videoPrompt,
       duration: s.duration,
@@ -135,25 +136,84 @@ function storyDir(taskUUID) {
   return path.resolve('output', 'stories', taskUUID);
 }
 
+// ─── Helper: load hero ref images per scene, respecting model limits ─────────
+// Single hero in scene → send multiple images of that hero (up to maxRefs)
+// Multiple heroes in scene → send 1 image per hero (up to maxRefs)
+// Falls back to allNamedHeroes if sceneHeroes is empty (backward compat)
+function loadSceneHeroRefDataURIs(sceneHeroes, allNamedHeroes, maxRefs) {
+  if (maxRefs <= 0) return [];
+  const heroNames = sceneHeroes?.length > 0 ? sceneHeroes : (allNamedHeroes || []);
+  if (!heroNames.length) return [];
+
+  const uris = [];
+
+  if (heroNames.length === 1) {
+    // Single hero: send multiple images of that hero (up to maxRefs)
+    const images = listHeroImages(heroNames[0]);
+    for (const img of images.slice(0, maxRefs)) {
+      const diskPath = uploadRefToDiskPath(img);
+      if (diskPath && existsSync(diskPath)) {
+        uris.push(fileToDataURI(diskPath, getMimeType(diskPath)));
+      }
+    }
+    if (uris.length) console.log(`[Video] Hero "${heroNames[0]}": ${uris.length} ref image(s) loaded (max ${maxRefs})`);
+  } else {
+    // Multiple heroes: 1 image per hero, up to maxRefs total
+    for (const heroName of heroNames.slice(0, maxRefs)) {
+      const images = listHeroImages(heroName);
+      if (images.length > 0) {
+        const diskPath = uploadRefToDiskPath(images[0]);
+        if (diskPath && existsSync(diskPath)) {
+          uris.push(fileToDataURI(diskPath, getMimeType(diskPath)));
+          console.log(`[Video] Hero "${heroName}": 1 ref image loaded`);
+        }
+      }
+    }
+  }
+
+  return uris;
+}
+
 // ─── Helper: build video request payload for Kling or Google ─────────────────
-function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI) {
+function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, { negativePrompt, heroRefDataURIs } = {}) {
+  const isKling3 = videoModel.includes('kling-video@3');
+
   if (isKling) {
-    const klingFrames = [{ image: firstFrameDataURI }];
-    if (lastFrameDataURI) klingFrames.push({ image: lastFrameDataURI });
-    return {
+    // Kling 3.0 uses { image, frame: "first" } format; O3 Pro uses { image } only
+    const klingFrames = isKling3
+      ? [{ image: firstFrameDataURI, frame: 'first' }]
+      : [{ image: firstFrameDataURI }];
+    if (lastFrameDataURI) {
+      klingFrames.push(isKling3 ? { image: lastFrameDataURI, frame: 'last' } : { image: lastFrameDataURI });
+    }
+    const inputs = { frameImages: klingFrames };
+    // Attach hero reference images (caller already handles per-scene + model limits)
+    if (heroRefDataURIs?.length) {
+      inputs.referenceImages = heroRefDataURIs.map(uri => ({ image: uri }));
+      console.log(`[Video] Attaching ${heroRefDataURIs.length} hero ref(s) to Kling video payload`);
+    }
+    const payload = {
       taskUUID: videoTaskUUID,
       model: videoModel,
       positivePrompt: scene.videoPrompt,
       duration: scene.duration,
       outputFormat: 'mp4',
       numberResults: 1,
-      inputs: { frameImages: klingFrames },
+      inputs,
       providerSettings: { klingai: { sound: true } },
     };
+    if (negativePrompt) payload.negativePrompt = negativePrompt;
+    return payload;
   } else {
     const googleFrames = [{ inputImage: firstFrameDataURI }];
     if (lastFrameDataURI) googleFrames.push({ inputImage: lastFrameDataURI });
-    return {
+    const inputs = {};
+    // Attach hero reference images (caller already handles per-scene + model limits)
+    if (heroRefDataURIs?.length) {
+      inputs.referenceImages = heroRefDataURIs.map(uri => ({ image: uri }));
+      console.log(`[Video] Attaching ${heroRefDataURIs.length} hero ref(s) to Veo video payload`);
+    }
+    const payload = {
       taskUUID: videoTaskUUID,
       model: videoModel,
       positivePrompt: scene.videoPrompt,
@@ -164,11 +224,14 @@ function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrame
       frameImages: googleFrames,
       providerSettings: { google: { generateAudio: true, enhancePrompt: true } },
     };
+    if (Object.keys(inputs).length) payload.inputs = inputs;
+    if (negativePrompt) payload.negativePrompt = negativePrompt;
+    return payload;
   }
 }
 
 // ─── Fast-Paced video phase: generate ALL scene videos in parallel ────────────
-async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0, endSceneIdx = null) {
+async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0, endSceneIdx = null, maxVideoRefs = 0) {
   const lastIdx = current.scenes.length - 1;
   const isKling = current.videoModel.startsWith('klingai:');
 
@@ -205,7 +268,11 @@ async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0,
       }
 
       const videoTaskUUID = randomUUID();
-      const requestPayload = buildVideoPayload(isKling, current.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI);
+      const heroRefDataURIs = loadSceneHeroRefDataURIs(s.heroes, current.namedHeroes, maxVideoRefs);
+      const requestPayload = buildVideoPayload(isKling, current.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
+        negativePrompt: s.negativePrompt || current.negativePrompt,
+        heroRefDataURIs,
+      });
 
       updateSceneInStory(taskUUID, i, { videoTaskUUID });
 
@@ -393,13 +460,22 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
         console.log(`[Story] All images already completed, skipping image phase.`);
       } else {
         // Pre-load hero/bg reference data URIs once (reused across scenes)
-        // Support multiple hero images — load all from heroImagePaths array (fall back to heroImagePath)
+        // Build per-hero map for smart per-scene filtering
         const heroPaths = (current.heroImagePaths?.length > 0)
           ? current.heroImagePaths
           : (current.heroImagePath ? [current.heroImagePath] : []);
         const heroDataURIs = heroPaths
           .filter(p => p && existsSync(p))
           .map(p => fileToDataURI(p, getMimeType(p)));
+
+        // Build hero name → data URIs map for per-scene filtering
+        const heroDataURIMap = {};
+        for (const heroName of (current.namedHeroes || [])) {
+          const slug = heroName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+          heroDataURIMap[heroName] = heroPaths
+            .filter(p => p && p.includes(`/heroes/${slug}/`) && existsSync(p))
+            .map(p => fileToDataURI(p, getMimeType(p)));
+        }
 
         let bgDataURI = null;
         if (current.bgImagePath && existsSync(current.bgImagePath)) {
@@ -420,12 +496,25 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
           const isFirst = (i === 0);
           const isLast = (i === lastIdx);
 
-          // Attach hero refs whenever images were uploaded — ignore useHeroRef from JSON
-          // (useHeroRef was Claude's suggestion; if user uploaded images, always use them)
+          const storyNegPrompt = current.negativePrompt || null;
+
+          // Attach hero refs — filter to only heroes in this scene (if heroes field exists)
           const referenceImages = [];
           if (heroDataURIs.length > 0) {
-            referenceImages.push(...heroDataURIs);
-            console.log(`[Story] Scene ${scene.sceneNumber}: attaching ${heroDataURIs.length} hero ref(s)`);
+            if (scene.heroes?.length > 0 && Object.keys(heroDataURIMap).length > 0) {
+              // Smart: only attach refs for heroes in this scene
+              for (const heroName of scene.heroes) {
+                const uris = heroDataURIMap[heroName] || [];
+                referenceImages.push(...uris);
+              }
+              if (referenceImages.length > 0) {
+                console.log(`[Story] Scene ${scene.sceneNumber}: attaching ${referenceImages.length} hero ref(s) for [${scene.heroes.join(', ')}]`);
+              }
+            } else {
+              // Fallback: attach all hero refs (backward compat / no heroes field)
+              referenceImages.push(...heroDataURIs);
+              console.log(`[Story] Scene ${scene.sceneNumber}: attaching ${heroDataURIs.length} hero ref(s) (all)`);
+            }
           }
           if (scene.useBgRef && bgDataURI) {
             referenceImages.push(bgDataURI);
@@ -444,6 +533,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                 numberResults: 1, includeCost: true, outputType: ['URL'],
               };
               if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
+              if (storyNegPrompt) imgPayload.negativePrompt = storyNegPrompt;
               allImageJobs.push({ i, type: 'scene', task: { payload: imgPayload, taskUUID: imgTaskUUID } });
             }
             // Last scene only: ALSO generate CTA image
@@ -462,6 +552,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                 numberResults: 1, includeCost: true, outputType: ['URL'],
               };
               if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
+              if (storyNegPrompt) ctaPayload.negativePrompt = storyNegPrompt;
               allImageJobs.push({ i, type: 'cta', task: { payload: ctaPayload, taskUUID: ctaTaskUUID } });
               console.log(`[Story] Scene ${scene.sceneNumber}: will generate CTA frame image`);
             }
@@ -484,6 +575,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
+                if (storyNegPrompt) ctaPayload.negativePrompt = storyNegPrompt;
                 allImageJobs.push({ i, type: 'cta', task: { payload: ctaPayload, taskUUID: ctaTaskUUID } });
                 console.log(`[Story] Scene ${scene.sceneNumber}: will generate CTA frame image`);
               }
@@ -499,6 +591,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
+                if (storyNegPrompt) imgPayload.negativePrompt = storyNegPrompt;
                 allImageJobs.push({ i, type: 'scene', task: { payload: imgPayload, taskUUID: imgTaskUUID } });
               }
 
@@ -513,6 +606,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
                   numberResults: 1, includeCost: true, outputType: ['URL'],
                 };
                 if (referenceImages.length > 0) imgBPayload.inputs = { referenceImages };
+                if (storyNegPrompt) imgBPayload.negativePrompt = storyNegPrompt;
                 allImageJobs.push({ i, type: 'imageB', task: { payload: imgBPayload, taskUUID: imgBTaskUUID } });
                 console.log(`[Story] Scene ${scene.sceneNumber}: will also generate frame B image`);
               }
@@ -675,11 +769,16 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
     if (startPhase === 'videos') {
       updateStoryEntry(taskUUID, { status: 'processing', currentPhase: 'videos', error: null });
 
+      // Get model ref image limit for per-scene hero ref loading
+      const videoModelInfo = STORY_VIDEO_MODELS.find(m => m.id === current.videoModel);
+      const maxVideoRefs = videoModelInfo?.maxRefImages ?? 0;
+      console.log(`[Story] Video model ${current.videoModel}: maxRefImages=${maxVideoRefs}`);
+
       const isFastPacedVid = (current.pipelineMode === 'fast-paced');
 
       if (isFastPacedVid) {
         // ── Fast-Paced: parallel video generation ──
-        const anyVidFailed = await runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx, endSceneIdx);
+        const anyVidFailed = await runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx, endSceneIdx, maxVideoRefs);
         if (anyVidFailed) return;
       } else {
         // ── Standard: sequential video generation with frame extraction ──
@@ -788,7 +887,11 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
 
             // ── Build video payload ──
             const videoTaskUUID = randomUUID();
-            const requestPayload = buildVideoPayload(isKling, current.videoModel, scene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI);
+            const heroRefDataURIs = loadSceneHeroRefDataURIs(scene.heroes, current.namedHeroes, maxVideoRefs);
+            const requestPayload = buildVideoPayload(isKling, current.videoModel, scene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
+              negativePrompt: scene.negativePrompt || current.negativePrompt,
+              heroRefDataURIs,
+            });
 
             // ── Submit and poll ──
             updateSceneInStory(taskUUID, i, { videoStatus: 'generating', videoError: null, videoTaskUUID });
@@ -1096,7 +1199,7 @@ const storyUpload = uploadStory.fields([
 ]);
 
 router.post('/api/generate-story', storyUpload, async (req, res) => {
-  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel, pipelineMode, runMode, transitionStyle } = req.body;
+  const { storyText, durationRange, gameContext, voiceDesc, heroDesc, videoModel, pipelineMode, runMode, transitionStyle, negativePrompt } = req.body;
 
   // storyText is optional when a valid planningJson is injected
   const hasInjectedPlan = (() => {
@@ -1186,6 +1289,7 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
     injectedPlan,     // pre-built planning JSON (null = let Claude plan)
     runMode: runMode === 'manual' ? 'manual' : 'auto',  // 'auto' | 'manual'
     transitionStyle: transitionStyle === 'fade' ? 'fade' : 'cut',  // 'cut' | 'fade'
+    negativePrompt: (negativePrompt || '').trim() || null,
     pauseReason: null,
     currentPhase: 'planning',
     currentSceneIndex: null,
@@ -1198,6 +1302,120 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
 
   // Start pipeline in background
   runPipeline(taskUUID, 'planning', 0);
+});
+
+// ── POST /api/clone-story/:taskUUID — Clone a story with a different video model ──
+// Creates a new story with same params & images but different video model.
+// Skips planning and image generation — copies images from original, starts at video phase.
+router.post('/api/clone-story/:taskUUID', async (req, res) => {
+  const { taskUUID } = req.params;
+  const { videoModel, useOriginalImages = false } = req.body || {};
+  const original = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+
+  if (!original) return res.status(404).json({ error: 'Story not found.' });
+  if (!videoModel) return res.status(400).json({ error: 'videoModel is required.' });
+
+  // useOriginalImages requires scenes to already exist
+  if (useOriginalImages && !original.scenes?.length) {
+    return res.status(400).json({ error: 'Original story has no scenes yet — cannot use original images.' });
+  }
+
+  const modelInfo = STORY_VIDEO_MODELS.find(m => m.id === videoModel);
+  if (!modelInfo) return res.status(400).json({ error: `Unknown video model: ${videoModel}` });
+
+  const newTaskUUID = randomUUID();
+  const origDir = storyDir(taskUUID);
+  const newDir = storyDir(newTaskUUID);
+  mkdirSync(newDir, { recursive: true });
+
+  let clonedScenes = null;
+  let startPhase = 'planning';
+
+  if (useOriginalImages) {
+    // Copy all image files from original to new directory
+    const imageFiles = existsSync(origDir)
+      ? readdirSync(origDir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+      : [];
+    for (const f of imageFiles) {
+      try { copyFileSync(path.join(origDir, f), path.join(newDir, f)); } catch (e) {
+        console.warn(`[Clone] Failed to copy ${f}: ${e.message}`);
+      }
+    }
+    console.log(`[Clone] Copied ${imageFiles.length} image files from ${taskUUID} → ${newTaskUUID}`);
+
+    // Clone scenes: keep image data, reset video statuses
+    clonedScenes = original.scenes.map(s => ({
+      ...s,
+      videoStatus: 'pending',
+      videoUrl: null,
+      videoTaskUUID: null,
+      videoError: null,
+      videoCost: null,
+      videoThumbUrl: null,
+      // Update image URLs to point to new directory
+      imageUrl: s.imageUrl?.replace(`/output/stories/${taskUUID}/`, `/output/stories/${newTaskUUID}/`) || null,
+      imageThumbUrl: s.imageThumbUrl?.replace(`/output/stories/${taskUUID}/`, `/output/stories/${newTaskUUID}/`) || null,
+      imageBUrl: s.imageBUrl?.replace(`/output/stories/${taskUUID}/`, `/output/stories/${newTaskUUID}/`) || null,
+      imageBThumbUrl: s.imageBThumbUrl?.replace(`/output/stories/${taskUUID}/`, `/output/stories/${newTaskUUID}/`) || null,
+      ctaImageUrl: s.ctaImageUrl?.replace(`/output/stories/${taskUUID}/`, `/output/stories/${newTaskUUID}/`) || null,
+      ctaImageThumbUrl: s.ctaImageThumbUrl?.replace(`/output/stories/${taskUUID}/`, `/output/stories/${newTaskUUID}/`) || null,
+    }));
+
+    // Adjust durations if new model has different allowed durations
+    const allowedDurs = modelInfo.allowedDurations || [];
+    if (allowedDurs.length) {
+      for (const scene of clonedScenes) {
+        if (!allowedDurs.includes(scene.duration)) {
+          scene.duration = allowedDurs.reduce((prev, curr) =>
+            Math.abs(curr - scene.duration) < Math.abs(prev - scene.duration) ? curr : prev
+          );
+        }
+      }
+    }
+    startPhase = 'videos';
+  }
+
+  addStoryEntry({
+    taskUUID: newTaskUUID,
+    type: 'story',
+    status: 'pending',
+    submittedAt: new Date().toISOString(),
+    completedAt: null,
+    error: null,
+    storyText: original.storyText,
+    durationRange: original.durationRange,
+    durationMin: original.durationMin,
+    durationMax: original.durationMax,
+    gameContext: original.gameContext,
+    voiceDesc: original.voiceDesc,
+    heroDesc: original.heroDesc || '',
+    videoModel,
+    videoModelLabel: modelInfo.label,
+    pipelineMode: original.pipelineMode,
+    voiceOverCharacteristics: original.voiceOverCharacteristics,
+    heroImagePath: original.heroImagePath,
+    heroImagePaths: original.heroImagePaths,
+    namedHeroes: original.namedHeroes,
+    bgImagePath: original.bgImagePath,
+    musicFilePath: original.musicFilePath,
+    injectedPlan: null,
+    runMode: original.runMode || 'auto',
+    transitionStyle: original.transitionStyle || 'cut',
+    negativePrompt: original.negativePrompt,
+    pauseReason: null,
+    currentPhase: startPhase,
+    currentSceneIndex: null,
+    scenes: clonedScenes,   // null when running full pipeline (will be set by planScenes)
+    finalVideoUrl: null,
+    totalCost: null,
+    clonedFrom: taskUUID,
+  });
+
+  const modeLabel = useOriginalImages ? 'videos only (original images)' : 'full pipeline';
+  console.log(`[Clone] Created clone ${newTaskUUID} from ${taskUUID} | model: ${modelInfo.label} | mode: ${modeLabel}`);
+  res.json({ success: true, taskUUID: newTaskUUID, message: `Started new generation with ${modelInfo.label} (${modeLabel}).` });
+
+  runPipeline(newTaskUUID, startPhase, 0);
 });
 
 // ── POST /api/resume-story/:taskUUID ─────────────────────────────────────────
@@ -1254,9 +1472,10 @@ router.post('/api/retry-scene/:taskUUID/:sceneIndex', async (req, res) => {
   const isFastPaced = (entry.pipelineMode === 'fast-paced');
 
   // Apply optional prompt overrides
-  const { imagePrompt, videoPrompt } = req.body || {};
+  const { imagePrompt, videoPrompt, negativePrompt } = req.body || {};
   if (imagePrompt) updateSceneInStory(taskUUID, idx, { imagePrompt });
   if (videoPrompt) updateSceneInStory(taskUUID, idx, { videoPrompt });
+  if (negativePrompt) updateSceneInStory(taskUUID, idx, { negativePrompt });
 
   // Determine which step failed
   const isFirst = (idx === 0);
@@ -1330,10 +1549,11 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
   const isLast = (idx === entry.scenes.length - 1);
 
   // Apply optional prompt overrides
-  const { imagePrompt, videoPrompt, ctaImagePrompt } = req.body || {};
+  const { imagePrompt, videoPrompt, ctaImagePrompt, negativePrompt } = req.body || {};
   if (imagePrompt) updateSceneInStory(taskUUID, idx, { imagePrompt });
   if (videoPrompt) updateSceneInStory(taskUUID, idx, { videoPrompt });
   if (ctaImagePrompt) updateSceneInStory(taskUUID, idx, { ctaImagePrompt });
+  if (negativePrompt) updateSceneInStory(taskUUID, idx, { negativePrompt });
 
   // Determine what needs to run for this scene
   const needsImage = isFP
@@ -1390,10 +1610,19 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
 
       const isKling = freshEntry.videoModel?.startsWith?.('klingai');
       const videoTaskUUID = randomUUID();
-      const payload = buildVideoPayload(isKling, freshEntry.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI);
+      // Load hero refs for video — per-scene, model-aware
+      const singleModelInfo = STORY_VIDEO_MODELS.find(m => m.id === freshEntry.videoModel);
+      const singleMaxRefs = singleModelInfo?.maxRefImages ?? 0;
+      const heroRefDataURIs = loadSceneHeroRefDataURIs(s.heroes, freshEntry.namedHeroes, singleMaxRefs);
+      const payload = buildVideoPayload(isKling, freshEntry.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
+        negativePrompt: s.negativePrompt || freshEntry.negativePrompt,
+        heroRefDataURIs,
+      });
       const label = `Story-Scene${s.sceneNumber}-Vid-Solo`;
       console.log(`[Story] Scene ${s.sceneNumber}: run-single video | taskUUID: ${videoTaskUUID}`);
-      const vid = await submitAndPoll(API_KEY, payload, label);
+      const soloConn = new Runware({ apiKey: API_KEY });
+      await soloConn.ensureConnection();
+      const vid = await submitAndPoll(soloConn, payload, label, videoTaskUUID);
       const vidURL = vid?.videoURL || vid?.url;
       if (!vidURL) throw new Error(`No video URL in response`);
       const vidFilename = `scene_${s.sceneNumber}_video.mp4`;
@@ -1772,9 +2001,10 @@ router.post('/api/regen-video/:taskUUID/:sceneIndex', async (req, res) => {
 
   const isFastPaced = (entry.pipelineMode === 'fast-paced');
 
-  // Apply optional prompt override
-  const { videoPrompt } = req.body || {};
+  // Apply optional prompt overrides
+  const { videoPrompt, negativePrompt } = req.body || {};
   if (videoPrompt) updateSceneInStory(taskUUID, idx, { videoPrompt });
+  if (negativePrompt) updateSceneInStory(taskUUID, idx, { negativePrompt });
 
   if (isFastPaced) {
     // Fast-paced: each video is independent — only reset this one

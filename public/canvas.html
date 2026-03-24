@@ -525,6 +525,7 @@
 
   <div class="topbar-actions" id="pipeline-actions" style="display:none">
     <button class="btn-sm green" onclick="resumePipeline()" title="Resume pipeline from where it stopped">▶ Resume</button>
+    <button class="btn-sm" onclick="recheckGenerating()" id="btn-recheck" title="Check if tasks stuck in 'generating' have finished on Runware's side" style="display:none">🔍 Recheck Tasks</button>
     <button class="btn-sm" onclick="resubmitAllImages()" title="Resubmit all pending/failed images">🖼 Redo Images</button>
     <button class="btn-sm" onclick="resubmitAllVideos()" title="Resubmit all pending/failed videos">🎬 Redo Videos</button>
   </div>
@@ -2827,7 +2828,16 @@ function escHtml(s) {
 function updatePipelineActions() {
   const el = document.getElementById('pipeline-actions');
   if (!entry || !currentUUID) { el.style.display = 'none'; return; }
-  const show = entry.status === 'paused' || entry.status === 'completed';
+
+  // Check if any scenes are stuck in 'generating'
+  const hasGenerating = (entry.scenes || []).some(s =>
+    s.videoStatus === 'generating' || s.imageStatus === 'generating' ||
+    s.imageBStatus === 'generating' || s.ctaImageStatus === 'generating'
+  );
+  const recheckBtn = document.getElementById('btn-recheck');
+  if (recheckBtn) recheckBtn.style.display = hasGenerating ? 'inline-flex' : 'none';
+
+  const show = entry.status === 'paused' || entry.status === 'completed' || hasGenerating;
   el.style.display = show ? 'flex' : 'none';
 
   // Update Resume button label based on manual mode context
@@ -2849,6 +2859,24 @@ async function resumePipeline() {
   const isManual = entry?.pauseReason === 'manual';
   if (!isManual && !confirm('Resume pipeline from where it stopped?')) return;
   await callApi(`/api/resume-story/${currentUUID}`, 'POST');
+}
+
+async function recheckGenerating() {
+  if (!currentUUID) return;
+  const btn = document.getElementById('btn-recheck');
+  const orig = btn.textContent;
+  btn.textContent = '🔍 Checking...';
+  btn.disabled = true;
+  try {
+    await callApi(`/api/recheck-generating/${currentUUID}`, 'POST');
+    // Give the background recheck a moment, then refresh
+    setTimeout(() => manualRefresh(), 3000);
+    setTimeout(() => manualRefresh(), 8000);
+    setTimeout(() => manualRefresh(), 15000);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
 }
 
 async function resubmitAllImages() {

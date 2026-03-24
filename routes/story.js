@@ -11,14 +11,14 @@ import { Router } from 'express';
 import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { mkdir, rm, unlink } from 'fs/promises';
-import { existsSync, readFileSync, readdirSync, statSync, mkdirSync, copyFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, copyFileSync } from 'fs';
 import path from 'path';
 
 import { STORY_VIDEO_MODELS } from '../lib/models.js';
-import { planScenes, generateVideoDescription } from '../lib/gemini.js';
+import { planScenes, generateVideoDescription, ensureUnder5MB } from '../lib/gemini.js';
 import { fileToDataURI, downloadVideo, downloadImage, getMimeType, generateImageThumb, generateVideoThumb } from '../lib/helpers.js';
 import { concatMultipleVideos, extractLastFrame, mixMusicIntoVideo } from '../lib/ffmpeg.js';
-import { submitAndPoll, imageSubmitAndPollOwn } from '../lib/runware.js';
+import { submitAndPoll, imageSubmitAndPollOwn, BatchPoller, checkOnce, checkImageOnce } from '../lib/runware.js';
 import { uploadStory } from '../lib/multer.js';
 import multer from 'multer';
 import {
@@ -187,10 +187,11 @@ function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrame
       klingFrames.push(isKling3 ? { image: lastFrameDataURI, frame: 'last' } : { image: lastFrameDataURI });
     }
     const inputs = { frameImages: klingFrames };
-    // Attach hero reference images (caller already handles per-scene + model limits)
-    if (heroRefDataURIs?.length) {
-      inputs.referenceImages = heroRefDataURIs.map(uri => ({ image: uri }));
-      console.log(`[Video] Attaching ${heroRefDataURIs.length} hero ref(s) to Kling video payload`);
+    // Attach hero reference images — API expects array of strings (data URI / URL / UUID)
+    const validRefs = (heroRefDataURIs || []).filter(Boolean);
+    if (validRefs.length) {
+      inputs.referenceImages = validRefs;
+      console.log(`[Video] Attaching ${validRefs.length} hero ref(s) to Kling video payload`);
     }
     const payload = {
       taskUUID: videoTaskUUID,
@@ -202,17 +203,12 @@ function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrame
       inputs,
       providerSettings: { klingai: { sound: true } },
     };
-    if (negativePrompt) payload.negativePrompt = negativePrompt;
+    // o3-pro does not support negativePrompt; other Kling models do
+    if (negativePrompt && !videoModel.includes('o3-pro')) payload.negativePrompt = negativePrompt;
     return payload;
   } else {
     const googleFrames = [{ inputImage: firstFrameDataURI }];
     if (lastFrameDataURI) googleFrames.push({ inputImage: lastFrameDataURI });
-    const inputs = {};
-    // Attach hero reference images (caller already handles per-scene + model limits)
-    if (heroRefDataURIs?.length) {
-      inputs.referenceImages = heroRefDataURIs.map(uri => ({ image: uri }));
-      console.log(`[Video] Attaching ${heroRefDataURIs.length} hero ref(s) to Veo video payload`);
-    }
     const payload = {
       taskUUID: videoTaskUUID,
       model: videoModel,
@@ -224,8 +220,7 @@ function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrame
       frameImages: googleFrames,
       providerSettings: { google: { generateAudio: true, enhancePrompt: true } },
     };
-    if (Object.keys(inputs).length) payload.inputs = inputs;
-    if (negativePrompt) payload.negativePrompt = negativePrompt;
+    // negativePrompt not supported by Google/o3 models — omit entirely
     return payload;
   }
 }
@@ -251,48 +246,52 @@ async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0,
     updateSceneInStory(taskUUID, i, { videoStatus: 'generating', videoError: null });
   }
 
-  const results = await Promise.allSettled(
-    pendingScenes.map(async ({ s, i }) => {
-      const isLast = (i === lastIdx);
-      const imgPath = path.join(dir, `scene_${s.sceneNumber}_image.jpg`);
-      if (!existsSync(imgPath)) throw new Error(`Scene ${s.sceneNumber}: opening image not found on disk`);
-      const firstFrameDataURI = fileToDataURI(imgPath, 'image/jpeg');
+  // Use a single shared connection + BatchPoller for all video tasks
+  const vidConn = new Runware({ apiKey: API_KEY });
+  await vidConn.ensureConnection();
+  const vidPoller = new BatchPoller(vidConn);
+  let results;
+  try {
+    results = await Promise.allSettled(
+      pendingScenes.map(async ({ s, i }) => {
+        const isLast = (i === lastIdx);
+        const imgPath = path.join(dir, `scene_${s.sceneNumber}_image.jpg`);
+        if (!existsSync(imgPath)) throw new Error(`Scene ${s.sceneNumber}: opening image not found on disk`);
+        const firstFrameDataURI = fileToDataURI(imgPath, 'image/jpeg');
 
-      let lastFrameDataURI = null;
-      if (isLast) {
-        const ctaPath = path.join(dir, `scene_${s.sceneNumber}_cta_image.jpg`);
-        if (existsSync(ctaPath)) {
-          lastFrameDataURI = fileToDataURI(ctaPath, 'image/jpeg');
-          console.log(`[Story/FastPaced] Scene ${s.sceneNumber} (last): will animate to CTA frame`);
+        let lastFrameDataURI = null;
+        if (isLast) {
+          const ctaPath = path.join(dir, `scene_${s.sceneNumber}_cta_image.jpg`);
+          if (existsSync(ctaPath)) {
+            lastFrameDataURI = fileToDataURI(ctaPath, 'image/jpeg');
+            console.log(`[Story/FastPaced] Scene ${s.sceneNumber} (last): will animate to CTA frame`);
+          }
         }
-      }
 
-      const videoTaskUUID = randomUUID();
-      const heroRefDataURIs = loadSceneHeroRefDataURIs(s.heroes, current.namedHeroes, maxVideoRefs);
-      const requestPayload = buildVideoPayload(isKling, current.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
-        negativePrompt: s.negativePrompt || current.negativePrompt,
-        heroRefDataURIs,
-      });
+        const videoTaskUUID = randomUUID();
+        const heroRefDataURIs = loadSceneHeroRefDataURIs(s.heroes, current.namedHeroes, maxVideoRefs);
+        const requestPayload = buildVideoPayload(isKling, current.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
+          negativePrompt: s.negativePrompt || current.negativePrompt,
+          heroRefDataURIs,
+        });
 
-      updateSceneInStory(taskUUID, i, { videoTaskUUID });
+        updateSceneInStory(taskUUID, i, { videoTaskUUID });
 
-      // Each video uses its own dedicated Runware connection (parallel safe)
-      const conn = new Runware({ apiKey: API_KEY });
-      try {
-        await conn.ensureConnection();
         const label = `Story-Scene${s.sceneNumber}-Vid-FP`;
         console.log(`[Story/FastPaced] Scene ${s.sceneNumber} video submit | ${isKling ? 'KlingAI' : 'Google'} | taskUUID: ${videoTaskUUID}`);
-        const vidResult = await submitAndPoll(conn, requestPayload, label, videoTaskUUID);
+        await vidConn.videoInference({ ...requestPayload, includeCost: true, skipResponse: true });
+        const vidResult = await vidPoller.register(videoTaskUUID, 'video', label);
         if (!vidResult.videoURL) throw new Error('No videoURL in response');
         const videoFilename = `scene_${s.sceneNumber}_video.mp4`;
         await downloadVideo(vidResult.videoURL, path.join(dir, videoFilename));
         console.log(`[Story/FastPaced] ✅ Scene ${s.sceneNumber} video saved | cost: ${vidResult.cost != null ? '$' + vidResult.cost : 'N/A'}`);
         return { i, videoFilename, cost: vidResult.cost ?? null };
-      } finally {
-        try { conn.disconnect(); } catch {}
-      }
-    })
-  );
+      })
+    );
+  } finally {
+    vidPoller.destroy();
+    try { vidConn.disconnect(); } catch {}
+  }
 
   let anyFailed = false;
   for (let pi = 0; pi < results.length; pi++) {
@@ -307,7 +306,8 @@ async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0,
         videoCost: cost,
       });
     } else {
-      const errMsg = result.reason?.message || String(result.reason);
+      const r = result.reason;
+      const errMsg = r?.message || (typeof r === 'object' ? JSON.stringify(r) : String(r));
       console.error(`[Story/FastPaced] ❌ Scene ${scene.sceneNumber} video failed: ${errMsg}`);
       updateSceneInStory(taskUUID, i, { videoStatus: 'failed', videoError: errMsg });
       if (!anyFailed) {
@@ -627,17 +627,28 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
           }
         }
 
-        const parallelResults = await Promise.allSettled(
-          allImageJobs.map(async (job) => {
-            const scene = current.scenes[job.i];
-            const suffix = job.type === 'cta' ? '-CTA' : (job.type === 'imageB' ? '-FrameB' : '');
-            const label = `Story-Scene${scene.sceneNumber}${suffix}-Img`;
-            console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: starting own-connection submit+poll | taskUUID: ${job.task.taskUUID}`);
-            const img = await imageSubmitAndPollOwn(API_KEY, job.task.payload, label);
-            console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: poll fulfilled | raw keys: ${Object.keys(img || {}).join(', ')}`);
-            return { i: job.i, type: job.type, img };
-          })
-        );
+        // Use a single shared connection + BatchPoller for all image tasks
+        const imgConn = new Runware({ apiKey: API_KEY });
+        await imgConn.ensureConnection();
+        const imgPoller = new BatchPoller(imgConn);
+        let parallelResults;
+        try {
+          parallelResults = await Promise.allSettled(
+            allImageJobs.map(async (job) => {
+              const scene = current.scenes[job.i];
+              const suffix = job.type === 'cta' ? '-CTA' : (job.type === 'imageB' ? '-FrameB' : '');
+              const label = `Story-Scene${scene.sceneNumber}${suffix}-Img`;
+              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: submitting on shared connection | taskUUID: ${job.task.taskUUID}`);
+              await imgConn.imageInference({ ...job.task.payload, includeCost: true, skipResponse: true, deliveryMethod: 'async' });
+              const img = await imgPoller.register(job.task.taskUUID, 'image', label);
+              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: poll fulfilled | raw keys: ${Object.keys(img || {}).join(', ')}`);
+              return { i: job.i, type: job.type, img };
+            })
+          );
+        } finally {
+          imgPoller.destroy();
+          try { imgConn.disconnect(); } catch {}
+        }
 
         const fulfilled = parallelResults.filter(r => r.status === 'fulfilled').length;
         const rejected  = parallelResults.filter(r => r.status === 'rejected').length;
@@ -1140,8 +1151,22 @@ router.post('/api/hero-images/:heroName', (req, res) => {
   if (!HEROES_DATA?.heroes?.some(h => h.name === heroName)) {
     return res.status(404).json({ error: `Hero "${heroName}" not found in catalog.` });
   }
-  heroImageUpload(req, res, (err) => {
+  heroImageUpload(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
+    // Compress any uploaded file that exceeds 5 MB and overwrite in place
+    const MAX_BYTES = Math.floor(5 * 1024 * 1024 * 3 / 4); // base64 limit → ~3.93 MB raw
+    for (const file of (req.files || [])) {
+      if (file.size > MAX_BYTES) {
+        try {
+          const raw = readFileSync(file.path);
+          const { buffer: compressed } = await ensureUnder5MB(raw, file.originalname);
+          writeFileSync(file.path, compressed);
+          console.log(`[HeroUpload] Compressed ${file.originalname} from ${(file.size/1024/1024).toFixed(1)}MB → ${(compressed.length/1024/1024).toFixed(1)}MB`);
+        } catch (compErr) {
+          console.warn(`[HeroUpload] Failed to compress ${file.originalname}:`, compErr.message);
+        }
+      }
+    }
     res.json({ images: listHeroImages(heroName) });
   });
 });
@@ -1231,6 +1256,23 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
 
   // Background image: uploaded file OR server-path ref
   const bgImagePath = req.files?.bgImage?.[0]?.path || uploadRefToDiskPath(req.body.bgImageRef) || null;
+
+  // Compress any oversized hero/bg images in-place before storing paths
+  const MAX_BYTES = 5 * 1024 * 1024;
+  for (const imgPath of [...heroImagePaths, ...(bgImagePath ? [bgImagePath] : [])]) {
+    if (!imgPath || !existsSync(imgPath)) continue;
+    const stat = statSync(imgPath);
+    if (stat.size > MAX_BYTES) {
+      try {
+        const raw = readFileSync(imgPath);
+        const { buffer: compressed } = await ensureUnder5MB(raw, path.basename(imgPath));
+        writeFileSync(imgPath, compressed);
+        console.log(`[Story] Compressed ${path.basename(imgPath)}: ${(stat.size/1024/1024).toFixed(1)}MB → ${(compressed.length/1024/1024).toFixed(1)}MB`);
+      } catch (e) {
+        console.warn(`[Story] Could not compress ${path.basename(imgPath)}:`, e.message);
+      }
+    }
+  }
 
   // Music file: uploaded file OR server-path ref
   const musicFilePath = req.files?.musicFile?.[0]?.path || uploadRefToDiskPath(req.body.musicFileRef) || null;
@@ -1418,6 +1460,194 @@ router.post('/api/clone-story/:taskUUID', async (req, res) => {
   runPipeline(newTaskUUID, startPhase, 0);
 });
 
+// ── POST /api/recheck-generating/:taskUUID ───────────────────────────────────
+// Reconnect to Runware and check if any tasks stuck in 'generating' state have actually completed.
+// Used when server/browser crashed mid-generation — tasks may have finished on Runware's side.
+router.post('/api/recheck-generating/:taskUUID', async (req, res) => {
+  const { taskUUID } = req.params;
+  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  if (!entry) return res.status(404).json({ error: 'Story not found.' });
+
+  const dir = storyDir(taskUUID);
+  const scenes = entry.scenes || [];
+
+  // Gather all tasks stuck in 'generating' with a saved taskUUID
+  const generatingTasks = [];
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    if (s.videoStatus === 'generating' && s.videoTaskUUID) {
+      generatingTasks.push({ i, taskUUID: s.videoTaskUUID, type: 'video', sceneNumber: s.sceneNumber });
+    }
+    if (s.imageStatus === 'generating' && s.imageTaskUUID) {
+      generatingTasks.push({ i, taskUUID: s.imageTaskUUID, type: 'image', field: 'image', sceneNumber: s.sceneNumber });
+    }
+    if (s.imageBStatus === 'generating' && s.imageBTaskUUID) {
+      generatingTasks.push({ i, taskUUID: s.imageBTaskUUID, type: 'image', field: 'imageB', sceneNumber: s.sceneNumber });
+    }
+    if (s.ctaImageStatus === 'generating' && s.ctaImageTaskUUID) {
+      generatingTasks.push({ i, taskUUID: s.ctaImageTaskUUID, type: 'image', field: 'cta', sceneNumber: s.sceneNumber });
+    }
+  }
+
+  if (generatingTasks.length === 0) {
+    return res.json({ message: 'No generating tasks to recheck', rechecked: 0, completed: 0, stillProcessing: 0, failed: 0 });
+  }
+
+  console.log(`[Recheck] Checking ${generatingTasks.length} generating task(s) for story ${taskUUID}`);
+  res.json({ message: `Rechecking ${generatingTasks.length} task(s)...`, rechecking: true });
+
+  // Run recheck in background (don't block the response)
+  (async () => {
+    let completed = 0, stillPending = [], failed = 0;
+    const conn = new Runware({ apiKey: API_KEY });
+
+    // Helper: save a completed task result to disk and update story history
+    async function saveTaskResult(task, result) {
+      if (task.type === 'video') {
+        const vidURL = result.videoURL;
+        const vidFilename = `scene_${task.sceneNumber}_video.mp4`;
+        const vidPath = path.join(dir, vidFilename);
+        await downloadVideo(vidURL, vidPath);
+        const vidThumbFilename = `scene_${task.sceneNumber}_video_thumb.jpg`;
+        await generateVideoThumb(vidPath, path.join(dir, vidThumbFilename));
+        const cost = result.cost ?? result.taskCost ?? null;
+        updateSceneInStory(entry.taskUUID, task.i, {
+          videoStatus: 'completed', videoUrl: `/output/stories/${entry.taskUUID}/${vidFilename}`,
+          videoThumbUrl: `/output/stories/${entry.taskUUID}/${vidThumbFilename}`, videoCost: cost,
+        });
+        console.log(`[Recheck] ✅ Scene ${task.sceneNumber} video recovered | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
+      } else {
+        const imgURL = result.imageURL;
+        const suffix = task.field === 'cta' ? '_cta_image' : (task.field === 'imageB' ? '_imageB' : '_image');
+        const imgFilename = `scene_${task.sceneNumber}${suffix}.jpg`;
+        const imgPath = path.join(dir, imgFilename);
+        await downloadImage(imgURL, imgPath);
+        const thumbFilename = imgFilename.replace('.jpg', '_thumb.jpg');
+        await generateImageThumb(imgPath, path.join(dir, thumbFilename));
+        const cost = result.cost ?? result.taskCost ?? null;
+        const updates = {};
+        if (task.field === 'cta') {
+          updates.ctaImageStatus = 'completed';
+          updates.ctaImageUrl = `/output/stories/${entry.taskUUID}/${imgFilename}`;
+          updates.ctaImageThumbUrl = `/output/stories/${entry.taskUUID}/${thumbFilename}`;
+          updates.ctaImageCost = cost;
+        } else if (task.field === 'imageB') {
+          updates.imageBStatus = 'completed';
+          updates.imageBUrl = `/output/stories/${entry.taskUUID}/${imgFilename}`;
+          updates.imageBThumbUrl = `/output/stories/${entry.taskUUID}/${thumbFilename}`;
+          updates.imageBCost = cost;
+        } else {
+          updates.imageStatus = 'completed';
+          updates.imageUrl = `/output/stories/${entry.taskUUID}/${imgFilename}`;
+          updates.imageThumbUrl = `/output/stories/${entry.taskUUID}/${thumbFilename}`;
+          updates.imageCost = cost;
+        }
+        updateSceneInStory(entry.taskUUID, task.i, updates);
+        console.log(`[Recheck] ✅ Scene ${task.sceneNumber} ${task.field || task.type} recovered | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
+      }
+    }
+
+    function markFailed(task, msg) {
+      console.error(`[Recheck] ❌ Scene ${task.sceneNumber} ${task.type} failed: ${msg}`);
+      if (task.type === 'video') {
+        updateSceneInStory(entry.taskUUID, task.i, { videoStatus: 'failed', videoError: `Recheck: ${msg}` });
+      } else if (task.field === 'cta') {
+        updateSceneInStory(entry.taskUUID, task.i, { ctaImageStatus: 'failed', ctaImageError: `Recheck: ${msg}` });
+      } else if (task.field === 'imageB') {
+        updateSceneInStory(entry.taskUUID, task.i, { imageBStatus: 'failed', imageBError: `Recheck: ${msg}` });
+      } else {
+        updateSceneInStory(entry.taskUUID, task.i, { imageStatus: 'failed', imageError: `Recheck: ${msg}` });
+      }
+    }
+
+    try {
+      await conn.ensureConnection();
+
+      // ── Phase 1: quick check — see which tasks already finished ──
+      for (const task of generatingTasks) {
+        const label = `Recheck-Scene${task.sceneNumber}-${task.type}`;
+        try {
+          const result = task.type === 'video'
+            ? await checkOnce(conn, task.taskUUID, label)
+            : await checkImageOnce(conn, task.taskUUID, label);
+
+          if (result) {
+            await saveTaskResult(task, result);
+            completed++;
+          } else {
+            console.log(`[Recheck] Scene ${task.sceneNumber} ${task.type}: still processing — will wait`);
+            stillPending.push(task);
+          }
+        } catch (err) {
+          markFailed(task, err?.message || String(err));
+          failed++;
+        }
+      }
+
+      // ── Phase 2: for still-processing tasks, use BatchPoller to wait (up to 30 min) ──
+      if (stillPending.length > 0) {
+        console.log(`[Recheck] ${stillPending.length} task(s) still running — starting BatchPoller to wait for them...`);
+        updateStoryEntry(entry.taskUUID, { status: 'processing' });
+
+        const poller = new BatchPoller(conn, { pollIntervalMs: 3000, taskTimeoutMs: 30 * 60 * 1000 });
+        try {
+          const pollerResults = await Promise.allSettled(
+            stillPending.map(task =>
+              poller.register(task.taskUUID, task.type, `Recheck-Scene${task.sceneNumber}-${task.type}`)
+                .then(result => ({ task, result }))
+            )
+          );
+
+          for (const r of pollerResults) {
+            if (r.status === 'fulfilled') {
+              try {
+                await saveTaskResult(r.value.task, r.value.result);
+                completed++;
+              } catch (saveErr) {
+                markFailed(r.value.task, saveErr?.message || String(saveErr));
+                failed++;
+              }
+            } else {
+              // Find which task this was — poller rejects with error message
+              const errMsg = r.reason?.message || String(r.reason);
+              // Mark all as failed if we can't correlate (poller destroy error)
+              console.error(`[Recheck] BatchPoller task failed: ${errMsg}`);
+              failed++;
+            }
+          }
+        } finally {
+          poller.destroy();
+        }
+      }
+
+      // ── Phase 3: post-recheck status update & pipeline resume ──
+      const fresh = loadStoryHistory().find(h => h.taskUUID === entry.taskUUID);
+      const hasGenerating = fresh?.scenes?.some(s =>
+        s.videoStatus === 'generating' || s.imageStatus === 'generating' ||
+        s.imageBStatus === 'generating' || s.ctaImageStatus === 'generating'
+      );
+
+      console.log(`[Recheck] Done | completed: ${completed} | failed: ${failed}`);
+
+      if (!hasGenerating && completed > 0) {
+        // All generating tasks resolved — resume pipeline from current phase
+        console.log(`[Recheck] All tasks resolved — resuming pipeline for story ${entry.taskUUID}`);
+        updateStoryEntry(entry.taskUUID, { status: 'processing', pauseReason: null });
+        const freshEntry = loadStoryHistory().find(h => h.taskUUID === entry.taskUUID);
+        const resumePhase = freshEntry?.currentPhase || 'videos';
+        const resumeIdx = freshEntry?.currentSceneIndex ?? 0;
+        runPipeline(entry.taskUUID, resumePhase, resumeIdx);
+      } else if (!hasGenerating) {
+        updateStoryEntry(entry.taskUUID, { status: 'paused', pauseReason: 'Recheck completed — resume to continue pipeline' });
+      }
+    } catch (connErr) {
+      console.error(`[Recheck] Connection failed:`, connErr?.message || connErr);
+    } finally {
+      try { conn.disconnect(); } catch {}
+    }
+  })();
+});
+
 // ── POST /api/resume-story/:taskUUID ─────────────────────────────────────────
 router.post('/api/resume-story/:taskUUID', async (req, res) => {
   const { taskUUID } = req.params;
@@ -1444,9 +1674,65 @@ router.post('/api/resume-story/:taskUUID', async (req, res) => {
     updateStoryEntry(taskUUID, { currentPhase: forcePhase, currentSceneIndex: 0 });
   }
 
+  // Before resuming, quick-check any 'generating' tasks that may have finished on Runware's side
   const reloaded = loadStoryHistory().find(h => h.taskUUID === taskUUID);
-  const phase = reloaded?.currentPhase || 'planning';
-  const sceneIdx = reloaded?.currentSceneIndex || 0;
+  const dir = storyDir(taskUUID);
+  const generatingScenes = (reloaded?.scenes || [])
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => (s.videoStatus === 'generating' && s.videoTaskUUID) || (s.imageStatus === 'generating' && s.imageTaskUUID));
+
+  if (generatingScenes.length > 0) {
+    console.log(`[Story] Resume: quick-checking ${generatingScenes.length} generating task(s) before resetting...`);
+    let recovered = 0;
+    const conn = new Runware({ apiKey: API_KEY });
+    try {
+      await conn.ensureConnection();
+      for (const { s, i } of generatingScenes) {
+        if (s.videoStatus === 'generating' && s.videoTaskUUID) {
+          try {
+            const result = await checkOnce(conn, s.videoTaskUUID, `Resume-Check-Scene${s.sceneNumber}-Vid`);
+            if (result?.videoURL) {
+              const vidFilename = `scene_${s.sceneNumber}_video.mp4`;
+              const vidPath = path.join(dir, vidFilename);
+              await downloadVideo(result.videoURL, vidPath);
+              const thumbFilename = `scene_${s.sceneNumber}_video_thumb.jpg`;
+              await generateVideoThumb(vidPath, path.join(dir, thumbFilename));
+              updateSceneInStory(taskUUID, i, {
+                videoStatus: 'completed', videoUrl: `/output/stories/${taskUUID}/${vidFilename}`,
+                videoThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`, videoCost: result.cost ?? null,
+              });
+              console.log(`[Story] Resume: ✅ Recovered Scene ${s.sceneNumber} video`);
+              recovered++;
+            }
+          } catch (e) { console.warn(`[Story] Resume: video check failed for Scene ${s.sceneNumber}:`, e?.message); }
+        }
+        if (s.imageStatus === 'generating' && s.imageTaskUUID) {
+          try {
+            const result = await checkImageOnce(conn, s.imageTaskUUID, `Resume-Check-Scene${s.sceneNumber}-Img`);
+            if (result?.imageURL) {
+              const imgFilename = `scene_${s.sceneNumber}_image.jpg`;
+              const imgPath = path.join(dir, imgFilename);
+              await downloadImage(result.imageURL, imgPath);
+              const thumbFilename = `scene_${s.sceneNumber}_image_thumb.jpg`;
+              await generateImageThumb(imgPath, path.join(dir, thumbFilename));
+              updateSceneInStory(taskUUID, i, {
+                imageStatus: 'completed', imageUrl: `/output/stories/${taskUUID}/${imgFilename}`,
+                imageThumbUrl: `/output/stories/${taskUUID}/${thumbFilename}`, imageCost: result.cost ?? null,
+              });
+              console.log(`[Story] Resume: ✅ Recovered Scene ${s.sceneNumber} image`);
+              recovered++;
+            }
+          } catch (e) { console.warn(`[Story] Resume: image check failed for Scene ${s.sceneNumber}:`, e?.message); }
+        }
+      }
+      if (recovered > 0) console.log(`[Story] Resume: recovered ${recovered} task(s) that had already completed`);
+    } catch (e) { console.warn(`[Story] Resume: recheck connection failed:`, e?.message); }
+    finally { try { conn.disconnect(); } catch {} }
+  }
+
+  const freshReloaded = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  const phase = freshReloaded?.currentPhase || 'planning';
+  const sceneIdx = freshReloaded?.currentSceneIndex || 0;
 
   console.log(`[Story] ── Resume Request ──────────────────────`);
   console.log(`[Story]  taskUUID: ${taskUUID} | phase: ${phase} | scene: ${sceneIdx}${forcePhase ? ` (forced to ${forcePhase})` : ''}`);

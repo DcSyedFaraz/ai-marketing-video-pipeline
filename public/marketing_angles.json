@@ -5,7 +5,7 @@
     "format": "2v2 real-time PvP",
     "match_duration_minutes": 3,
     "ranked_tiers": ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Immortal"],
-    "hero_term": "Eternals",
+    "hero_term": "Heros",
     "platforms": ["iOS", "Android"],
     "publisher": "Sanam Games"
   },
@@ -34,7 +34,7 @@
       "name": "Hero Showoff",
       "status": "in_pipeline",
       "test_priority": null,
-      "core_message": "Every Eternal plays differently. Find yours.",
+      "core_message": "Every Hero plays differently. Find yours.",
       "target_audiences": ["Core MOBA gamers", "Casual strategists"],
       "emotional_territory": ["Identity", "Curiosity", "Aspiration"],
       "format": {
@@ -49,8 +49,8 @@
         "Contrast two heroes with opposite playstyles side by side"
       ],
       "messaging_examples": [
-        "Pick your Eternal. Dominate the arena.",
-        "Every Eternal. One arena. Zero excuses.",
+        "Pick your Hero. Dominate the arena.",
+        "Every Hero. One arena. Zero excuses.",
         "Master yours."
       ],
       "cps_ir_notes": {

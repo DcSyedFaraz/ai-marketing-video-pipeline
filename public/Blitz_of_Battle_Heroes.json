@@ -37,7 +37,7 @@
     {
       "name": "Ra-Keth",
       "class": "Fighter",
-      "lore_description": "Ancient Egyptian warrior who wields the power of spectral curses. Cursed by the pharaohs to serve as an eternal guardian, he uses mystical turquoise energy to curse his enemies and protect sacred grounds.",
+      "lore_description": "Ancient Egyptian warrior who wields the power of spectral curses. Cursed by the pharaohs to serve as an Hero guardian, he uses mystical turquoise energy to curse his enemies and protect sacred grounds.",
       "visual_description": "Egyptian-inspired warrior with gray-blue Anubis-like features and pointed ears. Golden and black striped pharaoh headdress. Gold armor on shoulders and arms with ornate detailing. Prominent turquoise glowing gem in chest. Dual-wields curved khopesh swords with gold hilts. Dark purple and maroon garments with gold waist sash and arm bands. Muscular athletic build in combat stance.",
       "combat_style": "Melee fighter with magical curse abilities",
       "abilities": [

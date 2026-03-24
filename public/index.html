@@ -611,6 +611,27 @@
       <div class="card">
         <div class="card-title">🔗 CTA Bridge Generator</div>
 
+        <!-- Mode toggle -->
+        <div class="fg">
+          <label>Mode</label>
+          <div style="display:flex;gap:8px">
+            <label id="bridge-mode-auto-opt" style="display:flex;align-items:center;gap:7px;flex:1;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+              <input type="radio" name="bridge-mode" value="auto" checked onchange="bridgeToggleMode()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
+              <div>
+                <div style="font-size:12px;font-weight:600">✨ Auto</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:1px">Video only — AI generates CTA image</div>
+              </div>
+            </label>
+            <label id="bridge-mode-manual-opt" style="display:flex;align-items:center;gap:7px;flex:1;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+              <input type="radio" name="bridge-mode" value="manual" onchange="bridgeToggleMode()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
+              <div>
+                <div style="font-size:12px;font-weight:600">📁 Manual</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:1px">Upload your own CTA image</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- Model selector -->
         <div class="fg">
           <label>AI Model <span class="req">*</span></label>
@@ -622,11 +643,17 @@
         <!-- Original video -->
         <div class="fg">
           <label>Original Video <span class="req">*</span></label>
+          <!-- Podcast video picker -->
+          <div style="margin-bottom:6px">
+            <select id="bridge-podcast-pick" onchange="onBridgePodcastPick()" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--rs);padding:7px 10px;font-size:12px">
+              <option value="">🎙 Select from podcast videos (optional)…</option>
+            </select>
+          </div>
           <div class="dropzone" id="bvid-dz">
-            <input type="file" id="bvid-input" accept=".mp4,.webm,.mov,.mkv,.avi" />
+            <input type="file" id="bvid-input" accept=".mp4,.webm,.mov,.mkv,.avi" onchange="onBridgeFileChange()" />
             <div class="dz-icon">🎬</div>
             <div class="dz-text">Drop video or <strong>click to browse</strong></div>
-            <div class="dz-hint">MP4, WEBM, MOV · max 500 MB</div>
+            <div class="dz-hint">MP4, WEBM, MOV · max 500 MB — or select from podcast videos above</div>
           </div>
           <div class="file-pill" id="bvid-pill">
             <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎬</span>
@@ -634,12 +661,21 @@
               <div class="file-pill-name" id="bvid-name"></div>
               <div class="file-pill-size" id="bvid-size"></div>
             </div>
-            <button class="file-pill-rm" onclick="clearFile('bvid')">✕</button>
+            <button class="file-pill-rm" onclick="clearBridgeVideo()">✕</button>
+          </div>
+          <!-- Selected podcast video preview pill -->
+          <div id="bridge-podcast-pill" style="display:none;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--rs);padding:6px 10px;margin-top:4px;font-size:12px">
+            <span style="font-size:16px">🎙</span>
+            <div style="flex:1;min-width:0">
+              <div id="bridge-podcast-pill-name" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+              <div style="font-size:10px;color:var(--muted)">Podcast video (server path)</div>
+            </div>
+            <button onclick="clearBridgePodcastPick()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0">✕</button>
           </div>
         </div>
 
-        <!-- CTA image -->
-        <div class="fg">
+        <!-- CTA image (manual mode only) -->
+        <div class="fg" id="bridge-cta-section">
           <label>CTA Frame Image <span class="req">*</span> <small style="font-weight:400">(your call-to-action last frame)</small></label>
           <div class="dropzone" id="bcta-dz">
             <input type="file" id="bcta-input" accept=".jpg,.jpeg,.png,.webp" />
@@ -1209,6 +1245,9 @@ async function init() {
   loadMarketingAngles(); // non-blocking — populates angle cards
   // Initialize pipeline mode selection visual state
   onPipelineModeChange('standard');
+  // Initialize bridge mode (auto by default — hide CTA image section)
+  bridgeToggleMode();
+  loadBridgePodcastVideos();
 }
 
 // ══════ Models ══════
@@ -1297,6 +1336,7 @@ function showPage(name) {
   if (name === 'history') loadHistory();
   if (name === 'gallery') loadGallery();
   if (name === 'story') loadStoryHistoryList();
+  if (name === 'bridge') loadBridgePodcastVideos();
 }
 
 function openCanvas() {
@@ -1407,40 +1447,142 @@ async function submitLipSync() {
 }
 
 // ══════ Bridge submit ══════
+let bridgeSelectedPodcastPath = null; // server-side path of selected podcast video
+
+async function loadBridgePodcastVideos() {
+  try {
+    const res = await fetch('/api/story-history');
+    const data = await res.json();
+    const entries = (data.history || []).filter(h => h.type === 'podcast' && h.status === 'completed' && h.finalVideoUrl);
+    const sel = document.getElementById('bridge-podcast-pick');
+    if (!sel) return;
+    const opts = entries.map(h => {
+      const date = new Date(h.submittedAt).toLocaleDateString();
+      const label = `🎙 ${h.gender || ''} · ${h.marketingAngle || ''} · ${date}`;
+      // finalVideoUrl is like /output/stories/uuid/file.mp4 → disk path: output/stories/uuid/file.mp4
+      const diskPath = h.finalVideoUrl.replace(/^\//, '');
+      return `<option value="${diskPath}" data-label="${label.replace(/"/g,'&quot;')}">${label}</option>`;
+    }).join('');
+    sel.innerHTML = '<option value="">🎙 Select from podcast videos (optional)…</option>' + opts;
+  } catch {}
+}
+
+function onBridgePodcastPick() {
+  const sel = document.getElementById('bridge-podcast-pick');
+  const val = sel?.value;
+  if (!val) { clearBridgePodcastPick(); return; }
+  bridgeSelectedPodcastPath = val;
+  const label = sel.options[sel.selectedIndex]?.dataset?.label || val;
+  // Show pill, hide dropzone pill, clear file input
+  document.getElementById('bridge-podcast-pill').style.display = 'flex';
+  document.getElementById('bridge-podcast-pill-name').textContent = label;
+  document.getElementById('bvid-pill').style.display = 'none';
+  // Clear file input
+  document.getElementById('bvid-input').value = '';
+}
+
+function clearBridgePodcastPick() {
+  bridgeSelectedPodcastPath = null;
+  document.getElementById('bridge-podcast-pick').value = '';
+  document.getElementById('bridge-podcast-pill').style.display = 'none';
+}
+
+function onBridgeFileChange() {
+  // If user picks a file, clear podcast selection
+  if (document.getElementById('bvid-input').files[0]) {
+    clearBridgePodcastPick();
+  }
+}
+
+function clearBridgeVideo() {
+  clearFile('bvid');
+  clearBridgePodcastPick();
+}
+
+function bridgeToggleMode() {
+  const mode = document.querySelector('input[name="bridge-mode"]:checked')?.value || 'auto';
+  const ctaSection = document.getElementById('bridge-cta-section');
+  const autoOpt = document.getElementById('bridge-mode-auto-opt');
+  const manualOpt = document.getElementById('bridge-mode-manual-opt');
+  if (mode === 'auto') {
+    if (ctaSection) ctaSection.style.display = 'none';
+    if (autoOpt) autoOpt.style.borderColor = 'var(--accent)';
+    if (manualOpt) manualOpt.style.borderColor = 'var(--border)';
+  } else {
+    if (ctaSection) ctaSection.style.display = '';
+    if (autoOpt) autoOpt.style.borderColor = 'var(--border)';
+    if (manualOpt) manualOpt.style.borderColor = 'var(--accent)';
+  }
+}
+
 async function submitBridge() {
+  const mode = document.querySelector('input[name="bridge-mode"]:checked')?.value || 'auto';
   const vid = document.getElementById('bvid-input').files[0];
-  const cta = document.getElementById('bcta-input').files[0];
   const prompt = document.getElementById('bridge-prompt').value.trim();
   const duration = document.getElementById('bridge-duration').value;
-  if (!vid) { setStatus('bridge','error','⚠ Please select a video file.'); return; }
-  if (!cta) { setStatus('bridge','error','⚠ Please select a CTA image.'); return; }
 
-  setBtnLoading('bridge', true);
-  setStatus('bridge','loading','⏳ Uploading files and submitting...');
-  hideResult('bridge');
+  // Video source: uploaded file OR selected podcast server path
+  const hasVideo = !!vid || !!bridgeSelectedPodcastPath;
+  if (!hasVideo) { setStatus('bridge','error','⚠ Please select a video file or choose a podcast video.'); return; }
 
-  const fd = new FormData();
-  fd.append('video', vid);
-  fd.append('ctaImage', cta);
-  fd.append('model', selectedBridgeModel);
-  fd.append('duration', duration);
-  if (prompt) fd.append('prompt', prompt);
+  if (mode === 'manual') {
+    const cta = document.getElementById('bcta-input').files[0];
+    if (!cta) { setStatus('bridge','error','⚠ Please select a CTA image or switch to Auto mode.'); return; }
 
-  try {
-    const res = await fetch('/api/generate-bridge', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Submission failed.');
+    setBtnLoading('bridge', true);
+    setStatus('bridge','loading','⏳ Submitting...');
+    hideResult('bridge');
 
-    setStatus('bridge', 'pending',
-      `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 Extracting frame, generating bridge & concatenating — check History tab for progress.`);
-    document.getElementById('bridge-prog').style.display = 'none';
+    const fd = new FormData();
+    if (vid) fd.append('video', vid);
+    else fd.append('videoPath', bridgeSelectedPodcastPath);
+    fd.append('ctaImage', cta);
+    fd.append('model', selectedBridgeModel);
+    fd.append('duration', duration);
+    if (prompt) fd.append('prompt', prompt);
 
-    setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+    try {
+      const res = await fetch('/api/generate-bridge', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Submission failed.');
 
-  } catch (err) {
-    setStatus('bridge','error',`❌ ${err.message}`);
-  } finally {
-    setBtnLoading('bridge', false);
+      setStatus('bridge', 'pending',
+        `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 Extracting frame, generating bridge & concatenating — check History tab for progress.`);
+      document.getElementById('bridge-prog').style.display = 'none';
+      setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+    } catch (err) {
+      setStatus('bridge','error',`❌ ${err.message}`);
+    } finally {
+      setBtnLoading('bridge', false);
+    }
+
+  } else {
+    // Auto mode: video only, AI generates CTA image
+    setBtnLoading('bridge', true);
+    setStatus('bridge','loading','⏳ Submitting — AI will extract last frame, generate CTA image, then create bridge...');
+    hideResult('bridge');
+
+    const fd = new FormData();
+    if (vid) fd.append('video', vid);
+    else fd.append('videoPath', bridgeSelectedPodcastPath);
+    fd.append('model', selectedBridgeModel);
+    fd.append('duration', duration);
+    if (prompt) fd.append('prompt', prompt);
+
+    try {
+      const res = await fetch('/api/generate-bridge-auto', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Submission failed.');
+
+      setStatus('bridge', 'pending',
+        `✅ Task submitted! taskUUID: ${data.taskUUID}\n🔄 AI is generating CTA image + bridge video — check History tab for progress.`);
+      document.getElementById('bridge-prog').style.display = 'none';
+      setTimeout(() => { loadHistory(); updatePendingBadge(); }, 500);
+    } catch (err) {
+      setStatus('bridge','error',`❌ ${err.message}`);
+    } finally {
+      setBtnLoading('bridge', false);
+    }
   }
 }
 

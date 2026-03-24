@@ -11,7 +11,7 @@
 import { Router } from 'express';
 import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
-import { mkdir, rm } from 'fs/promises';
+import { mkdir, rm, copyFile } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import sharp from 'sharp';
@@ -453,32 +453,94 @@ router.post('/api/regen-podcast-image/:taskUUID', async (req, res) => {
 });
 
 // ── POST /api/regen-podcast-video/:taskUUID ─────────────────────────────────
+// Creates a NEW podcast entry (clone) so the original is preserved.
+// Body: { keepImage?: bool, videoModel?: string, videoPrompt?: string, preferredDuration?: number }
 router.post('/api/regen-podcast-video/:taskUUID', async (req, res) => {
   const { taskUUID } = req.params;
-  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+  const src = loadStoryHistory().find(h => h.taskUUID === taskUUID);
 
-  if (!entry) return res.status(404).json({ error: 'Podcast not found.' });
-  if (entry.type !== 'podcast') return res.status(400).json({ error: 'Not a podcast entry.' });
-  if (entry.status === 'processing') return res.status(400).json({ error: 'Pipeline already running.' });
+  if (!src) return res.status(404).json({ error: 'Podcast not found.' });
+  if (src.type !== 'podcast') return res.status(400).json({ error: 'Not a podcast entry.' });
 
-  // Apply optional prompt override
-  const { videoPrompt } = req.body || {};
-  if (videoPrompt) updateSceneInStory(taskUUID, 0, { videoPrompt });
+  const { keepImage, videoModel, videoPrompt, preferredDuration } = req.body || {};
 
-  // Reset video only
-  updateSceneInStory(taskUUID, 0, {
-    videoStatus: 'pending', videoError: null, videoUrl: null, videoThumbUrl: null, videoTaskUUID: null,
+  const newUUID = randomUUID();
+  const srcDir = podcastDir(taskUUID);
+  const newDir = podcastDir(newUUID);
+  await mkdir(newDir, { recursive: true });
+
+  // Determine new model + label
+  const newModel = videoModel || src.videoModel || 'klingai:kling-video@3-standard';
+  const newModelLabel = newModel === 'klingai:kling-video@3-pro' ? 'Kling 3.0 Pro' : 'Kling 3.0 Standard';
+
+  // Build new scene from original, reset video fields
+  const srcScene = src.scenes?.[0] ? { ...src.scenes[0] } : null;
+  let newScene = srcScene ? {
+    ...srcScene,
+    videoStatus: 'pending', videoError: null, videoUrl: null, videoThumbUrl: null, videoTaskUUID: null, videoCost: null,
+  } : null;
+
+  // Override video prompt if provided
+  if (videoPrompt && newScene) newScene.videoPrompt = videoPrompt;
+
+  // Override duration if provided
+  if (preferredDuration && newScene) newScene.duration = parseInt(preferredDuration);
+
+  // Handle image: copy existing or reset to regenerate
+  const srcImgPath = path.join(srcDir, 'scene_1_image.jpg');
+  const srcThumbPath = path.join(srcDir, 'scene_1_image_thumb.jpg');
+  let startPhase = 'images';
+
+  if (keepImage && srcScene?.imageStatus === 'completed' && existsSync(srcImgPath)) {
+    // Copy image files to new directory
+    const newImgPath = path.join(newDir, 'scene_1_image.jpg');
+    const newThumbPath = path.join(newDir, 'scene_1_image_thumb.jpg');
+    await copyFile(srcImgPath, newImgPath);
+    if (existsSync(srcThumbPath)) await copyFile(srcThumbPath, newThumbPath).catch(() => {});
+    // Update URLs in new scene to point to newUUID
+    if (newScene) {
+      newScene.imageUrl = `/output/stories/${newUUID}/scene_1_image.jpg`;
+      newScene.imageThumbUrl = `/output/stories/${newUUID}/scene_1_image_thumb.jpg`;
+      newScene.imageStatus = 'completed';
+    }
+    startPhase = 'videos';
+  } else {
+    // Will regenerate image too
+    if (newScene) {
+      newScene.imageStatus = 'pending';
+      newScene.imageUrl = null;
+      newScene.imageThumbUrl = null;
+      newScene.imageCost = null;
+    }
+    startPhase = 'images';
+  }
+
+  // Derive a short human-readable label suffix for the dropdown
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const modelShort = newModel === 'klingai:kling-video@3-pro' ? 'Pro' : 'Std';
+  const regenLabel = keepImage ? `(Keep Image · ${modelShort} · ${timeStr})` : `(New Image · ${modelShort} · ${timeStr})`;
+
+  addStoryEntry({
+    ...src,
+    taskUUID: newUUID,
+    status: 'processing',
+    submittedAt: new Date().toISOString(),
+    completedAt: null,
+    error: null,
+    videoModel: newModel,
+    videoModelLabel: newModelLabel,
+    preferredDuration: preferredDuration ? parseInt(preferredDuration) : src.preferredDuration,
+    currentPhase: startPhase,
+    regenLabel,            // shown in dropdown to differentiate
+    parentUUID: taskUUID,  // reference to original
+    scenes: newScene ? [newScene] : [],
+    finalVideoUrl: null,
+    totalCost: null,
   });
 
-  // If image isn't on disk yet, must run from images phase first
-  const refreshed = loadStoryHistory().find(h => h.taskUUID === taskUUID);
-  const imgCompleted = refreshed?.scenes?.[0]?.imageStatus === 'completed';
-  const startPhase = imgCompleted ? 'videos' : 'images';
-
-  console.log(`[Podcast] ── Regen Video ──────────────────────`);
-  updateStoryEntry(taskUUID, { status: 'processing', currentPhase: startPhase, error: null, finalVideoUrl: null });
-  res.json({ success: true, message: 'Regenerating podcaster video...' });
-  runPodcastPipeline(taskUUID, startPhase);
+  console.log(`[Podcast] ── New Regen Entry ──── ${newUUID} | keepImage: ${!!keepImage} | phase: ${startPhase}`);
+  res.json({ success: true, taskUUID: newUUID, message: 'New podcast video generation started.' });
+  runPodcastPipeline(newUUID, startPhase);
 });
 
 // ── GET /api/podcast-history ────────────────────────────────────────────────

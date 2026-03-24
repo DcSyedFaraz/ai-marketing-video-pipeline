@@ -38,6 +38,8 @@
     .btn-sm.accent:hover { background: var(--accent-h); }
     .btn-sm.green { border-color: var(--green); color: var(--green); }
     .btn-sm.green:hover { background: rgba(16,185,129,.1); }
+    .btn-sm.orange { border-color: var(--orange); color: var(--orange); }
+    .btn-sm.orange:hover { background: rgba(249,115,22,.1); }
 
     /* ── Controls overlay ── */
     .controls { position: absolute; bottom: 16px; right: 16px; z-index: 40;
@@ -830,8 +832,8 @@
 
       <!-- User Script -->
       <div class="ns-fg">
-        <label>Script <span style="color:var(--muted);font-size:10px;font-weight:400">(optional — max ~25 words for 10s video. Claude trims if longer)</span></label>
-        <textarea id="pc-user-script" placeholder="Write the script for the podcaster to say (max ~25 words for 10s). Leave empty for Claude to generate one." style="min-height:80px" oninput="pcEstimateDuration()"></textarea>
+        <label>Script <span style="color:var(--muted);font-size:10px;font-weight:400">(optional — duration auto-calculated from word count)</span></label>
+        <textarea id="pc-user-script" placeholder="Write the script for the podcaster to say. Leave empty for Claude to generate one." style="min-height:80px" oninput="pcEstimateDuration()"></textarea>
         <div id="pc-duration-est" style="font-size:11px;color:var(--accent2);margin-top:4px;display:none"></div>
       </div>
 
@@ -1011,9 +1013,18 @@ async function loadStoryList() {
     sel.innerHTML = '<option value="">— Select a story —</option>' +
       histories.map(h => {
         const isPodcast = h.type === 'podcast';
-        const label = isPodcast
-          ? `🎙 ${h.gender || 'boy'} podcaster`
-          : ((h.storyText || '').slice(0, 45) + (h.storyText?.length > 45 ? '…' : ''));
+        let label;
+        if (isPodcast) {
+          const genderCap = h.gender === 'girl' ? 'Girl' : 'Boy';
+          const angleShort = h.marketingAngle ? ` · ${String(h.marketingAngle).replace(/_/g,' ').slice(0,18)}` : '';
+          const modelShort = h.videoModelLabel ? ` · ${h.videoModelLabel.replace('Kling 3.0 ','').replace('Standard','Std')}` : '';
+          const durShort = h.scenes?.[0]?.duration ? ` · ${h.scenes[0].duration}s` : '';
+          const timeStr = new Date(h.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const regen = h.regenLabel ? ` ${h.regenLabel}` : '';
+          label = `🎙 ${genderCap}${angleShort}${modelShort}${durShort} · ${timeStr}${regen}`;
+        } else {
+          label = (h.storyText || '').slice(0, 45) + (h.storyText?.length > 45 ? '…' : '');
+        }
         const mode = isPodcast ? '' : (h.pipelineMode === 'fast-paced' ? ' ⚡' : '');
         const status = { processing: '⏳', completed: '✅', paused: '⚠', failed: '❌', pending: '🕐' }[h.status] || '';
         return `<option value="${h.taskUUID}">${status}${mode} ${label || h.taskUUID.slice(0,8)}</option>`;
@@ -1383,10 +1394,11 @@ function patchActions(nodeId, scene, sceneIdx, type) {
     const url = scene.videoUrl;
     if (scene.videoStatus === 'completed' || scene.videoStatus === 'failed') {
       if (url) actions.appendChild(actionBtn('⬇ DL', 'green', () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); }, 'Download'));
-      const regenVidEndpoint = isPodcast
-        ? `/api/regen-podcast-video/${entry.taskUUID}`
-        : `/api/regen-video/${entry.taskUUID}/${sceneIdx}`;
-      actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(regenVidEndpoint, 'POST'), 'Regenerate video'));
+      if (isPodcast) {
+        actions.appendChild(actionBtn('🎬 Regen', '', () => openPodcastRegenModal(entry), 'Regenerate video'));
+      } else {
+        actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(`/api/regen-video/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate video'));
+      }
     }
   }
 
@@ -1803,10 +1815,11 @@ function buildVideoNode(scene, sceneIdx, entryStatus, isFP) {
     if (url) actions.appendChild(actionBtn('⬇ DL', 'green', () => {
       const a = document.createElement('a'); a.href = url; a.download = ''; a.click();
     }, 'Download video'));
-    const regenVidEp = entry.type === 'podcast'
-      ? `/api/regen-podcast-video/${entry.taskUUID}`
-      : `/api/regen-video/${entry.taskUUID}/${sceneIdx}`;
-    actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(regenVidEp, 'POST'), 'Regenerate video'));
+    if (entry.type === 'podcast') {
+      actions.appendChild(actionBtn('🎬 Regen', '', () => openPodcastRegenModal(entry), 'Regenerate video'));
+    } else {
+      actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(`/api/regen-video/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate video'));
+    }
     body.appendChild(actions);
   }
 
@@ -1858,6 +1871,9 @@ function buildOutputNode(entry) {
       actions.appendChild(actionBtn('⬇ Alt', 'default', () => {
         const a = document.createElement('a'); a.href = entry.finalVideoAltUrl; a.download = ''; a.click();
       }));
+    }
+    if (entry.type === 'podcast') {
+      actions.appendChild(actionBtn('🔗 CTA', 'orange', () => openPodcastCtaBridgeModal(entry), 'Generate CTA Bridge'));
     }
     body.appendChild(actions);
   } else if (entry.status === 'paused' && entry.error) {
@@ -2619,16 +2635,17 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
     }
   }
   if (idle && status === 'completed') {
-    const regenVidEndpoint = entry.type === 'podcast'
-      ? `/api/regen-podcast-video/${entry.taskUUID}`
-      : `/api/regen-video/${entry.taskUUID}/${i}`;
-    footerBtns.push({ text: '🎬 Regenerate Video', fn: () => {
-      callApi(regenVidEndpoint, 'POST', getVideoEditBody());
-      closeDetail();
-    }});
     if (entry.type === 'podcast') {
-      footerBtns.push({ text: '🖼 New Video (Keep Image)', fn: () => {
-        callApi(`/api/regen-podcast-video/${entry.taskUUID}`, 'POST', { keepImage: true });
+      footerBtns.push({ text: '🎬 New Video', fn: () => {
+        openPodcastRegenModal(entry);
+      }});
+      footerBtns.push({ text: '🔗 Add CTA Bridge', cls: 'orange', fn: () => {
+        closeDetail();
+        openPodcastCtaBridgeModal(entry);
+      }});
+    } else {
+      footerBtns.push({ text: '🎬 Regenerate Video', fn: () => {
+        callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST', getVideoEditBody());
         closeDetail();
       }});
     }
@@ -2773,9 +2790,12 @@ function buildDetailOutput(entry, idle) {
     }});
   }
   if (done && entry.type === 'podcast') {
-    footerBtns.push({ text: '🖼 New Video (Keep Image)', fn: () => {
-      callApi(`/api/regen-podcast-video/${entry.taskUUID}`, 'POST', { keepImage: true });
+    footerBtns.push({ text: '🎬 New Video', fn: () => {
+      openPodcastRegenModal(entry);
+    }});
+    footerBtns.push({ text: '🔗 Add CTA Bridge', cls: 'orange', fn: () => {
       closeDetail();
+      openPodcastCtaBridgeModal(entry);
     }});
   }
   if (idle && entry.status === 'paused') {
@@ -2790,6 +2810,215 @@ function buildDetailOutput(entry, idle) {
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
+}
+
+// ── Podcast Regen Modal ─────────────────────────────────────────────────────
+// Opens a settings modal before regenerating podcast video (or image+video).
+// Also provides a direct "Add CTA Bridge" action for completed podcasts.
+function openPodcastRegenModal(entry, opts = {}) {
+  closeDetail();
+  const hasImage = entry.scenes?.[0]?.imageStatus === 'completed';
+  const hasVideo = entry.scenes?.[0]?.videoStatus === 'completed';
+  const currentModel = entry.videoModel || 'klingai:kling-video@3-standard';
+  const currentDuration = entry.scenes?.[0]?.duration || 'auto';
+  const allowedDurs = ['auto', 3, 4, 6, 8, 10, 15];
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;width:min(92vw,460px);max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.8)';
+
+  const durBtns = allowedDurs.map(d => {
+    const isActive = String(d) === String(currentDuration);
+    return `<button type="button" data-dur="${d}" style="padding:5px 11px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid ${isActive ? 'var(--accent)' : 'var(--border)'};background:${isActive ? 'var(--accent)' : 'transparent'};color:${isActive ? '#fff' : 'var(--text)'};cursor:pointer">${d === 'auto' ? 'Auto' : d + 's'}</button>`;
+  }).join('');
+
+  modal.innerHTML = `
+    <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:var(--text)">🎙 New Podcast Video</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.5">Adjust settings then regenerate. Changes apply to this entry.</p>
+
+    ${hasImage ? `
+    <label style="display:flex;align-items:flex-start;gap:9px;padding:10px 12px;background:var(--surface2);border:2px solid var(--accent);border-radius:8px;cursor:pointer;margin-bottom:12px">
+      <input type="checkbox" id="pr-keep-image" checked style="margin-top:2px;flex-shrink:0;accent-color:var(--accent);width:14px;height:14px" />
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text)">Use existing podcaster image</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Skip image re-generation — only regenerate the video</div>
+      </div>
+    </label>` : ''}
+
+    <div style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Video Model</div>
+      <div style="display:flex;gap:6px">
+        <label id="pr-model-standard" style="display:flex;align-items:flex-start;gap:7px;flex:1;background:var(--surface2);border:2px solid ${currentModel === 'klingai:kling-video@3-standard' ? 'var(--accent)' : 'var(--border)'};border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+          <input type="radio" name="pr-model" value="klingai:kling-video@3-standard" ${currentModel === 'klingai:kling-video@3-standard' ? 'checked' : ''} style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+          <div><div style="font-size:12px;font-weight:600">Standard</div><div style="font-size:10px;color:var(--muted)">~$0.044/s</div></div>
+        </label>
+        <label id="pr-model-pro" style="display:flex;align-items:flex-start;gap:7px;flex:1;background:var(--surface2);border:2px solid ${currentModel === 'klingai:kling-video@3-pro' ? 'var(--accent)' : 'var(--border)'};border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+          <input type="radio" name="pr-model" value="klingai:kling-video@3-pro" ${currentModel === 'klingai:kling-video@3-pro' ? 'checked' : ''} style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+          <div><div style="font-size:12px;font-weight:600">Pro <span style="font-size:9px;background:var(--accent2);color:#fff;border-radius:3px;padding:1px 4px">PRO</span></div><div style="font-size:10px;color:var(--muted)">~$0.087/s</div></div>
+        </label>
+      </div>
+    </div>
+
+    <div id="pr-script-section" style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Script (optional)</div>
+      <textarea id="pr-script" placeholder="Leave empty to regenerate script with AI, or type your own." style="width:100%;min-height:70px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;resize:vertical;box-sizing:border-box">${entry.userScript || ''}</textarea>
+      <div id="pr-dur-row" style="margin-top:8px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Duration</div>
+        <div id="pr-dur-btns" style="display:flex;flex-wrap:wrap;gap:6px">${durBtns}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px">
+      <button id="pr-cancel" class="btn-sm">Cancel</button>
+      ${hasVideo ? `<button id="pr-cta-btn" class="btn-sm" style="background:linear-gradient(135deg,var(--orange),#ef4444);color:#fff;border-color:var(--orange)">🔗 Generate CTA Bridge</button>` : ''}
+      <button id="pr-go" class="btn-sm accent">🎬 Generate Video</button>
+    </div>`;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Model border highlight on change
+  modal.querySelectorAll('input[name="pr-model"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const v = modal.querySelector('input[name="pr-model"]:checked')?.value;
+      modal.querySelector('#pr-model-standard').style.borderColor = v === 'klingai:kling-video@3-standard' ? 'var(--accent)' : 'var(--border)';
+      modal.querySelector('#pr-model-pro').style.borderColor = v === 'klingai:kling-video@3-pro' ? 'var(--accent)' : 'var(--border)';
+    });
+  });
+
+  // Duration button selection
+  let prSelectedDuration = allowedDurs.includes(currentDuration) ? currentDuration : 'auto';
+  modal.querySelectorAll('#pr-dur-btns button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      prSelectedDuration = btn.dataset.dur === 'auto' ? 'auto' : parseInt(btn.dataset.dur);
+      modal.querySelectorAll('#pr-dur-btns button').forEach(b => {
+        const active = b === btn;
+        b.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+        b.style.background = active ? 'var(--accent)' : 'transparent';
+        b.style.color = active ? '#fff' : 'var(--text)';
+      });
+    });
+  });
+
+  // Hide duration row when script is typed
+  const scriptEl = modal.querySelector('#pr-script');
+  const durRow = modal.querySelector('#pr-dur-row');
+  scriptEl.addEventListener('input', () => {
+    durRow.style.display = scriptEl.value.trim() ? 'none' : '';
+  });
+
+  // Cancel
+  modal.querySelector('#pr-cancel').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  // Generate Video → creates new entry, switches canvas to it
+  modal.querySelector('#pr-go').onclick = async () => {
+    const keepImage = hasImage ? modal.querySelector('#pr-keep-image')?.checked : false;
+    const videoModel = modal.querySelector('input[name="pr-model"]:checked')?.value || currentModel;
+    const script = scriptEl.value.trim();
+    const duration = script ? undefined : (prSelectedDuration === 'auto' ? undefined : prSelectedDuration);
+
+    overlay.remove();
+    const body = { keepImage };
+    if (videoModel) body.videoModel = videoModel;
+    if (script) body.videoPrompt = script;
+    if (duration) body.preferredDuration = duration;
+
+    const resp = await callApi(`/api/regen-podcast-video/${entry.taskUUID}`, 'POST', body);
+    if (resp?.taskUUID) {
+      await loadStoryList();
+      document.getElementById('story-select').value = resp.taskUUID;
+      loadStory(resp.taskUUID);
+    }
+  };
+
+  // CTA Bridge button (only shown if video is completed)
+  const ctaBtn = modal.querySelector('#pr-cta-btn');
+  if (ctaBtn) {
+    ctaBtn.onclick = async () => {
+      overlay.remove();
+      await openPodcastCtaBridgeModal(entry);
+    };
+  }
+}
+
+// ── Podcast → CTA Bridge Modal ───────────────────────────────────────────────
+async function openPodcastCtaBridgeModal(entry) {
+  const videoUrl = entry.finalVideoUrl || entry.scenes?.[0]?.videoUrl;
+  if (!videoUrl) { alert('No completed video found for this podcast entry.'); return; }
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;width:min(92vw,440px);box-shadow:0 24px 80px rgba(0,0,0,.8)';
+
+  modal.innerHTML = `
+    <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:var(--text)">🔗 Generate CTA Bridge</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.5">AI will extract the last frame of your podcast video, generate a CTA image, then create a bridge video and merge them into a final combined video.</p>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <div style="flex:1">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">AI Model</div>
+        <select id="pb-model" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px">
+          <option value="google:3@2" selected>Google Veo 3.1 (Best)</option>
+          <option value="google:3@3">Google Veo 3.1 Fast</option>
+          <option value="klingai:avatar@2.0-pro">KlingAI 2.0 Pro</option>
+          <option value="klingai:avatar@2.0-standard">KlingAI 2.0 Standard</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Bridge Duration</div>
+        <select id="pb-duration" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px">
+          <option value="4" selected>4 seconds</option>
+          <option value="6">6 seconds</option>
+          <option value="8">8 seconds</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Transition Prompt (optional)</div>
+      <textarea id="pb-prompt" placeholder="e.g. Smooth cinematic zoom-out, warm lighting…" style="width:100%;min-height:60px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+    <div style="padding:8px 12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:11px;color:var(--green);margin-bottom:14px">
+      📹 Source: <strong>${escHtml(videoUrl.split('/').pop())}</strong>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="pb-cancel" class="btn-sm">Cancel</button>
+      <button id="pb-go" class="btn-sm accent" style="background:linear-gradient(135deg,var(--orange),#ef4444);border-color:var(--orange)">🔗 Start Bridge Generation</button>
+    </div>`;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  modal.querySelector('#pb-cancel').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  modal.querySelector('#pb-go').onclick = async () => {
+    const duration = modal.querySelector('#pb-duration').value;
+    const prompt = modal.querySelector('#pb-prompt').value.trim();
+    // videoUrl is like /output/stories/uuid/file.mp4 → disk path without leading slash
+    const videoPath = videoUrl.replace(/^\//, '');
+
+    overlay.remove();
+
+    const bridgeModel = modal.querySelector('#pb-model').value || 'google:3@2';
+
+    const fd = new FormData();
+    fd.append('videoPath', videoPath);
+    fd.append('model', bridgeModel);
+    fd.append('duration', duration);
+    if (prompt) fd.append('prompt', prompt);
+
+    try {
+      const res = await fetch('/api/generate-bridge-auto', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      // Show success toast or just log
+      console.log(`[CTA Bridge] Submitted → taskUUID: ${data.taskUUID}`);
+    } catch(e) {
+      alert('CTA Bridge error: ' + e.message);
+    }
+  };
 }
 
 function openCloneModelPicker(entry) {

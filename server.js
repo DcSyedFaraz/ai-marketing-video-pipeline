@@ -34,6 +34,7 @@ import combineRouter  from './routes/combine.js';
 import ctaFrameRouter from './routes/ctaFrame.js';
 import historyRouter  from './routes/history.js';
 import storyRouter    from './routes/story.js';
+import podcastRouter  from './routes/podcast.js';
 
 const API_KEY = process.env.RUNWARE_API_KEY;
 const PORT = process.env.PORT || 3000;
@@ -64,6 +65,7 @@ app.use(combineRouter);
 app.use(ctaFrameRouter);
 app.use(historyRouter);
 app.use(storyRouter);
+app.use(podcastRouter);
 
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════════╗');

@@ -536,6 +536,7 @@
   <button class="btn-sm" onclick="toggleAutoRefresh()" id="btn-auto-refresh">⏸ Pause</button>
   <button class="btn-sm" onclick="manualRefresh()" id="btn-refresh">↺ Refresh</button>
   <button class="btn-sm accent" id="btn-new-story" onclick="openNewStoryModal()" title="Create a new story from canvas">+ New Story</button>
+  <button class="btn-sm" id="btn-new-podcast" onclick="openNewPodcastModal()" title="Create a podcaster ad" style="border-color:var(--accent2);color:var(--accent2)">🎙 Podcaster</button>
   <button class="btn-sm" id="btn-main-gui" onclick="window.open('/','_blank')" title="Open main GUI">↗ Main GUI</button>
 </div>
 
@@ -746,6 +747,140 @@
   </div>
 </div>
 
+<!-- ══════ Podcaster Modal ══════ -->
+<div id="pc-overlay" class="ns-overlay" style="display:none" onclick="if(event.target===this) closeNewPodcastModal()">
+  <div class="ns-modal">
+    <div class="ns-header">
+      <span style="font-size:20px">🎙</span>
+      <h2>Podcaster Ad</h2>
+      <button class="btn-sm" onclick="closeNewPodcastModal()" style="margin-left:auto">✕</button>
+    </div>
+    <div class="ns-body">
+
+      <!-- Gender -->
+      <div class="ns-fg">
+        <label>Podcaster Gender <span style="color:var(--red)">*</span></label>
+        <div class="ns-option-row">
+          <label id="pc-gender-boy-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="pc-gender" value="boy" checked onchange="pcHighlightGender()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600">🧑 Boy</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">Young man, 22-28</div>
+            </div>
+          </label>
+          <label id="pc-gender-girl-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="pc-gender" value="girl" onchange="pcHighlightGender()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600">👩 Girl</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">Young woman, 22-28</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Marketing Angle -->
+      <div class="ns-fg">
+        <label>Marketing Angle <span style="color:var(--muted);font-size:10px;font-weight:400">(optional)</span></label>
+        <div id="pc-angle-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+          <div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">Loading angles…</div>
+        </div>
+      </div>
+
+      <!-- Heroes -->
+      <div class="ns-fg">
+        <label>Heroes to Mention <span style="color:var(--muted);font-size:10px;font-weight:400">(optional)</span></label>
+        <button type="button" class="ns-file-btn" onclick="pcOpenHeroCatalog()">🦸 Select Heroes</button>
+        <div id="pc-named-heroes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      </div>
+
+      <!-- Duration selector (shown when no script) -->
+      <div class="ns-fg" id="pc-duration-row">
+        <label>Duration <span style="color:var(--muted);font-size:10px;font-weight:400">(Claude picks automatically if set to Auto)</span></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" id="pc-dur-auto" onclick="pcSelectDuration('auto')" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">Auto</button>
+          <button type="button" id="pc-dur-3" onclick="pcSelectDuration(3)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer">3s</button>
+          <button type="button" id="pc-dur-4" onclick="pcSelectDuration(4)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer">4s</button>
+          <button type="button" id="pc-dur-6" onclick="pcSelectDuration(6)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer">6s</button>
+          <button type="button" id="pc-dur-8" onclick="pcSelectDuration(8)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer">8s</button>
+          <button type="button" id="pc-dur-10" onclick="pcSelectDuration(10)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer">10s</button>
+          <button type="button" id="pc-dur-15" onclick="pcSelectDuration(15)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text);cursor:pointer">15s</button>
+        </div>
+      </div>
+
+      <!-- Video Model -->
+      <div class="ns-fg">
+        <label>Video Model</label>
+        <div class="ns-option-row">
+          <label id="pc-model-standard-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="pc-model" value="klingai:kling-video@3-standard" checked onchange="pcHighlightModel()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">Kling 3.0 Standard</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">High quality with sound · $0.126/sec</div>
+            </div>
+          </label>
+          <label id="pc-model-pro-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="pc-model" value="klingai:kling-video@3-pro" onchange="pcHighlightModel()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">Kling 3.0 Pro <span style="font-size:9px;background:var(--accent2);color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px">PRO</span></div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">Top-tier quality with sound · $0.168/sec</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- User Script -->
+      <div class="ns-fg">
+        <label>Script <span style="color:var(--muted);font-size:10px;font-weight:400">(optional — max ~25 words for 10s video. Claude trims if longer)</span></label>
+        <textarea id="pc-user-script" placeholder="Write the script for the podcaster to say (max ~25 words for 10s). Leave empty for Claude to generate one." style="min-height:80px" oninput="pcEstimateDuration()"></textarea>
+        <div id="pc-duration-est" style="font-size:11px;color:var(--accent2);margin-top:4px;display:none"></div>
+      </div>
+
+      <!-- Run Mode -->
+      <div class="ns-fg">
+        <label>Run Mode</label>
+        <div class="ns-option-row">
+          <label id="pc-run-auto-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="pc-runmode" value="auto" checked onchange="pcHighlightRunMode()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">🤖 Automatic</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4">Runs all phases end-to-end</div>
+            </div>
+          </label>
+          <label id="pc-run-manual-opt" style="display:flex;align-items:flex-start;gap:7px;flex:1;min-width:0;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+            <input type="radio" name="pc-runmode" value="manual" onchange="pcHighlightRunMode()" style="margin-top:2px;flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap">🎛 Manual</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4">Pause after each phase — review and edit</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+    </div><!-- /.ns-body -->
+    <div class="ns-footer">
+      <button class="ns-btn ghost" onclick="closeNewPodcastModal()">Cancel</button>
+      <button class="ns-btn primary" id="pc-submit-btn" onclick="submitNewPodcast()">🎙 Generate Podcast Ad</button>
+    </div>
+  </div>
+</div>
+
+<!-- Podcast Hero Catalog Modal (reuses same styling) -->
+<div id="pc-catalog-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center" onclick="if(event.target===this)pcCloseHeroCatalog()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,560px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🦸</span>
+      <span style="font-size:15px;font-weight:700;flex:1">Select Heroes to Mention</span>
+      <button class="btn-sm" onclick="pcCloseHeroCatalog()">✕</button>
+    </div>
+    <div id="pc-catalog-grid" style="flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+      <div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+      <button class="ns-btn primary" onclick="pcCloseHeroCatalog()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- NS Hero Catalog Modal -->
 <div id="ns-catalog-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center" onclick="if(event.target===this)nsCloseHeroCatalog()">
   <div id="ns-catalog-modal" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(90vw,560px);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.8)">
@@ -875,8 +1010,11 @@ async function loadStoryList() {
     const histories = data.history || [];
     sel.innerHTML = '<option value="">— Select a story —</option>' +
       histories.map(h => {
-        const label = (h.storyText || '').slice(0, 45) + (h.storyText?.length > 45 ? '…' : '');
-        const mode = h.pipelineMode === 'fast-paced' ? ' ⚡' : '';
+        const isPodcast = h.type === 'podcast';
+        const label = isPodcast
+          ? `🎙 ${h.gender || 'boy'} podcaster`
+          : ((h.storyText || '').slice(0, 45) + (h.storyText?.length > 45 ? '…' : ''));
+        const mode = isPodcast ? '' : (h.pipelineMode === 'fast-paced' ? ' ⚡' : '');
         const status = { processing: '⏳', completed: '✅', paused: '⚠', failed: '❌', pending: '🕐' }[h.status] || '';
         return `<option value="${h.taskUUID}">${status}${mode} ${label || h.taskUUID.slice(0,8)}</option>`;
       }).join('');
@@ -975,10 +1113,12 @@ function updateTopbar() {
   const info = document.getElementById('topbar-info');
   const statusEl = document.getElementById('topbar-status');
 
-  const mode = entry.pipelineMode === 'fast-paced' ? ' ⚡ Fast-Paced' : ' 📽 Standard';
-  const scenes = entry.scenes?.length ? ` · ${entry.scenes.length} scenes` : '';
+  const isPodcast = entry.type === 'podcast';
+  const mode = isPodcast ? ' 🎙 Podcaster' : (entry.pipelineMode === 'fast-paced' ? ' ⚡ Fast-Paced' : ' 📽 Standard');
+  const scenes = entry.scenes?.length ? ` · ${entry.scenes.length} scene${entry.scenes.length > 1 ? 's' : ''}` : '';
   const cost = entry.totalCost ? ` · $${parseFloat(entry.totalCost).toFixed(4)}` : '';
-  info.textContent = `${(entry.storyText || '').slice(0,60)}… ${mode}${scenes}${cost}`;
+  const label = isPodcast ? `${entry.gender || 'boy'} podcaster` : ((entry.storyText || '').slice(0,60) + '…');
+  info.textContent = `${label} ${mode}${scenes}${cost}`;
 
   statusEl.style.display = '';
   statusEl.className = `topbar-status ${entry.status}`;
@@ -1014,7 +1154,10 @@ function renderCanvas() {
   const scenes = entry.scenes || [];
   const isFP = entry.pipelineMode === 'fast-paced';
   const N = scenes.length;
-  const phaseCols = ['input', 'planning', ...scenes.map((_, i) => `scene_${i}`), 'concat', 'output'];
+  const isPodcast = entry.type === 'podcast';
+  const phaseCols = isPodcast
+    ? ['input', 'planning', ...scenes.map((_, i) => `scene_${i}`), 'output']
+    : ['input', 'planning', ...scenes.map((_, i) => `scene_${i}`), 'concat', 'output'];
 
   // X positions
   colX = {};
@@ -1053,7 +1196,7 @@ function renderCanvas() {
     const col = `scene_${i}`;
     let y = baseY;
 
-    const hasImgA = isFP ? true : !isLast;
+    const hasImgA = isPodcast ? true : (isFP ? true : !isLast);
     if (hasImgA) {
       const h = placeNode(world, buildImageNode(scene, 'A', i, entry.status), colX[col], y, `img_a_${i}`);
       y += h + NODE_GAP_Y;
@@ -1072,8 +1215,10 @@ function renderCanvas() {
     placeNode(world, buildVideoNode(scene, i, entry.status, isFP), colX[col], y, `vid_${i}`);
   }
 
-  // CONCAT node
-  placeNode(world, buildConcatNode(entry), colX['concat'], baseY, 'concat');
+  // CONCAT node (skip for podcast — no multi-scene concat needed)
+  if (!isPodcast) {
+    placeNode(world, buildConcatNode(entry), colX['concat'], baseY, 'concat');
+  }
 
   // OUTPUT node
   placeNode(world, buildOutputNode(entry), colX['output'], baseY, 'output');
@@ -1090,6 +1235,7 @@ function patchCanvas() {
   if (!entry) return;
   const scenes = entry.scenes || [];
   const isFP = entry.pipelineMode === 'fast-paced';
+  const isPodcastPatch = entry.type === 'podcast';
   const N = scenes.length;
   const world = document.getElementById('world');
 
@@ -1110,7 +1256,7 @@ function patchCanvas() {
     const scene = scenes[i];
     const prev = prevScenes[i] || {};
     const isFirst = i === 0, isLast = i === N - 1;
-    const hasImgA = isFP ? true : !isLast;
+    const hasImgA = isPodcastPatch ? true : (isFP ? true : !isLast);
 
     if (hasImgA) patchImageNode(`img_a_${i}`, scene, prev, 'A', i);
     if (!isFP && isFirst && scene.imageBPrompt) patchImageNode(`img_b_${i}`, scene, prev, 'B', i);
@@ -1119,7 +1265,7 @@ function patchCanvas() {
   }
 
   // Patch concat/output nodes
-  patchConcatNode(entry, prevEntry);
+  if (entry.type !== 'podcast') patchConcatNode(entry, prevEntry);
   patchOutputNode(entry, prevEntry);
 
   updateTopbar();
@@ -1222,18 +1368,25 @@ function patchActions(nodeId, scene, sceneIdx, type) {
   actions.className = 'node-actions';
   const body = node.querySelector('.node-body');
 
+  const isPodcast = entry.type === 'podcast';
   if (type === 'imgA' || type === 'imgB' || type === 'cta') {
     const url = type === 'imgB' ? scene.imageBUrl : type === 'cta' ? scene.ctaImageUrl : scene.imageUrl;
     const status = type === 'imgB' ? scene.imageBStatus : type === 'cta' ? scene.ctaImageStatus : scene.imageStatus;
     if ((status === 'completed' || status === 'failed') && url) {
       actions.appendChild(actionBtn('🔍 View', '', () => window.open(url, '_blank'), 'Open full size'));
-      actions.appendChild(actionBtn('🖼 Regen', '', () => callApi(`/api/regen-image/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate image'));
+      const regenImgEndpoint = isPodcast
+        ? `/api/regen-podcast-image/${entry.taskUUID}`
+        : `/api/regen-image/${entry.taskUUID}/${sceneIdx}`;
+      actions.appendChild(actionBtn('🖼 Regen', '', () => callApi(regenImgEndpoint, 'POST'), 'Regenerate image'));
     }
   } else if (type === 'video') {
     const url = scene.videoUrl;
     if (scene.videoStatus === 'completed' || scene.videoStatus === 'failed') {
       if (url) actions.appendChild(actionBtn('⬇ DL', 'green', () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); }, 'Download'));
-      actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(`/api/regen-video/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate video'));
+      const regenVidEndpoint = isPodcast
+        ? `/api/regen-podcast-video/${entry.taskUUID}`
+        : `/api/regen-video/${entry.taskUUID}/${sceneIdx}`;
+      actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(regenVidEndpoint, 'POST'), 'Regenerate video'));
     }
   }
 
@@ -1558,7 +1711,10 @@ function buildImageNode(scene, type, sceneIdx, entryStatus) {
     const actions = document.createElement('div');
     actions.className = 'node-actions';
     actions.appendChild(actionBtn('🔍 View', '', () => window.open(url, '_blank'), 'Open full size'));
-    actions.appendChild(actionBtn('🖼 Regen', '', () => callApi(`/api/regen-image/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate image'));
+    const regenImgEp = (entry.type === 'podcast' && !isB)
+      ? `/api/regen-podcast-image/${entry.taskUUID}`
+      : `/api/regen-image/${entry.taskUUID}/${sceneIdx}`;
+    actions.appendChild(actionBtn('🖼 Regen', '', () => callApi(regenImgEp, 'POST'), 'Regenerate image'));
     body.appendChild(actions);
   }
 
@@ -1647,7 +1803,10 @@ function buildVideoNode(scene, sceneIdx, entryStatus, isFP) {
     if (url) actions.appendChild(actionBtn('⬇ DL', 'green', () => {
       const a = document.createElement('a'); a.href = url; a.download = ''; a.click();
     }, 'Download video'));
-    actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(`/api/regen-video/${entry.taskUUID}/${sceneIdx}`, 'POST'), 'Regenerate video'));
+    const regenVidEp = entry.type === 'podcast'
+      ? `/api/regen-podcast-video/${entry.taskUUID}`
+      : `/api/regen-video/${entry.taskUUID}/${sceneIdx}`;
+    actions.appendChild(actionBtn('🎬 Regen', '', () => callApi(regenVidEp, 'POST'), 'Regenerate video'));
     body.appendChild(actions);
   }
 
@@ -1723,12 +1882,16 @@ function drawConnections(N, isFP, baseY) {
   connections.push({ from: 'input', to: 'planning', color: 'var(--accent)' });
 
   if (N === 0) {
-    connections.push({ from: 'planning', to: 'concat', color: 'var(--accent2)' });
-    connections.push({ from: 'concat',   to: 'output', color: 'var(--green)' });
+    if (entry?.type !== 'podcast') {
+      connections.push({ from: 'planning', to: 'concat', color: 'var(--accent2)' });
+      connections.push({ from: 'concat',   to: 'output', color: 'var(--green)' });
+    } else {
+      connections.push({ from: 'planning', to: 'output', color: 'var(--green)' });
+    }
   } else {
     for (let i = 0; i < N; i++) {
       const isFirst = i === 0, isLast  = i === N - 1;
-      const hasImgA = isFP ? true : !isLast;
+      const hasImgA = entry?.type === 'podcast' ? true : (isFP ? true : !isLast);
       const hasImgB = !isFP && isFirst && nodeRects[`img_b_${i}`];
       const hasCTA  = isLast && nodeRects[`cta_${i}`];
 
@@ -1753,8 +1916,13 @@ function drawConnections(N, isFP, baseY) {
         connections.push({ from: `cta_${i}`, to: `vid_${i}`, color: 'var(--yellow)', vertical: true });
       }
     }
-    connections.push({ from: `vid_${N-1}`, to: 'concat', color: 'var(--accent2)' });
-    connections.push({ from: 'concat', to: 'output', color: 'var(--green)' });
+    if (entry?.type === 'podcast') {
+      // Podcast: no concat, video goes directly to output
+      connections.push({ from: `vid_${N-1}`, to: 'output', color: 'var(--green)' });
+    } else {
+      connections.push({ from: `vid_${N-1}`, to: 'concat', color: 'var(--accent2)' });
+      connections.push({ from: 'concat', to: 'output', color: 'var(--green)' });
+    }
   }
 
   for (const c of connections) {
@@ -1969,7 +2137,7 @@ function diskPathToUrl(p) {
 
 // ── Detail: Input ──
 function buildDetailInput(entry) {
-  const pm = entry.pipelineMode === 'fast-paced' ? '⚡ Fast-Paced' : '📽 Standard';
+  const pm = entry.type === 'podcast' ? '🎙 Podcaster' : (entry.pipelineMode === 'fast-paced' ? '⚡ Fast-Paced' : '📽 Standard');
   const header = detailHeader('📋', 'Story Input', 'Input', 'completed');
 
   // Collect all reference images to display
@@ -2131,6 +2299,10 @@ function buildDetailPlanning(entry) {
     }
   }
   if (entry.voiceOverCharacteristics) info.appendChild(detailField('Voice-over Characteristics', entry.voiceOverCharacteristics));
+  // Podcast: show the script
+  if (entry.type === 'podcast' && entry.scenes?.[0]?.script) {
+    info.appendChild(detailField('Podcaster Script', entry.scenes[0].script));
+  }
   if (entry.error && ph === 'planning') info.appendChild(detailField('Error', entry.error, 'error'));
 
   body.appendChild(info);
@@ -2140,7 +2312,7 @@ function buildDetailPlanning(entry) {
   if (idle && (entry.status === 'paused' || !entry.scenes?.length)) {
     footerBtns.push(makeResumeBtn(entry));
   }
-  if (idle && entry.scenes?.length) {
+  if (idle && entry.scenes?.length && entry.type !== 'podcast') {
     footerBtns.push({ text: '🖼 Resubmit All Images', fn: () => { callApi(`/api/resubmit-images/${entry.taskUUID}`, 'POST'); closeDetail(); } });
     footerBtns.push({ text: '🎬 Resubmit All Videos', fn: () => { callApi(`/api/resubmit-videos/${entry.taskUUID}`, 'POST'); closeDetail(); } });
   }
@@ -2189,30 +2361,45 @@ function buildDetailImageA(scene, i, entry, idle) {
   const footerBtns = [];
   if (url) footerBtns.push({ text: '🔍 Open Full Size', fn: () => window.open(url, '_blank') });
   if (canRun) {
-    // If pipeline is idle: retry-scene runs this scene + all following pending scenes
-    // If pipeline is busy: run-single-scene runs ONLY this one scene independently
-    const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
-    const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
-    footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
-      const p = document.getElementById('edit-img-prompt')?.value;
-      const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
-      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
-      closeDetail();
-    }});
-    if (!idle) {
-      // Also offer "run all pending from here" even while busy (retry-scene will queue after current)
-      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+    if (entry.type === 'podcast') {
+      // Podcast: save any edited prompt then resume from images phase
+      footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: async () => {
         const p = document.getElementById('edit-img-prompt')?.value;
-        const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
-        callApi(fullEndpoint, 'POST', body);
+        if (p && p !== scene.imagePrompt) {
+          await callApi(`/api/update-podcast-prompt/${entry.taskUUID}`, 'POST', { imagePrompt: p });
+        }
+        callApi(`/api/resume-podcast/${entry.taskUUID}`, 'POST');
         closeDetail();
       }});
+    } else {
+      // If pipeline is idle: retry-scene runs this scene + all following pending scenes
+      // If pipeline is busy: run-single-scene runs ONLY this one scene independently
+      const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
+      const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
+      footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
+        const p = document.getElementById('edit-img-prompt')?.value;
+        const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
+        callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+        closeDetail();
+      }});
+      if (!idle) {
+        // Also offer "run all pending from here" even while busy (retry-scene will queue after current)
+        footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+          const p = document.getElementById('edit-img-prompt')?.value;
+          const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
+          callApi(fullEndpoint, 'POST', body);
+          closeDetail();
+        }});
+      }
     }
   }
   if (idle && status === 'completed') {
+    const regenEndpoint = entry.type === 'podcast'
+      ? `/api/regen-podcast-image/${entry.taskUUID}`
+      : `/api/regen-image/${entry.taskUUID}/${i}`;
     footerBtns.push({ text: '🖼 Regenerate Image', fn: () => {
       const p = document.getElementById('edit-img-prompt')?.value;
-      callApi(`/api/regen-image/${entry.taskUUID}/${i}`, 'POST', p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined);
+      callApi(regenEndpoint, 'POST', p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined);
       closeDetail();
     }});
   }
@@ -2406,28 +2593,51 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
   const footerBtns = [];
   if (url) footerBtns.push({ text: '⬇ Download Video', cls: 'green', fn: () => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); } });
   if (canRunVideo) {
-    const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
-    const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
-    footerBtns.push({ text: '▶ Run This Video', cls: 'green', fn: () => {
-      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', getVideoEditBody());
-      closeDetail();
-    }});
-    if (!idle) {
-      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
-        callApi(fullEndpoint, 'POST', getVideoEditBody());
+    if (entry.type === 'podcast') {
+      // Podcast: save any edited video prompt then resume from videos phase
+      footerBtns.push({ text: '▶ Run This Video', cls: 'green', fn: async () => {
+        const editBody = getVideoEditBody();
+        if (editBody?.videoPrompt && editBody.videoPrompt !== scene.videoPrompt) {
+          await callApi(`/api/update-podcast-prompt/${entry.taskUUID}`, 'POST', { videoPrompt: editBody.videoPrompt });
+        }
+        callApi(`/api/resume-podcast/${entry.taskUUID}`, 'POST');
         closeDetail();
       }});
+    } else {
+      const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
+      const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
+      footerBtns.push({ text: '▶ Run This Video', cls: 'green', fn: () => {
+        callApi(idle ? fullEndpoint : singleEndpoint, 'POST', getVideoEditBody());
+        closeDetail();
+      }});
+      if (!idle) {
+        footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+          callApi(fullEndpoint, 'POST', getVideoEditBody());
+          closeDetail();
+        }});
+      }
     }
   }
   if (idle && status === 'completed') {
+    const regenVidEndpoint = entry.type === 'podcast'
+      ? `/api/regen-podcast-video/${entry.taskUUID}`
+      : `/api/regen-video/${entry.taskUUID}/${i}`;
     footerBtns.push({ text: '🎬 Regenerate Video', fn: () => {
-      callApi(`/api/regen-video/${entry.taskUUID}/${i}`, 'POST', getVideoEditBody());
+      callApi(regenVidEndpoint, 'POST', getVideoEditBody());
       closeDetail();
     }});
-    footerBtns.push({ text: '🎞 Re-run Final Concat', fn: () => {
-      callApi(`/api/resume-story/${entry.taskUUID}`, 'POST', { forcePhase: 'concat' });
-      closeDetail();
-    }});
+    if (entry.type === 'podcast') {
+      footerBtns.push({ text: '🖼 New Video (Keep Image)', fn: () => {
+        callApi(`/api/regen-podcast-video/${entry.taskUUID}`, 'POST', { keepImage: true });
+        closeDetail();
+      }});
+    }
+    if (entry.type !== 'podcast') {
+      footerBtns.push({ text: '🎞 Re-run Final Concat', fn: () => {
+        callApi(`/api/resume-story/${entry.taskUUID}`, 'POST', { forcePhase: 'concat' });
+        closeDetail();
+      }});
+    }
   }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
@@ -2541,7 +2751,7 @@ function buildDetailOutput(entry, idle) {
     info.appendChild(detailStatusRow([{ label: 'Total cost: $' + parseFloat(entry.totalCost).toFixed(4), cls: 'green' }]));
   }
   if (entry.completedAt) info.appendChild(detailField('Completed At', new Date(entry.completedAt).toLocaleString()));
-  if (entry.transitionStyle) info.appendChild(detailField('Transition', entry.transitionStyle === 'fade' ? '✨ Fade' : '⚡ Hard Cut'));
+  if (entry.transitionStyle && entry.type !== 'podcast') info.appendChild(detailField('Transition', entry.transitionStyle === 'fade' ? '✨ Fade' : '⚡ Hard Cut'));
   if (entry.error) info.appendChild(detailField('Error', entry.error, 'error'));
 
   body.appendChild(media);
@@ -2554,7 +2764,7 @@ function buildDetailOutput(entry, idle) {
   if (done && entry.finalVideoAltUrl) {
     footerBtns.push({ text: '⬇ Alt Version', cls: 'default', fn: () => { const a = document.createElement('a'); a.href = entry.finalVideoAltUrl; a.download = ''; a.click(); } });
   }
-  if (done && !entry.finalVideoAltUrl) {
+  if (done && !entry.finalVideoAltUrl && entry.type !== 'podcast') {
     const isFadeMain = entry.finalVideoUrl?.includes('fade') || entry.transitionStyle === 'fade';
     footerBtns.push({ text: `🔄 Generate ${isFadeMain ? 'Hard Cut' : 'Fade'} Version`, cls: 'default', fn: async () => {
       const btn = document.querySelector('.detail-footer .btn-default');
@@ -2562,13 +2772,21 @@ function buildDetailOutput(entry, idle) {
       await fetch(`/api/generate-alt-concat/${entry.taskUUID}`, { method: 'POST' });
     }});
   }
+  if (done && entry.type === 'podcast') {
+    footerBtns.push({ text: '🖼 New Video (Keep Image)', fn: () => {
+      callApi(`/api/regen-podcast-video/${entry.taskUUID}`, 'POST', { keepImage: true });
+      closeDetail();
+    }});
+  }
   if (idle && entry.status === 'paused') {
     footerBtns.push(makeResumeBtn(entry));
   }
   // Clone story with different model — available any time (even while generating)
-  footerBtns.push({ text: '🔄 New Generation — Different Model', fn: () => {
-    openCloneModelPicker(entry);
-  }});
+  if (entry.type !== 'podcast') {
+    footerBtns.push({ text: '🔄 New Generation — Different Model', fn: () => {
+      openCloneModelPicker(entry);
+    }});
+  }
   footerBtns.push({ text: 'Close', fn: closeDetail });
 
   return { header, body, footer: detailFooter(footerBtns) };
@@ -2813,9 +3031,13 @@ function statusBadgeText(status) {
 // Returns the right label + fn for the resume/run-next-phase button
 function makeResumeBtn(entry) {
   const isManual = entry.pauseReason === 'manual';
-  const phaseLabels = { images: '▶ Run Images', videos: '▶ Run Videos', concat: '▶ Run Concat' };
+  const isPodcast = entry.type === 'podcast';
+  const phaseLabels = isPodcast
+    ? { images: '▶ Generate Image', videos: '▶ Generate Video' }
+    : { images: '▶ Run Images', videos: '▶ Run Videos', concat: '▶ Run Concat' };
   const text = isManual ? (phaseLabels[entry.currentPhase] || '▶ Run Next Phase') : '▶ Resume Pipeline';
-  return { text, cls: 'green', fn: () => { callApi(`/api/resume-story/${entry.taskUUID}`, 'POST'); closeDetail(); } };
+  const endpoint = isPodcast ? `/api/resume-podcast/${entry.taskUUID}` : `/api/resume-story/${entry.taskUUID}`;
+  return { text, cls: 'green', fn: () => { callApi(endpoint, 'POST'); closeDetail(); } };
 }
 
 function escHtml(s) {
@@ -2840,11 +3062,24 @@ function updatePipelineActions() {
   const show = entry.status === 'paused' || entry.status === 'completed' || hasGenerating;
   el.style.display = show ? 'flex' : 'none';
 
+  // Hide story-specific bulk actions for podcast entries
+  const isPodcast = entry.type === 'podcast';
+  el.querySelectorAll('.btn-sm').forEach(btn => {
+    const txt = btn.textContent;
+    if (isPodcast && (txt.includes('Redo Images') || txt.includes('Redo Videos'))) {
+      btn.style.display = 'none';
+    } else if (txt.includes('Redo Images') || txt.includes('Redo Videos')) {
+      btn.style.display = 'inline-flex';
+    }
+  });
+
   // Update Resume button label based on manual mode context
   const resumeBtn = el.querySelector('.btn-sm.green');
   if (resumeBtn && entry.status === 'paused') {
     if (entry.pauseReason === 'manual') {
-      const phaseLabels = { images: '▶ Run Images', videos: '▶ Run Videos', concat: '▶ Run Concat' };
+      const phaseLabels = isPodcast
+        ? { images: '▶ Generate Image', videos: '▶ Generate Video' }
+        : { images: '▶ Run Images', videos: '▶ Run Videos', concat: '▶ Run Concat' };
       resumeBtn.textContent = phaseLabels[entry.currentPhase] || '▶ Resume';
     } else {
       resumeBtn.textContent = '▶ Resume';
@@ -2858,7 +3093,8 @@ async function resumePipeline() {
   if (!currentUUID) return;
   const isManual = entry?.pauseReason === 'manual';
   if (!isManual && !confirm('Resume pipeline from where it stopped?')) return;
-  await callApi(`/api/resume-story/${currentUUID}`, 'POST');
+  const endpoint = entry?.type === 'podcast' ? `/api/resume-podcast/${currentUUID}` : `/api/resume-story/${currentUUID}`;
+  await callApi(endpoint, 'POST');
 }
 
 async function recheckGenerating() {
@@ -3431,6 +3667,220 @@ async function submitNewStory() {
   } finally {
     btn.disabled = false;
     btn.textContent = '🚀 Generate Story';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PODCASTER MODAL
+// ══════════════════════════════════════════════════════════════════
+let pcNamedHeroes = [];
+let pcSelectedAngleId = null;
+let _pcAnglesLoaded = false;
+let _pcCatalogData = [];
+
+function openNewPodcastModal() {
+  document.getElementById('pc-overlay').style.display = 'flex';
+  if (!_pcAnglesLoaded) pcLoadAngles();
+}
+
+function closeNewPodcastModal() {
+  document.getElementById('pc-overlay').style.display = 'none';
+}
+
+function pcHighlightGender() {
+  const val = document.querySelector('input[name="pc-gender"]:checked')?.value;
+  document.getElementById('pc-gender-boy-opt').style.borderColor = val === 'boy' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('pc-gender-girl-opt').style.borderColor = val === 'girl' ? 'var(--accent)' : 'var(--border)';
+}
+
+let pcSelectedDuration = 'auto';
+
+function pcSelectDuration(val) {
+  pcSelectedDuration = val;
+  const ids = ['auto', 3, 4, 6, 8, 10, 15];
+  ids.forEach(d => {
+    const btn = document.getElementById(`pc-dur-${d}`);
+    if (!btn) return;
+    const active = d === val;
+    btn.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+    btn.style.background = active ? 'var(--accent)' : 'transparent';
+    btn.style.color = active ? '#fff' : 'var(--text)';
+  });
+}
+
+function pcHighlightModel() {
+  const val = document.querySelector('input[name="pc-model"]:checked')?.value;
+  document.getElementById('pc-model-standard-opt').style.borderColor = val === 'klingai:kling-video@3-standard' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('pc-model-pro-opt').style.borderColor = val === 'klingai:kling-video@3-pro' ? 'var(--accent)' : 'var(--border)';
+}
+
+function pcHighlightRunMode() {
+  const val = document.querySelector('input[name="pc-runmode"]:checked')?.value;
+  document.getElementById('pc-run-auto-opt').style.borderColor = val === 'auto' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('pc-run-manual-opt').style.borderColor = val === 'manual' ? 'var(--accent)' : 'var(--border)';
+}
+
+function pcEstimateDuration() {
+  const text = document.getElementById('pc-user-script').value.trim();
+  const el = document.getElementById('pc-duration-est');
+  const durRow = document.getElementById('pc-duration-row');
+  // Hide duration picker when user provides a script (duration inferred from word count)
+  if (durRow) durRow.style.display = text ? 'none' : '';
+  if (!text) { el.style.display = 'none'; return; }
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const estSec = Math.round(words / 2.5);
+  const allowed = [3, 4, 6, 8, 10, 15];
+  const maxDur = allowed[allowed.length - 1];
+  const maxWords = Math.floor(maxDur * 2.5);
+  const snapped = allowed.reduce((best, d) => Math.abs(d - estSec) < Math.abs(best - estSec) ? d : best, allowed[0]);
+  el.style.display = '';
+  if (words > maxWords) {
+    el.style.color = 'var(--error, #e55)';
+    el.textContent = `⚠ Script too long: ${words} words (~${estSec}s). Max is ${maxDur}s (~${maxWords} words). Claude will trim it to fit.`;
+  } else {
+    el.style.color = 'var(--accent2)';
+    el.textContent = `~${estSec}s estimated (${words} words) → ${snapped}s video`;
+  }
+}
+
+async function pcLoadAngles() {
+  try {
+    const res = await fetch('/api/marketing-angles');
+    const data = await res.json();
+    const angles = data.angles || [];
+    _pcAnglesLoaded = true;
+
+    const grid = document.getElementById('pc-angle-grid');
+    grid.innerHTML = angles.map(a => {
+      const badge = a.status === 'in_pipeline' ? '<span style="color:var(--green);font-size:9px;font-weight:700">● ACTIVE</span>' : '';
+      return `<div class="ns-angle-card" data-id="${a.id}" onclick="pcSelectAngle('${a.id}', this)"
+        style="background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+        <div style="font-size:11px;font-weight:600;margin-bottom:3px">${a.name} ${badge}</div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.3">${(a.core_message || '').slice(0, 60)}${a.core_message?.length > 60 ? '…' : ''}</div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.warn('pcLoadAngles:', e); }
+}
+
+function pcSelectAngle(id, el) {
+  // Toggle selection
+  if (pcSelectedAngleId === id) {
+    pcSelectedAngleId = null;
+    el.style.borderColor = 'var(--border)';
+    return;
+  }
+  // Deselect previous
+  document.querySelectorAll('#pc-angle-grid .ns-angle-card').forEach(c => c.style.borderColor = 'var(--border)');
+  pcSelectedAngleId = id;
+  el.style.borderColor = 'var(--accent)';
+}
+
+async function pcOpenHeroCatalog() {
+  const overlay = document.getElementById('pc-catalog-overlay');
+  overlay.style.display = 'flex';
+
+  if (_pcCatalogData.length === 0) {
+    try {
+      const res = await fetch('/api/hero-catalog');
+      const data = await res.json();
+      _pcCatalogData = data.heroes || [];
+    } catch(e) { console.warn('pcLoadCatalog:', e); }
+  }
+
+  const grid = document.getElementById('pc-catalog-grid');
+  grid.innerHTML = _pcCatalogData.map(h => {
+    const selected = pcNamedHeroes.includes(h.name);
+    const thumb = h.images?.[0] || '';
+    return `<div onclick="pcToggleHero('${h.name}')" style="background:var(--surface2);border:2px solid ${selected ? 'var(--accent)' : 'var(--border)'};border-radius:var(--rs);padding:8px;cursor:pointer;text-align:center;transition:border-color .15s" data-hero="${h.name}">
+      ${thumb ? `<img src="${thumb}" style="width:60px;height:60px;border-radius:6px;object-fit:cover;margin-bottom:4px" />` : '<div style="width:60px;height:60px;background:var(--border);border-radius:6px;margin:0 auto 4px"></div>'}
+      <div style="font-size:11px;font-weight:600">${h.name}</div>
+      <div style="font-size:9px;color:var(--muted)">${h.class}</div>
+    </div>`;
+  }).join('');
+}
+
+function pcToggleHero(name) {
+  const idx = pcNamedHeroes.indexOf(name);
+  if (idx >= 0) pcNamedHeroes.splice(idx, 1);
+  else pcNamedHeroes.push(name);
+
+  // Update card highlight
+  document.querySelectorAll('#pc-catalog-grid [data-hero]').forEach(el => {
+    el.style.borderColor = pcNamedHeroes.includes(el.dataset.hero) ? 'var(--accent)' : 'var(--border)';
+  });
+
+  // Update pills in form
+  const container = document.getElementById('pc-named-heroes');
+  container.innerHTML = pcNamedHeroes.map(n =>
+    `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:11px;display:flex;align-items:center;gap:4px">${n} <span onclick="pcRemoveHero('${n}')" style="cursor:pointer;color:var(--red);font-size:9px">✕</span></span>`
+  ).join('');
+}
+
+function pcRemoveHero(name) {
+  pcNamedHeroes = pcNamedHeroes.filter(n => n !== name);
+  pcToggleHero(name); // re-toggle to refresh
+  pcToggleHero(name); // undo the toggle (just refreshes display)
+  document.getElementById('pc-named-heroes').innerHTML = pcNamedHeroes.map(n =>
+    `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:11px;display:flex;align-items:center;gap:4px">${n} <span onclick="pcRemoveHero('${n}')" style="cursor:pointer;color:var(--red);font-size:9px">✕</span></span>`
+  ).join('');
+}
+
+function pcCloseHeroCatalog() {
+  document.getElementById('pc-catalog-overlay').style.display = 'none';
+}
+
+async function submitNewPodcast() {
+  const gender = document.querySelector('input[name="pc-gender"]:checked')?.value || 'boy';
+  const runMode = document.querySelector('input[name="pc-runmode"]:checked')?.value || 'auto';
+  const videoModel = document.querySelector('input[name="pc-model"]:checked')?.value || 'klingai:kling-video@3-standard';
+  const userScript = document.getElementById('pc-user-script').value.trim();
+
+  const btn = document.getElementById('pc-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Submitting…';
+
+  try {
+    const body = {
+      gender,
+      runMode,
+      videoModel,
+      heroNames: pcNamedHeroes,
+    };
+    if (pcSelectedAngleId) body.marketingAngle = pcSelectedAngleId;
+    if (userScript) body.userScript = userScript;
+    if (!userScript && pcSelectedDuration !== 'auto') body.preferredDuration = pcSelectedDuration;
+
+    const res = await fetch('/api/generate-podcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('Error: ' + (data.error || 'Failed to create podcast')); return; }
+
+    // Reset
+    pcNamedHeroes = [];
+    pcSelectedAngleId = null;
+    pcSelectedDuration = 'auto';
+    pcSelectDuration('auto');
+    document.querySelector('input[name="pc-model"][value="klingai:kling-video@3-standard"]').checked = true;
+    pcHighlightModel();
+    document.getElementById('pc-user-script').value = '';
+    document.getElementById('pc-duration-est').style.display = 'none';
+    const durRow = document.getElementById('pc-duration-row');
+    if (durRow) durRow.style.display = '';
+
+    closeNewPodcastModal();
+    await loadStoryList();
+    if (data.taskUUID) {
+      document.getElementById('story-select').value = data.taskUUID;
+      loadStory(data.taskUUID);
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🎙 Generate Podcast Ad';
   }
 }
 

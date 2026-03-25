@@ -335,14 +335,14 @@
           </div>
         </div>
 
-        <!-- Image -->
-        <div class="fg">
+        <!-- Image (hidden for HeyGen — it has its own avatar section) -->
+        <div class="fg" id="avatar-img-section">
           <label>Portrait Image <span class="req">*</span></label>
           <div class="dropzone" id="img-dz">
             <input type="file" id="img-input" accept=".jpg,.jpeg,.png,.webp" />
             <div class="dz-icon">🖼️</div>
-            <div class="dz-text">Drop image or <strong>click to browse</strong></div>
-            <div class="dz-hint">JPG, PNG, WEBP · min 300×300 · max 10 MB</div>
+            <div class="dz-text">Drop portrait or <strong>click to browse</strong></div>
+            <div class="dz-hint">JPG, PNG, WEBP · frontal face, head+shoulders or half-body · max 10 MB</div>
           </div>
           <div class="file-pill" id="img-pill">
             <img class="file-pill-thumb" id="img-thumb" src="" alt="" />
@@ -351,6 +351,81 @@
               <div class="file-pill-size" id="img-size"></div>
             </div>
             <button class="file-pill-rm" onclick="clearFile('img')">✕</button>
+          </div>
+        </div>
+
+        <!-- HeyGen Avatar Section (shown only when HeyGen model is selected) -->
+        <div class="fg" id="heygen-avatar-section" style="display:none">
+          <label>Avatar <span class="req">*</span></label>
+          <!-- Source toggle: Built-in vs Custom -->
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <label id="heygen-builtin-opt" style="display:flex;align-items:center;gap:6px;flex:1;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s;font-size:12px">
+              <input type="radio" name="heygen-source" value="builtin" checked onchange="heygenToggleSource()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
+              <div>
+                <div style="font-weight:600">🧑 Built-in Avatar</div>
+                <div style="font-size:10px;color:var(--muted)">Choose from 13 studio avatars</div>
+              </div>
+            </label>
+            <label id="heygen-custom-opt" style="display:flex;align-items:center;gap:6px;flex:1;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s;font-size:12px">
+              <input type="radio" name="heygen-source" value="custom" onchange="heygenToggleSource()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
+              <div>
+                <div style="font-weight:600">📸 Custom Photo</div>
+                <div style="font-size:10px;color:var(--muted)">Upload your own portrait</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Built-in avatar grid -->
+          <div id="heygen-builtin-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px">
+            <!-- populated by JS -->
+          </div>
+
+          <!-- Resolution -->
+          <div style="margin-top:10px">
+            <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Resolution</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <label id="heygen-res-9-16" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:6px 10px;cursor:pointer;font-size:12px;transition:border-color .15s">
+                <input type="radio" name="heygen-res" value="1080x1920" checked style="width:auto;accent-color:var(--accent)" onchange="heygenHighlightRes()" />
+                <span>9:16 · 1080×1920 <span style="font-size:10px;color:var(--muted)">(portrait)</span></span>
+              </label>
+              <label id="heygen-res-16-9" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:6px 10px;cursor:pointer;font-size:12px;transition:border-color .15s">
+                <input type="radio" name="heygen-res" value="1920x1080" style="width:auto;accent-color:var(--accent)" onchange="heygenHighlightRes()" />
+                <span>16:9 · 1920×1080 <span style="font-size:10px;color:var(--muted)">(landscape)</span></span>
+              </label>
+              <label id="heygen-res-hd-l" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:6px 10px;cursor:pointer;font-size:12px;transition:border-color .15s">
+                <input type="radio" name="heygen-res" value="1280x720" style="width:auto;accent-color:var(--accent)" onchange="heygenHighlightRes()" />
+                <span>16:9 · 1280×720 <span style="font-size:10px;color:var(--muted)">(HD)</span></span>
+              </label>
+              <label id="heygen-res-hd-p" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:6px 10px;cursor:pointer;font-size:12px;transition:border-color .15s">
+                <input type="radio" name="heygen-res" value="720x1280" style="width:auto;accent-color:var(--accent)" onchange="heygenHighlightRes()" />
+                <span>9:16 · 720×1280 <span style="font-size:10px;color:var(--muted)">(HD portrait)</span></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Custom image upload (shown when Custom is selected) -->
+          <div id="heygen-custom-upload" style="display:none">
+            <!-- Podcast image picker -->
+            <div id="heygen-podcast-imgs" style="margin-bottom:10px">
+              <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Or use a podcast image</div>
+              <div id="heygen-podcast-img-grid" style="display:flex;flex-wrap:wrap;gap:6px">
+                <!-- populated by JS -->
+              </div>
+            </div>
+            <div class="dropzone" id="heygen-img-dz">
+              <input type="file" id="heygen-img-input" accept=".jpg,.jpeg,.png,.webp" onchange="onHeyGenImagePick(this)" />
+              <div class="dz-icon">📸</div>
+              <div class="dz-text">Drop portrait or <strong>click to browse</strong></div>
+              <div class="dz-hint">JPG, PNG, WEBP · min 300×300 · max 10 MB</div>
+            </div>
+            <div class="file-pill" id="heygen-img-pill">
+              <img class="file-pill-thumb" id="heygen-img-thumb" src="" alt="" />
+              <div class="file-pill-info">
+                <div class="file-pill-name" id="heygen-img-name"></div>
+                <div class="file-pill-size" id="heygen-img-size"></div>
+              </div>
+              <button class="file-pill-rm" onclick="clearHeyGenImage()">✕</button>
+            </div>
           </div>
         </div>
 
@@ -375,8 +450,11 @@
 
         <!-- Prompt -->
         <div class="fg">
-          <label>Style Prompt <small style="font-weight:400">(optional)</small></label>
-          <textarea id="avatar-prompt" placeholder="e.g. Speak with enthusiasm and warmth, maintain natural eye contact..."></textarea>
+          <label>Style Prompt <small style="font-weight:400">(optional — auto-fills a realistic motion prompt if empty)</small></label>
+          <textarea id="avatar-prompt" placeholder="Leave empty for best realistic results, or customize: e.g. Enthusiastic presentation with natural hand gestures, warm smile, direct eye contact..."></textarea>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5">
+            💡 <strong>Tips for best results:</strong> Use a clear frontal portrait (head + shoulders or half-body). Avoid extreme angles or heavy occlusion. Clean audio with natural pacing produces the most realistic lip-sync and gestures.
+          </div>
         </div>
 
         <button class="btn btn-purple" id="btn-avatar" onclick="submitAvatar()">
@@ -422,6 +500,11 @@
               <div style="font-weight:600;color:var(--text);margin-bottom:4px">🔬 OmniHuman 1</div>
               <div>Research model. Strong generalization — works on portraits, cartoons, full-body, stylized avatars.</div>
               <div style="color:var(--accent2);margin-top:3px;font-size:11px">~$0.10/sec</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">🆕 HeyGen Avatar 4</div>
+              <div>Choose from 13 built-in studio avatars, or upload your own portrait photo. Realistic lip-sync from audio.</div>
+              <div style="color:var(--accent2);margin-top:3px;font-size:11px">Usage-based · 13 built-in avatars</div>
             </div>
           </div>
           <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
@@ -709,6 +792,18 @@
           </select>
         </div>
 
+        <!-- Background Music (optional) -->
+        <div class="fg">
+          <label>Background Music <small style="font-weight:400">(optional — mixed at low volume)</small></label>
+          <div class="dropzone" id="bridge-music-dz" style="padding:12px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('bridge-music-input').click()">
+            <div class="dz-icon" style="font-size:22px">🎵</div>
+            <div class="dz-text"><span id="bridge-music-label">Drop music file or <strong>click to browse</strong></span></div>
+            <div class="dz-hint">MP3, WAV, M4A, AAC, OGG</div>
+          </div>
+          <input type="file" id="bridge-music-input" accept=".mp3,.wav,.m4a,.aac,.ogg" style="display:none" onchange="handleBridgeMusicFilePick(this)" />
+          <button class="dz-from-uploads" onclick="openMediaPicker('bridge-music','audio')">📂 Choose from uploads</button>
+        </div>
+
         <button class="btn btn-purple" id="btn-bridge" onclick="submitBridge()" style="background:linear-gradient(135deg,var(--orange),#ef4444)">
           <span class="spinner" id="bridge-spinner"></span>
           <span id="bridge-btn-text">🔗 Generate CTA Bridge</span>
@@ -761,6 +856,82 @@
       </div>
 
     </div>
+
+    <!-- ── Add Music to Video ─────────────────────────────────── -->
+    <div style="margin-top:20px">
+      <div class="card">
+        <div class="card-title">🎵 Add Background Music to Existing Video</div>
+        <div class="grid2">
+          <div>
+            <!-- Video picker -->
+            <div class="fg">
+              <label>Video <span class="req">*</span></label>
+              <select id="am-video-select" style="width:100%;margin-bottom:6px">
+                <option value="">— select from output history —</option>
+              </select>
+              <div style="text-align:center;font-size:11px;color:var(--muted);margin:4px 0">— or upload —</div>
+              <input type="file" id="am-video-upload" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;color:var(--text);font-size:12px"
+                onchange="if(this.value) document.getElementById('am-video-select').value=''">
+            </div>
+
+            <!-- Music picker -->
+            <div class="fg">
+              <label>Music File <span class="req">*</span></label>
+              <div class="dropzone" id="am-music-dz" style="padding:12px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('am-music-input').click()">
+                <div class="dz-icon" style="font-size:22px">🎵</div>
+                <div class="dz-text"><span id="am-music-label">Drop music or <strong>click to browse</strong></span></div>
+                <div class="dz-hint">MP3, WAV, M4A, AAC, OGG</div>
+              </div>
+              <input type="file" id="am-music-input" accept=".mp3,.wav,.m4a,.aac,.ogg" style="display:none" onchange="handleAmMusicPick(this)" />
+              <button class="dz-from-uploads" onclick="openMediaPicker('am-music','audio')">📂 Choose from uploads</button>
+            </div>
+
+            <!-- Volume -->
+            <div class="fg">
+              <label>Music Volume — <span id="am-vol-display">25%</span></label>
+              <input type="range" id="am-volume" min="5" max="80" value="25" step="5"
+                style="width:100%;accent-color:var(--accent)"
+                oninput="document.getElementById('am-vol-display').textContent=this.value+'%'">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px">
+                <span>Subtle (5%)</span><span>Background (25%)</span><span>Loud (80%)</span>
+              </div>
+            </div>
+
+            <button class="btn btn-purple" id="btn-am" onclick="submitAddMusic()" style="background:linear-gradient(135deg,var(--green),#059669)">
+              <span class="spinner" id="am-spinner"></span>
+              <span id="am-btn-text">🎵 Mix Music Into Video</span>
+            </button>
+
+            <div class="status-box" id="am-status" style="display:none;margin-top:12px">
+              <div class="status-text" id="am-status-text"></div>
+            </div>
+
+            <div class="result-wrap" id="am-result" style="display:none;margin-top:12px">
+              <video id="am-video" controls playsinline style="width:100%;border-radius:var(--rs)"></video>
+              <div class="result-actions" style="margin-top:8px">
+                <a class="btn-sm green" id="am-dl" href="#" download>⬇ Download</a>
+                <button class="btn-sm" onclick="document.getElementById('am-video').requestFullscreen?.()">⛶ Fullscreen</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            <div style="font-weight:600;color:var(--text);margin-bottom:8px">How it works</div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px;margin-bottom:8px">
+              Select any generated video from the dropdown (or upload your own), pick a music track, set the volume level, and click Mix. The music will loop to fill the full video length and mix with any existing audio.
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px">💡 Tips</div>
+              <div>• 15–25% volume keeps music subtle and audible behind speech</div>
+              <div>• The original video's audio is preserved — music is mixed under it</div>
+              <div>• Processing is fast — no AI generation, just FFmpeg mixing</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ═══ COMBINE PAGE ═══ -->
@@ -1208,6 +1379,7 @@
 // ══════ State ══════
 let selectedModel = 'klingai:avatar@2.0-pro';
 let selectedBridgeModel = 'google:3@2';
+let bridgeMusicFile = null; // { file } or { isUploadRef, serverPath, name } or null
 let selectedLipSyncModel = 'pixverse:lipsync@1';
 let selectedStoryModel = 'google:3@2';
 let veoW = 1280, veoH = 720;
@@ -1276,10 +1448,131 @@ function renderModelGrid() {
   `).join('');
 }
 
+let heygenSelectedAvatarId = null; // built-in avatar ID, null = none selected
+
 function selectModel(id) {
   selectedModel = id;
   document.querySelectorAll('#model-grid .model-card').forEach(c => c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
+
+  // Show/hide HeyGen vs standard image sections
+  const isHeyGen = (models || []).find(m => m.id === id)?.isHeyGen;
+  document.getElementById('avatar-img-section').style.display = isHeyGen ? 'none' : '';
+  document.getElementById('heygen-avatar-section').style.display = isHeyGen ? '' : 'none';
+  if (isHeyGen) renderHeyGenAvatarGrid(id);
+}
+
+function renderHeyGenAvatarGrid(modelId) {
+  const m = (models || []).find(x => x.id === modelId);
+  if (!m?.builtinAvatars) return;
+  const grid = document.getElementById('heygen-builtin-grid');
+  grid.innerHTML = m.builtinAvatars.map(a => `
+    <div class="model-card ${heygenSelectedAvatarId === a.id ? 'selected' : ''}" onclick="selectHeyGenAvatar('${a.id}')" style="cursor:pointer;padding:8px 10px;min-height:unset">
+      <div style="font-size:18px;text-align:center;margin-bottom:4px">🧑</div>
+      <div style="font-size:10px;font-weight:600;text-align:center;line-height:1.3">${a.label}</div>
+    </div>
+  `).join('');
+}
+
+function selectHeyGenAvatar(id) {
+  heygenSelectedAvatarId = id;
+  document.querySelectorAll('#heygen-builtin-grid .model-card').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function heygenHighlightRes() {
+  const val = document.querySelector('input[name="heygen-res"]:checked')?.value || '1080x1920';
+  const map = { '1080x1920': 'heygen-res-9-16', '1920x1080': 'heygen-res-16-9', '1280x720': 'heygen-res-hd-l', '720x1280': 'heygen-res-hd-p' };
+  Object.entries(map).forEach(([v, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.borderColor = (v === val) ? 'var(--accent)' : 'var(--border)';
+  });
+}
+
+function heygenToggleSource() {
+  const val = document.querySelector('input[name="heygen-source"]:checked')?.value || 'builtin';
+  const builtinOpt = document.getElementById('heygen-builtin-opt');
+  const customOpt = document.getElementById('heygen-custom-opt');
+  const builtinGrid = document.getElementById('heygen-builtin-grid');
+  const customUpload = document.getElementById('heygen-custom-upload');
+  if (val === 'builtin') {
+    builtinOpt.style.borderColor = 'var(--accent)';
+    customOpt.style.borderColor = 'var(--border)';
+    builtinGrid.style.display = '';
+    customUpload.style.display = 'none';
+  } else {
+    builtinOpt.style.borderColor = 'var(--border)';
+    customOpt.style.borderColor = 'var(--accent)';
+    builtinGrid.style.display = 'none';
+    customUpload.style.display = '';
+    heygenSelectedAvatarId = null;
+    loadPodcastImagesForAvatar();
+  }
+}
+
+function onHeyGenImagePick(input) {
+  const file = input.files[0];
+  if (!file) return;
+  heygenSelectedServerImage = null;
+  document.querySelectorAll('#heygen-podcast-img-grid .podcast-img-card').forEach(c => c.style.borderColor = 'var(--border)');
+  const pill = document.getElementById('heygen-img-pill');
+  document.getElementById('heygen-img-thumb').src = URL.createObjectURL(file);
+  document.getElementById('heygen-img-name').textContent = file.name;
+  document.getElementById('heygen-img-size').textContent = `${(file.size / 1024).toFixed(0)} KB`;
+  pill.classList.add('show');
+  document.getElementById('heygen-img-dz').style.display = 'none';
+}
+
+function clearHeyGenImage() {
+  document.getElementById('heygen-img-input').value = '';
+  document.getElementById('heygen-img-thumb').src = '';
+  document.getElementById('heygen-img-pill').classList.remove('show');
+  document.getElementById('heygen-img-dz').style.display = '';
+  heygenSelectedServerImage = null;
+  // deselect podcast image cards
+  document.querySelectorAll('#heygen-podcast-img-grid .podcast-img-card').forEach(c => c.style.borderColor = 'var(--border)');
+}
+
+let heygenSelectedServerImage = null; // server path of selected podcast image
+
+async function loadPodcastImagesForAvatar() {
+  const grid = document.getElementById('heygen-podcast-img-grid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/story-history');
+    const data = await res.json();
+    const podcasts = (data.history || []).filter(h => h.type === 'podcast' && h.scenes?.[0]?.imageStatus === 'completed' && h.scenes[0].imageThumbUrl);
+    if (!podcasts.length) {
+      grid.innerHTML = '<div style="font-size:11px;color:var(--muted)">No podcast images yet</div>';
+      return;
+    }
+    grid.innerHTML = podcasts.map(p => {
+      const sc = p.scenes[0];
+      const genderCap = p.gender === 'girl' ? 'Girl' : 'Boy';
+      const time = new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `<div class="podcast-img-card" onclick="selectPodcastImageForAvatar('${sc.imageUrl}', this)" style="cursor:pointer;border:2px solid var(--border);border-radius:8px;padding:4px;width:72px;text-align:center;transition:border-color .15s">
+        <img src="${sc.imageThumbUrl}" style="width:64px;height:auto;border-radius:6px;display:block;margin:0 auto" />
+        <div style="font-size:9px;color:var(--muted);margin-top:3px">🎙 ${genderCap} · ${time}</div>
+      </div>`;
+    }).join('');
+  } catch (e) { console.warn('loadPodcastImagesForAvatar:', e); }
+}
+
+function selectPodcastImageForAvatar(serverPath, el) {
+  heygenSelectedServerImage = serverPath;
+  // Clear file input since we're using a server image
+  document.getElementById('heygen-img-input').value = '';
+  document.getElementById('heygen-img-pill').classList.remove('show');
+  document.getElementById('heygen-img-dz').style.display = '';
+  // Highlight selected card
+  document.querySelectorAll('#heygen-podcast-img-grid .podcast-img-card').forEach(c => c.style.borderColor = 'var(--border)');
+  el.style.borderColor = 'var(--accent)';
+  // Show pill with preview
+  document.getElementById('heygen-img-thumb').src = serverPath;
+  document.getElementById('heygen-img-name').textContent = 'Podcast image';
+  document.getElementById('heygen-img-size').textContent = 'From history';
+  document.getElementById('heygen-img-pill').classList.add('show');
+  document.getElementById('heygen-img-dz').style.display = 'none';
 }
 
 function renderBridgeModelGrid() {
@@ -1377,21 +1670,48 @@ function fmtSize(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/104857
 
 // ══════ Avatar submit ══════
 async function submitAvatar() {
-  const img = document.getElementById('img-input').files[0];
   const aud = document.getElementById('aud-input').files[0];
   const prompt = document.getElementById('avatar-prompt').value.trim();
-  if (!img) { setStatus('avatar','error','⚠ Please select a portrait image.'); return; }
+  const isHeyGen = (models || []).find(m => m.id === selectedModel)?.isHeyGen;
+
   if (!aud) { setStatus('avatar','error','⚠ Please select an audio file.'); return; }
+
+  if (isHeyGen) {
+    const heygenSource = document.querySelector('input[name="heygen-source"]:checked')?.value || 'builtin';
+    if (heygenSource === 'builtin' && !heygenSelectedAvatarId) {
+      setStatus('avatar','error','⚠ Please select a built-in avatar from the grid.'); return;
+    }
+    if (heygenSource === 'custom' && !document.getElementById('heygen-img-input').files[0] && !heygenSelectedServerImage) {
+      setStatus('avatar','error','⚠ Please upload a custom portrait image or select a podcast image.'); return;
+    }
+  } else {
+    const img = document.getElementById('img-input').files[0];
+    if (!img) { setStatus('avatar','error','⚠ Please select a portrait image.'); return; }
+  }
 
   setBtnLoading('avatar', true);
   setStatus('avatar','loading','⏳ Uploading and submitting...');
   hideResult('avatar');
 
   const fd = new FormData();
-  fd.append('image', img);
-  fd.append('audio', aud);
   fd.append('model', selectedModel);
+  fd.append('audio', aud);
   if (prompt) fd.append('prompt', prompt);
+
+  if (isHeyGen) {
+    const heygenSource = document.querySelector('input[name="heygen-source"]:checked')?.value || 'builtin';
+    if (heygenSource === 'builtin') {
+      fd.append('heygenAvatarId', heygenSelectedAvatarId);
+    } else if (heygenSelectedServerImage) {
+      fd.append('imageServerPath', heygenSelectedServerImage);
+    } else {
+      fd.append('image', document.getElementById('heygen-img-input').files[0]);
+    }
+    const heygenRes = document.querySelector('input[name="heygen-res"]:checked')?.value || '1080x1920';
+    fd.append('resolution', heygenRes);
+  } else {
+    fd.append('image', document.getElementById('img-input').files[0]);
+  }
 
   try {
     const res = await fetch('/api/generate-avatar', { method: 'POST', body: fd });
@@ -1540,6 +1860,10 @@ async function submitBridge() {
     fd.append('model', selectedBridgeModel);
     fd.append('duration', duration);
     if (prompt) fd.append('prompt', prompt);
+    if (bridgeMusicFile) {
+      if (bridgeMusicFile.isUploadRef) fd.append('musicFileRef', bridgeMusicFile.serverPath);
+      else fd.append('musicFile', bridgeMusicFile.file);
+    }
 
     try {
       const res = await fetch('/api/generate-bridge', { method: 'POST', body: fd });
@@ -1568,6 +1892,10 @@ async function submitBridge() {
     fd.append('model', selectedBridgeModel);
     fd.append('duration', duration);
     if (prompt) fd.append('prompt', prompt);
+    if (bridgeMusicFile) {
+      if (bridgeMusicFile.isUploadRef) fd.append('musicFileRef', bridgeMusicFile.serverPath);
+      else fd.append('musicFile', bridgeMusicFile.file);
+    }
 
     try {
       const res = await fetch('/api/generate-bridge-auto', { method: 'POST', body: fd });
@@ -1631,7 +1959,7 @@ function setBtnLoading(type, on) {
   const tx = document.getElementById(`${type}-btn-text`);
   btn.disabled = on;
   sp.style.display = on ? 'block' : 'none';
-  tx.textContent = on ? 'Submitting...' : (type === 'avatar' ? '✨ Generate Avatar Video' : type === 'bridge' ? '🔗 Generate CTA Bridge' : '🎬 Generate Video');
+  tx.textContent = on ? 'Processing...' : (type === 'avatar' ? '✨ Generate Avatar Video' : type === 'bridge' ? '🔗 Generate CTA Bridge' : type === 'am' ? '🎵 Mix Music Into Video' : '🎬 Generate Video');
 }
 
 function setStatus(type, state, msg) {
@@ -1664,6 +1992,7 @@ async function loadHistory() {
     const data = await res.json();
     renderHistory(data.history);
     updatePendingBadge(data.history);
+    populateAmVideoSelect(data.history);
   } catch {}
 }
 
@@ -2492,6 +2821,104 @@ function handleMusicFilePick(input) {
   }
 }
 
+function handleBridgeMusicFilePick(input) {
+  if (input.files[0]) {
+    const file = input.files[0];
+    bridgeMusicFile = { file, isUploadRef: false, name: file.name };
+    document.getElementById('bridge-music-label').innerHTML = `🎵 <strong>${file.name}</strong> (${(file.size / 1024).toFixed(0)} KB)`;
+  }
+}
+
+// ── Add Music to Video ────────────────────────────────────────────────────────
+let amMusicFile = null; // { file } or { isUploadRef, serverPath, name }
+
+function handleAmMusicPick(input) {
+  if (input.files[0]) {
+    const file = input.files[0];
+    amMusicFile = { file, isUploadRef: false, name: file.name };
+    document.getElementById('am-music-label').innerHTML = `🎵 <strong>${file.name}</strong> (${(file.size / 1024).toFixed(0)} KB)`;
+  }
+}
+
+function populateAmVideoSelect(history) {
+  const sel = document.getElementById('am-video-select');
+  if (!sel) return;
+  const videos = (history || []).filter(h => h.videoUrl && h.status === 'completed');
+  sel.innerHTML = '<option value="">— select from output history —</option>' +
+    videos.map(h => {
+      const label = h.modelLabel || h.type || 'video';
+      const time = h.completedAt ? new Date(h.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      return `<option value="${h.videoUrl}">${label} · ${time} · ${h.filename || ''}</option>`;
+    }).join('');
+}
+
+async function submitAddMusic() {
+  const sel = document.getElementById('am-video-select');
+  const uploadInput = document.getElementById('am-video-upload');
+  const volume = parseFloat(document.getElementById('am-volume').value) / 100;
+
+  // Resolve video source
+  const selectedPath = sel.value; // e.g. /output/xxx.mp4
+  const uploadedVideo = uploadInput.files[0];
+  if (!selectedPath && !uploadedVideo) {
+    showAmStatus('error', '⚠ Please select or upload a video.');
+    return;
+  }
+  if (!amMusicFile) {
+    showAmStatus('error', '⚠ Please select a music file.');
+    return;
+  }
+
+  setBtnLoading('am', true);
+  showAmStatus('loading', '⏳ Mixing music into video...');
+  document.getElementById('am-result').style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('volume', volume.toString());
+
+  if (uploadedVideo) {
+    // For uploaded video we need server-side path — upload it first via a temp endpoint
+    // Instead: send as videoPath using the output path from select, or handle uploaded separately
+    // Since we don't have a generic upload endpoint, only support server-side paths for now
+    showAmStatus('error', '⚠ Please select a video from the history dropdown (upload not supported for this tool).');
+    setBtnLoading('am', false);
+    return;
+  }
+
+  // Strip leading slash and use as relative path
+  const relPath = selectedPath.startsWith('/') ? selectedPath.slice(1) : selectedPath;
+  fd.append('videoPath', relPath);
+
+  if (amMusicFile.isUploadRef) fd.append('musicFileRef', amMusicFile.serverPath);
+  else fd.append('musicFile', amMusicFile.file);
+
+  try {
+    const res = await fetch('/api/add-music-to-video', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed.');
+
+    showAmStatus('success', '✅ Music mixed successfully!');
+    const vidEl = document.getElementById('am-video');
+    const dlEl = document.getElementById('am-dl');
+    vidEl.src = data.videoUrl + '?t=' + Date.now();
+    dlEl.href = data.videoUrl;
+    dlEl.download = data.filename;
+    document.getElementById('am-result').style.display = '';
+  } catch (err) {
+    showAmStatus('error', `❌ ${err.message}`);
+  } finally {
+    setBtnLoading('am', false);
+  }
+}
+
+function showAmStatus(type, msg) {
+  const box = document.getElementById('am-status');
+  const txt = document.getElementById('am-status-text');
+  box.style.display = '';
+  txt.textContent = msg;
+  box.style.borderColor = type === 'error' ? 'var(--red)' : type === 'success' ? 'var(--green)' : 'var(--accent)';
+}
+
 // ── Media Picker (re-use already-uploaded files) ──────────────────────────────
 let _mpTarget = null;   // 'hero' | 'bg' | 'music'
 let _mpFilter = null;   // 'image' | 'audio'
@@ -2503,7 +2930,7 @@ async function openMediaPicker(target, filter) {
   _mpFilter = filter;
   _mpSelected = null;
 
-  const titles = { hero: '🦸 Choose Hero Image', bg: '🏞 Choose Background Image', music: '🎵 Choose Music File' };
+  const titles = { hero: '🦸 Choose Hero Image', bg: '🏞 Choose Background Image', music: '🎵 Choose Music File', 'bridge-music': '🎵 Choose Bridge Music File', 'am-music': '🎵 Choose Music File' };
   document.getElementById('media-picker-title').textContent = titles[target] || '📂 Choose from Uploads';
   document.getElementById('media-picker-select-btn').disabled = true;
   document.getElementById('media-picker-modal').classList.add('show');
@@ -2596,6 +3023,12 @@ function confirmMediaPick() {
   } else if (_mpTarget === 'music') {
     storyMusicFile = { file: null, isUploadRef: true, serverPath, name: filename };
     document.getElementById('music-label').innerHTML = `🎵 <strong>${filename}</strong> (from uploads)`;
+  } else if (_mpTarget === 'bridge-music') {
+    bridgeMusicFile = { file: null, isUploadRef: true, serverPath, name: filename };
+    document.getElementById('bridge-music-label').innerHTML = `🎵 <strong>${filename}</strong> (from uploads)`;
+  } else if (_mpTarget === 'am-music') {
+    amMusicFile = { file: null, isUploadRef: true, serverPath, name: filename };
+    document.getElementById('am-music-label').innerHTML = `🎵 <strong>${filename}</strong> (from uploads)`;
   }
 
   closeMediaPicker();

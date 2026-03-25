@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 import { uploadBridge } from '../lib/multer.js';
 import { AVATAR_MODELS } from '../lib/models.js';
 import { fileToDataURI, getMimeType, downloadVideo } from '../lib/helpers.js';
-import { extractLastFrame, concatVideos } from '../lib/ffmpeg.js';
+import { extractLastFrame, concatVideos, mixMusicIntoVideo } from '../lib/ffmpeg.js';
 import { imageSubmitAndPollOwn, submitAndPoll } from '../lib/runware.js';
 import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
 
@@ -28,13 +28,25 @@ const API_KEY = process.env.RUNWARE_API_KEY;
 router.post('/api/generate-bridge', uploadBridge.fields([
   { name: 'video', maxCount: 1 },
   { name: 'ctaImage', maxCount: 1 },
+  { name: 'musicFile', maxCount: 1 },
 ]), async (req, res) => {
   const videoFile = req.files?.video?.[0];
   const ctaFile = req.files?.ctaImage?.[0];
+  const musicFile = req.files?.musicFile?.[0];
+  const musicFileRef = (req.body.musicFileRef || '').trim(); // server-side music path from uploads
   const prompt = (req.body.prompt || '').trim().slice(0, 2500);
   const model = req.body.model || 'google:3@2';
   const bridgeDuration = parseInt(req.body.duration || '7');
   const videoPath = (req.body.videoPath || '').trim(); // server-side path for podcast videos
+
+  // Resolve music: uploaded file or server-side ref
+  let resolvedMusicPath = musicFile?.path || null;
+  if (!resolvedMusicPath && musicFileRef) {
+    const cleanRef = musicFileRef.replace(/^[/\\]+/, '');
+    const absMusicPath = path.normalize(path.resolve(cleanRef));
+    const uploadsDir = path.normalize(path.resolve('uploads'));
+    if (absMusicPath.startsWith(uploadsDir)) resolvedMusicPath = absMusicPath;
+  }
 
   const modelInfo = AVATAR_MODELS.find(m => m.id === model);
   const modelLabel = modelInfo?.label || (model.includes('veo') ? (model.includes('fast') ? 'Google Veo 3.1 Fast' : 'Google Veo 3.1') : model);
@@ -97,9 +109,13 @@ router.post('/api/generate-bridge', uploadBridge.fields([
 
   const runware = new Runware({ apiKey: API_KEY });
   (async () => {
-    const frameJpg = path.join('uploads', `frame_${Date.now()}.jpg`);
-    const bridgeGenerated = path.join('output', `bridge_gen_${Date.now()}.mp4`);
-    const bridgeFinal = path.join('output', `bridge_final_${Date.now()}.mp4`);
+    const ts = Date.now();
+    const frameJpg = path.join('uploads', `frame_${ts}.jpg`);
+    const bridgeGenerated = path.join('output', `bridge_gen_${ts}.mp4`);
+    const bridgeConcatted = path.join('output', `bridge_concat_${ts}.mp4`);
+    const bridgeFinal = resolvedMusicPath
+      ? path.join('output', `bridge_final_${ts}.mp4`)
+      : bridgeConcatted;
 
     try {
       await runware.ensureConnection();
@@ -119,7 +135,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       const requestPayload = {
         taskUUID,
         model,
-        positivePrompt: (prompt ? prompt + '. ' : '') + 'Smooth cinematic transition from first frame to last frame. No person talking, no lip movement, no human speech, no facial animation. Only visual transition, zoom, pan, or motion graphics moving toward the final CTA frame.',
+        positivePrompt: (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.',
         duration: bridgeDuration,
         outputFormat: 'mp4',
         numberResults: 1,
@@ -138,9 +154,17 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       console.log(`[Bridge] ✅ Bridge video downloaded`);
 
       // Step 5: Concatenate original + bridge
-      console.log(`[Bridge] Concatenating: ${resolvedVideoPath} + ${bridgeGenerated} → ${bridgeFinal}`);
-      await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeFinal);
+      console.log(`[Bridge] Concatenating: ${resolvedVideoPath} + ${bridgeGenerated} → ${bridgeConcatted}`);
+      await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted);
       console.log(`[Bridge] ✅ Concatenation complete`);
+
+      // Step 6 (optional): Mix background music at low volume
+      if (resolvedMusicPath) {
+        console.log(`[Bridge] Mixing bg music (vol 0.15): ${resolvedMusicPath}`);
+        await mixMusicIntoVideo(bridgeConcatted, resolvedMusicPath, bridgeFinal, 0.25);
+        console.log(`[Bridge] ✅ Music mixed`);
+        await unlink(bridgeConcatted).catch(() => {});
+      }
 
       const filename = path.basename(bridgeFinal);
       const resolvedCost = result.cost ?? null;
@@ -163,9 +187,11 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
     } finally {
       runware.disconnect();
-      // Only delete if it was an uploaded temp file (not a server-side path)
       if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
       await unlink(ctaFile.path).catch(() => {});
+      if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+      await unlink(frameJpg).catch(() => {});
+      await unlink(bridgeGenerated).catch(() => {});
     }
   })();
 });
@@ -175,12 +201,24 @@ router.post('/api/generate-bridge', uploadBridge.fields([
 // image → generate bridge video → concat original + bridge into final MP4
 router.post('/api/generate-bridge-auto', uploadBridge.fields([
   { name: 'video', maxCount: 1 },
+  { name: 'musicFile', maxCount: 1 },
 ]), async (req, res) => {
   const videoFile = req.files?.video?.[0];
+  const musicFile = req.files?.musicFile?.[0];
+  const musicFileRef = (req.body.musicFileRef || '').trim();
   const prompt = (req.body.prompt || '').trim().slice(0, 2500);
   const model = req.body.model || 'google:3@2';
   const bridgeDuration = parseInt(req.body.duration || '7');
   const videoPath = (req.body.videoPath || '').trim();
+
+  // Resolve music
+  let resolvedMusicPath = musicFile?.path || null;
+  if (!resolvedMusicPath && musicFileRef) {
+    const cleanRef = musicFileRef.replace(/^[/\\]+/, '');
+    const absMusicPath = path.normalize(path.resolve(cleanRef));
+    const uploadsDir = path.normalize(path.resolve('uploads'));
+    if (absMusicPath.startsWith(uploadsDir)) resolvedMusicPath = absMusicPath;
+  }
 
   // Resolve video source
   let resolvedVideoPath = videoFile?.path || null;
@@ -237,10 +275,14 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
   res.json({ success: true, taskUUID, status: 'pending', message: 'Auto bridge pipeline started.' });
 
   (async () => {
-    const frameJpg = path.join('uploads', `frame_${Date.now()}.jpg`);
+    const ts2 = Date.now();
+    const frameJpg = path.join('uploads', `frame_${ts2}.jpg`);
     const ctaDir = path.join('output', 'cta_frames', taskUUID);
-    const bridgeGenerated = path.join('output', `bridge_gen_${Date.now()}.mp4`);
-    const bridgeFinal = path.join('output', `bridge_final_${Date.now()}.mp4`);
+    const bridgeGenerated = path.join('output', `bridge_gen_${ts2}.mp4`);
+    const bridgeConcatted = path.join('output', `bridge_concat_${ts2}.mp4`);
+    const bridgeFinal = resolvedMusicPath
+      ? path.join('output', `bridge_final_${ts2}.mp4`)
+      : bridgeConcatted;
 
     try {
       await mkdir(ctaDir, { recursive: true });
@@ -294,7 +336,7 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
       const requestPayload = {
         taskUUID: bridgeTaskUUID,
         model,
-        positivePrompt: (prompt ? prompt + '. ' : '') + 'Smooth cinematic transition from first frame to last frame. No person talking, no lip movement, no human speech, no facial animation. Only visual transition, zoom, pan, or motion graphics moving toward the final CTA frame.',
+        positivePrompt: (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.',
         duration: bridgeDuration,
         outputFormat: 'mp4',
         numberResults: 1,
@@ -313,9 +355,17 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
       await downloadVideo(vidResult.videoURL, bridgeGenerated);
 
       // Step 5: Concat original video + bridge video
-      console.log(`[Bridge-Auto] Concatenating: original + bridge → ${bridgeFinal}`);
-      await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeFinal);
+      console.log(`[Bridge-Auto] Concatenating: original + bridge → ${bridgeConcatted}`);
+      await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted);
       console.log(`[Bridge-Auto] ✅ Concatenation complete`);
+
+      // Step 6 (optional): Mix background music at low volume
+      if (resolvedMusicPath) {
+        console.log(`[Bridge-Auto] Mixing bg music (vol 0.15): ${resolvedMusicPath}`);
+        await mixMusicIntoVideo(bridgeConcatted, resolvedMusicPath, bridgeFinal, 0.25);
+        console.log(`[Bridge-Auto] ✅ Music mixed`);
+        await unlink(bridgeConcatted).catch(() => {});
+      }
 
       const filename = path.basename(bridgeFinal);
       const totalCost = (ctaResult.cost ?? 0) + (vidResult.cost ?? 0);
@@ -338,10 +388,61 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
       updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
     } finally {
       if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
+      if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
       await unlink(frameJpg).catch(() => {});
       await unlink(bridgeGenerated).catch(() => {});
     }
   })();
+});
+
+// ── POST /api/add-music-to-video ─────────────────────────────────────────────
+// Mixes background music into an already-generated video (from history).
+// Body (multipart): videoPath (server-side output/ path), musicFile or musicFileRef, volume (0-1)
+router.post('/api/add-music-to-video', uploadBridge.fields([
+  { name: 'musicFile', maxCount: 1 },
+]), async (req, res) => {
+  const musicFile = req.files?.musicFile?.[0];
+  const musicFileRef = (req.body.musicFileRef || '').trim();
+  const videoPath = (req.body.videoPath || '').trim();
+  const volume = Math.min(1, Math.max(0.05, parseFloat(req.body.volume || '0.25')));
+
+  // Resolve video
+  if (!videoPath) return res.status(400).json({ error: 'videoPath is required.' });
+  const absVideoPath = path.normalize(path.resolve(videoPath));
+  const outputDir = path.normalize(path.resolve('output'));
+  if (!absVideoPath.startsWith(outputDir)) {
+    return res.status(400).json({ error: 'videoPath must be within the output directory.' });
+  }
+  try { await access(absVideoPath); } catch {
+    return res.status(400).json({ error: 'Video file not found on server.' });
+  }
+
+  // Resolve music
+  let resolvedMusicPath = musicFile?.path || null;
+  if (!resolvedMusicPath && musicFileRef) {
+    const cleanRef = musicFileRef.replace(/^[/\\]+/, ''); // strip leading slashes
+    const absMusicPath = path.normalize(path.resolve(cleanRef));
+    const uploadsDir = path.normalize(path.resolve('uploads'));
+    if (absMusicPath.startsWith(uploadsDir)) resolvedMusicPath = absMusicPath;
+  }
+  if (!resolvedMusicPath) return res.status(400).json({ error: 'Music file is required.' });
+
+  const ts = Date.now();
+  const outputFilename = `with_music_${ts}.mp4`;
+  const outputPath = path.join('output', outputFilename);
+
+  console.log(`\n[AddMusic] Video: ${path.basename(absVideoPath)} | vol: ${volume}`);
+
+  try {
+    await mixMusicIntoVideo(absVideoPath, resolvedMusicPath, outputPath, volume);
+    console.log(`[AddMusic] ✅ Done → ${outputFilename}`);
+    res.json({ success: true, videoUrl: `/output/${outputFilename}`, filename: outputFilename });
+  } catch (err) {
+    console.error(`[AddMusic] ❌ ${err.message}`);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+  }
 });
 
 export default router;

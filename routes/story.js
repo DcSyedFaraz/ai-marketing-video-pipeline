@@ -472,9 +472,10 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
         const heroDataURIMap = {};
         for (const heroName of (current.namedHeroes || [])) {
           const slug = heroName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
-          heroDataURIMap[heroName] = heroPaths
-            .filter(p => p && p.includes(`/heroes/${slug}/`) && existsSync(p))
-            .map(p => fileToDataURI(p, getMimeType(p)));
+          const matchingPaths = heroPaths
+            .filter(p => p && p.replace(/\\/g, '/').includes(`/heroes/${slug}/`) && existsSync(p));
+          heroDataURIMap[heroName] = matchingPaths.map(p => fileToDataURI(p, getMimeType(p)));
+          console.log(`[Story] Hero "${heroName}" (slug: ${slug}): ${matchingPaths.length} ref image(s) matched from ${heroPaths.length} total paths`);
         }
 
         let bgDataURI = null;
@@ -486,6 +487,12 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
 
         if (heroDataURIs.length > 0) {
           console.log(`[Story] Loaded ${heroDataURIs.length} hero ref image(s) for this run`);
+        } else if ((current.namedHeroes?.length || 0) > 0) {
+          // Heroes selected but no reference images found — abort
+          const msg = `No hero reference images found on disk for [${current.namedHeroes.join(', ')}]. Please upload hero images before generating.`;
+          console.error(`[Story] ❌ ${msg}`);
+          updateStoryEntry(taskUUID, { status: 'failed', error: msg });
+          return;
         }
 
         // Build all image jobs: mode-aware
@@ -638,7 +645,17 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
               const scene = current.scenes[job.i];
               const suffix = job.type === 'cta' ? '-CTA' : (job.type === 'imageB' ? '-FrameB' : '');
               const label = `Story-Scene${scene.sceneNumber}${suffix}-Img`;
-              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: submitting on shared connection | taskUUID: ${job.task.taskUUID}`);
+              const refs = job.task.payload.inputs?.referenceImages || [];
+              const heroNames = scene.heroes?.length ? scene.heroes.join(', ') : 'all';
+              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: heroes=[${heroNames}] | heroRefs=${refs.length} | taskUUID: ${job.task.taskUUID}`);
+              // Log full payload with base64 truncated for readability
+              const debugPayload = JSON.parse(JSON.stringify(job.task.payload));
+              if (debugPayload.inputs?.referenceImages) {
+                debugPayload.inputs.referenceImages = debugPayload.inputs.referenceImages.map(r =>
+                  typeof r === 'string' && r.startsWith('data:') ? `${r.slice(0, 30)}...(${(r.length/1024).toFixed(0)}KB)` : r
+                );
+              }
+              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: REQUEST →`, JSON.stringify(debugPayload));
               await imgConn.imageInference({ ...job.task.payload, includeCost: true, skipResponse: true, deliveryMethod: 'async' });
               const img = await imgPoller.register(job.task.taskUUID, 'image', label);
               console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: poll fulfilled | raw keys: ${Object.keys(img || {}).join(', ')}`);
@@ -1968,6 +1985,16 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
   const results = await Promise.allSettled(
     jobs.map(async (job) => {
       const label = `Story-Scene${freshScene.sceneNumber}${job.type === 'cta' ? '-CTA' : job.type === 'imageB' ? '-FrameB' : ''}-Img-Solo`;
+      const refs = job.task.payload.inputs?.referenceImages || [];
+      const heroNames = freshScene.heroes?.length ? freshScene.heroes.join(', ') : 'all';
+      console.log(`[${label}] heroes=[${heroNames}] | heroRefs=${refs.length} | taskUUID: ${job.task.taskUUID}`);
+      const debugPayload = JSON.parse(JSON.stringify(job.task.payload));
+      if (debugPayload.inputs?.referenceImages) {
+        debugPayload.inputs.referenceImages = debugPayload.inputs.referenceImages.map(r =>
+          typeof r === 'string' && r.startsWith('data:') ? `${r.slice(0, 30)}...(${(r.length/1024).toFixed(0)}KB)` : r
+        );
+      }
+      console.log(`[${label}] REQUEST →`, JSON.stringify(debugPayload));
       const img = await imageSubmitAndPollOwn(API_KEY, job.task.payload, label);
       return { type: job.type, img };
     })

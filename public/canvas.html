@@ -2144,11 +2144,15 @@ function diskPathToUrl(p) {
   if (!p) return null;
   // Already a web URL
   if (p.startsWith('/') || p.startsWith('http')) return p;
-  // Windows absolute path — extract filename and serve from /uploads/ or /public/
-  const filename = p.replace(/\\/g, '/').split('/').pop();
-  if (p.includes('uploads')) return `/uploads/${filename}`;
-  if (p.includes('public'))  return `/${filename}`;
-  return `/uploads/${filename}`; // fallback
+  // Windows/Unix absolute path — extract path relative to uploads/ or public/
+  const norm = p.replace(/\\/g, '/');
+  const uploadsIdx = norm.indexOf('/uploads/');
+  if (uploadsIdx >= 0) return norm.slice(uploadsIdx); // e.g. /uploads/heroes/ra-keth/img.png
+  const publicIdx = norm.indexOf('/public/');
+  if (publicIdx >= 0) return norm.slice(publicIdx + '/public'.length);
+  // Fallback: just the filename
+  const filename = norm.split('/').pop();
+  return `/uploads/${filename}`;
 }
 
 // ── Detail: Input ──
@@ -2388,25 +2392,22 @@ function buildDetailImageA(scene, i, entry, idle) {
         closeDetail();
       }});
     } else {
-      // If pipeline is idle: retry-scene runs this scene + all following pending scenes
-      // If pipeline is busy: run-single-scene runs ONLY this one scene independently
+      // Run This Scene: always runs ONLY this specific scene's image
       const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
       const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
       footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
         const p = document.getElementById('edit-img-prompt')?.value;
         const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
-        callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+        callApi(singleEndpoint, 'POST', body);
         closeDetail();
       }});
-      if (!idle) {
-        // Also offer "run all pending from here" even while busy (retry-scene will queue after current)
-        footerBtns.push({ text: '▶ Run All Pending', fn: () => {
-          const p = document.getElementById('edit-img-prompt')?.value;
-          const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
-          callApi(fullEndpoint, 'POST', body);
-          closeDetail();
-        }});
-      }
+      // Also offer "run all pending from here"
+      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+        const p = document.getElementById('edit-img-prompt')?.value;
+        const body = p && p !== scene.imagePrompt ? { imagePrompt: p } : undefined;
+        callApi(fullEndpoint, 'POST', body);
+        closeDetail();
+      }});
     }
   }
   if (idle && status === 'completed') {
@@ -2465,16 +2466,14 @@ function buildDetailImageB(scene, i, entry, idle) {
     footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
       const p = document.getElementById('edit-imgb-prompt')?.value;
       const body = p && p !== scene.imageBPrompt ? { imagePrompt: p } : undefined;
-      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      callApi(singleEndpoint, 'POST', body);
       closeDetail();
     }});
-    if (!idle) {
-      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
-        const p = document.getElementById('edit-imgb-prompt')?.value;
-        callApi(fullEndpoint, 'POST', p && p !== scene.imageBPrompt ? { imagePrompt: p } : undefined);
-        closeDetail();
-      }});
-    }
+    footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+      const p = document.getElementById('edit-imgb-prompt')?.value;
+      callApi(fullEndpoint, 'POST', p && p !== scene.imageBPrompt ? { imagePrompt: p } : undefined);
+      closeDetail();
+    }});
   }
   if (idle && status === 'completed') {
     footerBtns.push({ text: '🖼 Regenerate Image', fn: () => {
@@ -2529,16 +2528,14 @@ function buildDetailCta(scene, i, entry, idle) {
     footerBtns.push({ text: '▶ Run This Scene', cls: 'green', fn: () => {
       const p = document.getElementById('edit-cta-prompt')?.value;
       const body = p && p !== scene.ctaImagePrompt ? { ctaImagePrompt: p } : undefined;
-      callApi(idle ? fullEndpoint : singleEndpoint, 'POST', body);
+      callApi(singleEndpoint, 'POST', body);
       closeDetail();
     }});
-    if (!idle) {
-      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
-        const p = document.getElementById('edit-cta-prompt')?.value;
-        callApi(fullEndpoint, 'POST', p && p !== scene.ctaImagePrompt ? { ctaImagePrompt: p } : undefined);
-        closeDetail();
-      }});
-    }
+    footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+      const p = document.getElementById('edit-cta-prompt')?.value;
+      callApi(fullEndpoint, 'POST', p && p !== scene.ctaImagePrompt ? { ctaImagePrompt: p } : undefined);
+      closeDetail();
+    }});
   }
   if (idle && status === 'completed') {
     footerBtns.push({ text: '🎯 Regenerate CTA', fn: () => {
@@ -2623,15 +2620,13 @@ function buildDetailVideo(scene, i, entry, idle, isFP) {
       const singleEndpoint = `/api/run-single-scene/${entry.taskUUID}/${i}`;
       const fullEndpoint = `/api/retry-scene/${entry.taskUUID}/${i}`;
       footerBtns.push({ text: '▶ Run This Video', cls: 'green', fn: () => {
-        callApi(idle ? fullEndpoint : singleEndpoint, 'POST', getVideoEditBody());
+        callApi(singleEndpoint, 'POST', getVideoEditBody());
         closeDetail();
       }});
-      if (!idle) {
-        footerBtns.push({ text: '▶ Run All Pending', fn: () => {
-          callApi(fullEndpoint, 'POST', getVideoEditBody());
-          closeDetail();
-        }});
-      }
+      footerBtns.push({ text: '▶ Run All Pending', fn: () => {
+        callApi(fullEndpoint, 'POST', getVideoEditBody());
+        closeDetail();
+      }});
     }
   }
   if (idle && status === 'completed') {
@@ -3811,6 +3806,18 @@ async function submitNewStory() {
   const storyText = document.getElementById('ns-story-text').value.trim();
   const planRaw   = document.getElementById('ns-plan-json').value.trim();
   if (!storyText && !planRaw) { alert('Please enter a story/script or inject a planning JSON.'); return; }
+  if (!nsNamedHeroes.length) { alert('Please select at least 1 hero from the catalog.'); return; }
+
+  // Validate that selected heroes have reference images uploaded
+  const heroes = Array.isArray(_nsCatalogData) ? _nsCatalogData : [];
+  const heroesWithoutImages = nsNamedHeroes.filter(name => {
+    const h = heroes.find(x => x.name === name);
+    return !h?.images?.length;
+  });
+  if (heroesWithoutImages.length) {
+    alert(`These heroes have no reference images uploaded: ${heroesWithoutImages.join(', ')}.\nPlease upload hero images first (click the hero card → Manage Images).`);
+    return;
+  }
 
   const btn = document.getElementById('ns-submit-btn');
   btn.disabled = true;

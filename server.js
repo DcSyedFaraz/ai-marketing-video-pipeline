@@ -26,15 +26,16 @@ import 'dotenv/config';
 import express from 'express';
 import { mkdir } from 'fs/promises';
 
-import avatarRouter   from './routes/avatar.js';
-import veoRouter      from './routes/veo.js';
-import bridgeRouter   from './routes/bridge.js';
-import lipsyncRouter  from './routes/lipsync.js';
-import combineRouter  from './routes/combine.js';
-import ctaFrameRouter from './routes/ctaFrame.js';
-import historyRouter  from './routes/history.js';
-import storyRouter    from './routes/story.js';
-import podcastRouter  from './routes/podcast.js';
+import avatarRouter      from './routes/avatar.js';
+import veoRouter         from './routes/veo.js';
+import bridgeRouter      from './routes/bridge.js';
+import lipsyncRouter     from './routes/lipsync.js';
+import combineRouter     from './routes/combine.js';
+import ctaFrameRouter    from './routes/ctaFrame.js';
+import historyRouter     from './routes/history.js';
+import storyRouter       from './routes/story.js';
+import podcastRouter     from './routes/podcast.js';
+import elevenLabsRouter  from './routes/elevenlabs.js';
 
 const API_KEY = process.env.RUNWARE_API_KEY;
 const PORT = process.env.PORT || 3000;
@@ -66,6 +67,7 @@ app.use(ctaFrameRouter);
 app.use(historyRouter);
 app.use(storyRouter);
 app.use(podcastRouter);
+app.use(elevenLabsRouter);
 
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════════╗');

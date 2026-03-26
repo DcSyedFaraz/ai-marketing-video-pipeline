@@ -294,6 +294,78 @@
     .hero-catalog-item .hc-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
     .hero-catalog-item .hc-class { font-size: 10px; color: var(--accent2); }
     .hero-catalog-item .hc-check { float: right; margin-top: 1px; accent-color: var(--accent); }
+
+    /* ── ElevenLabs audio generation UI ── */
+    .el-source-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .el-source-tab { flex: 1; padding: 9px 10px; border: 2px solid var(--border); border-radius: var(--rs); background: var(--surface2); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; text-align: center; }
+    .el-source-tab.active { border-color: var(--accent); background: rgba(124,58,237,.1); color: var(--text); }
+    .el-source-tab:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+    .el-panel { display: none; }
+    .el-panel.active { display: block; }
+
+    /* Step headers */
+    .el-step { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs); padding: 12px 14px; margin-bottom: 10px; }
+    .el-step-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; font-weight: 700; color: var(--text); }
+    .el-step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .el-step-num.done { background: var(--green); }
+
+    /* Chip selectors */
+    .el-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .el-chip { padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; background: var(--surface2); color: var(--muted); white-space: nowrap; }
+    .el-chip:hover { border-color: var(--accent); color: var(--text); }
+    .el-chip.selected { border-color: var(--accent); background: rgba(124,58,237,.15); color: var(--accent); }
+
+    /* Version toggle (v2/v3) */
+    .el-version-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .el-ver-opt { flex: 1; display: flex; align-items: center; gap: 7px; background: var(--surface2); border: 2px solid var(--border); border-radius: var(--rs); padding: 8px 10px; cursor: pointer; transition: border-color .15s; font-size: 12px; }
+    .el-ver-opt input[type=radio] { width: auto; flex-shrink: 0; accent-color: var(--accent); }
+    .el-ver-opt.selected { border-color: var(--accent); background: rgba(124,58,237,.08); }
+    .el-ver-opt .ver-title { font-weight: 600; }
+    .el-ver-opt .ver-desc { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* Script textarea + word count */
+    .el-script-wrap { position: relative; }
+    .el-word-count { font-size: 10px; color: var(--muted); margin-top: 3px; text-align: right; }
+    .el-word-count.over { color: var(--red); }
+
+    /* Voice grid */
+    .el-voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 7px; max-height: 300px; overflow-y: auto; padding-right: 2px; }
+    .el-voice-card { border: 2px solid var(--border); border-radius: var(--rs); padding: 9px 10px; cursor: pointer; transition: all .15s; background: var(--surface2); }
+    .el-voice-card:hover { border-color: var(--accent); }
+    .el-voice-card.selected { border-color: var(--accent); background: rgba(124,58,237,.12); }
+    .el-voice-name { font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+    .el-voice-badges { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 4px; }
+    .el-voice-badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; }
+    .evb-male   { background: rgba(6,182,212,.15); color: var(--accent2); }
+    .evb-female { background: rgba(236,72,153,.15); color: #ec4899; }
+    .evb-young  { background: rgba(16,185,129,.15); color: var(--green); }
+    .evb-middle_aged { background: rgba(249,115,22,.15); color: var(--orange); }
+    .el-voice-desc { font-size: 10px; color: var(--muted); line-height: 1.3; }
+    .el-voice-preview { margin-top: 5px; width: 100%; padding: 4px 8px; font-size: 10px; font-weight: 600; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); cursor: pointer; transition: all .15s; }
+    .el-voice-preview:hover { border-color: var(--accent2); color: var(--accent2); }
+    .el-voice-preview.playing { border-color: var(--green); color: var(--green); }
+
+    /* Voice filter chips row */
+    .el-voice-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+
+    /* Sliders */
+    .el-slider-row { margin-bottom: 8px; }
+    .el-slider-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .el-slider-label strong { color: var(--text); }
+    input[type=range].el-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+    /* Generated audio confirmed pill */
+    .el-audio-confirmed { display: none; align-items: center; gap: 8px; margin-top: 8px; background: rgba(16,185,129,.1); border: 1px solid var(--green); border-radius: var(--rs); padding: 7px 10px; }
+    .el-audio-confirmed.show { display: flex; }
+    .el-audio-confirmed-icon { font-size: 18px; }
+    .el-audio-confirmed-info { flex: 1; min-width: 0; font-size: 12px; }
+    .el-audio-confirmed-name { font-weight: 600; color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .el-audio-confirmed-size { font-size: 10px; color: var(--muted); }
+
+    /* Audio preview */
+    #el-audio-preview { width: 100%; margin-top: 8px; border-radius: var(--rs); display: none; }
+    #el-audio-preview.show { display: block; }
   </style>
 </head>
 <body>
@@ -429,23 +501,192 @@
           </div>
         </div>
 
-        <!-- Audio -->
+        <!-- Audio — Upload or Generate with ElevenLabs -->
         <div class="fg">
           <label>Audio Track <span class="req">*</span></label>
-          <div class="dropzone" id="aud-dz">
-            <input type="file" id="aud-input" accept=".mp3,.wav,.m4a,.aac,.ogg" />
-            <div class="dz-icon">🎙️</div>
-            <div class="dz-text">Drop audio or <strong>click to browse</strong></div>
-            <div class="dz-hint">MP3, WAV, M4A, AAC · 2–300 sec · max 5 MB</div>
+
+          <!-- Source toggle tabs -->
+          <div class="el-source-tabs">
+            <div class="el-source-tab active" id="el-tab-upload" onclick="elToggleAudioSource('upload')">📁 Upload Audio</div>
+            <div class="el-source-tab" id="el-tab-generate" onclick="elToggleAudioSource('generate')">🎙 Generate with ElevenLabs</div>
           </div>
-          <div class="file-pill" id="aud-pill">
-            <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎵</span>
-            <div class="file-pill-info">
-              <div class="file-pill-name" id="aud-name"></div>
-              <div class="file-pill-size" id="aud-size"></div>
+
+          <!-- ── Panel A: Upload ── -->
+          <div class="el-panel active" id="el-panel-upload">
+            <div class="dropzone" id="aud-dz">
+              <input type="file" id="aud-input" accept=".mp3,.wav,.m4a,.aac,.ogg" />
+              <div class="dz-icon">🎙️</div>
+              <div class="dz-text">Drop audio or <strong>click to browse</strong></div>
+              <div class="dz-hint">MP3, WAV, M4A, AAC · 2–300 sec · max 5 MB</div>
             </div>
-            <button class="file-pill-rm" onclick="clearFile('aud')">✕</button>
+            <div class="file-pill" id="aud-pill">
+              <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎵</span>
+              <div class="file-pill-info">
+                <div class="file-pill-name" id="aud-name"></div>
+                <div class="file-pill-size" id="aud-size"></div>
+              </div>
+              <button class="file-pill-rm" onclick="clearFile('aud')">✕</button>
+            </div>
           </div>
+
+          <!-- ── Panel B: ElevenLabs Generation ── -->
+          <div class="el-panel" id="el-panel-generate">
+
+            <!-- Step 1: Script Generation -->
+            <div class="el-step">
+              <div class="el-step-hdr"><div class="el-step-num" id="el-step1-num">1</div> Generate Script with Claude</div>
+
+              <!-- Content type -->
+              <label>Content Type</label>
+              <div class="el-chips" id="el-type-chips">
+                <div class="el-chip selected" data-val="game"        onclick="elSelectChip('type',this)">🎮 Game</div>
+                <div class="el-chip"          data-val="podcast"     onclick="elSelectChip('type',this)">🎙 Podcast</div>
+                <div class="el-chip"          data-val="ad"          onclick="elSelectChip('type',this)">📣 Ad</div>
+                <div class="el-chip"          data-val="educational" onclick="elSelectChip('type',this)">📚 Educational</div>
+                <div class="el-chip"          data-val="story"       onclick="elSelectChip('type',this)">📖 Story</div>
+              </div>
+
+              <!-- Topic -->
+              <div style="margin-bottom:8px">
+                <label>Topic / Description</label>
+                <textarea id="el-topic" placeholder="What is this audio about? e.g. Promote a mobile game, introduce a product, explain a concept..." style="min-height:56px"></textarea>
+              </div>
+
+              <!-- Duration -->
+              <label>Target Duration</label>
+              <div class="el-chips" id="el-dur-chips">
+                <div class="el-chip" data-val="15"  onclick="elSelectChip('dur',this)">15s</div>
+                <div class="el-chip selected" data-val="30"  onclick="elSelectChip('dur',this)">30s</div>
+                <div class="el-chip" data-val="45"  onclick="elSelectChip('dur',this)">45s</div>
+                <div class="el-chip" data-val="60"  onclick="elSelectChip('dur',this)">60s</div>
+                <div class="el-chip" data-val="90"  onclick="elSelectChip('dur',this)">90s</div>
+              </div>
+
+              <!-- Pacing -->
+              <label>Speaking Pace</label>
+              <div class="el-chips" id="el-pace-chips">
+                <div class="el-chip" data-val="slow"    onclick="elSelectChip('pace',this)">🐢 Slow</div>
+                <div class="el-chip selected" data-val="natural" onclick="elSelectChip('pace',this)">🚶 Natural</div>
+                <div class="el-chip" data-val="fast"    onclick="elSelectChip('pace',this)">⚡ Fast</div>
+              </div>
+
+              <!-- Energy -->
+              <label>Energy Level</label>
+              <div class="el-chips" id="el-energy-chips">
+                <div class="el-chip" data-val="calm"     onclick="elSelectChip('energy',this)">😌 Calm</div>
+                <div class="el-chip selected" data-val="moderate" onclick="elSelectChip('energy',this)">😊 Moderate</div>
+                <div class="el-chip" data-val="high"     onclick="elSelectChip('energy',this)">🔥 High</div>
+              </div>
+
+              <!-- ElevenLabs Version -->
+              <label>ElevenLabs Version</label>
+              <div class="el-version-row" id="el-ver-row">
+                <label class="el-ver-opt selected" id="el-ver-v2-opt" onclick="elSelectVersion('v2')">
+                  <input type="radio" name="el-version" value="v2" checked style="width:auto;accent-color:var(--accent)" />
+                  <div>
+                    <div class="ver-title">v2 — Multilingual</div>
+                    <div class="ver-desc">Stable, natural speech. Recommended for most use cases.</div>
+                  </div>
+                </label>
+                <label class="el-ver-opt" id="el-ver-v3-opt" onclick="elSelectVersion('v3')">
+                  <input type="radio" name="el-version" value="v3" style="width:auto;accent-color:var(--accent)" />
+                  <div>
+                    <div class="ver-title">v3 — Expressive</div>
+                    <div class="ver-desc">Script includes delivery tags for more dynamic, natural-feeling output.</div>
+                  </div>
+                </label>
+              </div>
+              <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.4">
+                💡 <strong>v3 note:</strong> Claude will add delivery cues like <code style="font-size:9px;background:var(--surface);padding:1px 4px;border-radius:3px">[excited]</code> or <code style="font-size:9px;background:var(--surface);padding:1px 4px;border-radius:3px">[dramatic pause]</code> to guide ElevenLabs for more natural delivery. Only tone-affecting tags are used (non-verbal sounds like laughing/sighing are excluded to preserve lip-sync quality).
+              </div>
+
+              <button class="btn btn-cyan" id="el-gen-script-btn" onclick="elGenerateScript()" style="margin-bottom:8px">
+                <span class="spinner" id="el-script-spinner"></span>
+                <span id="el-script-btn-text">✨ Generate Script with Claude</span>
+              </button>
+
+              <!-- Generated/editable script -->
+              <label>Script <small style="font-weight:400">(edit as needed before generating audio)</small></label>
+              <div class="el-script-wrap">
+                <textarea id="el-script" placeholder="Your script will appear here after generation, or type/paste your own..." style="min-height:100px" oninput="elUpdateWordCount()"></textarea>
+                <div class="el-word-count" id="el-word-count">0 words · ~0s estimated</div>
+              </div>
+            </div>
+
+            <!-- Step 2: Voice Selection -->
+            <div class="el-step">
+              <div class="el-step-hdr"><div class="el-step-num" id="el-step2-num">2</div> Select Voice</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+                <div class="el-voice-filters" id="el-voice-filters">
+                  <div class="el-chip selected" data-val="all"      onclick="elFilterVoices('all',this)">All</div>
+                  <div class="el-chip" data-val="young"    onclick="elFilterVoices('young',this)">Young</div>
+                  <div class="el-chip" data-val="female"   onclick="elFilterVoices('female',this)">Female</div>
+                  <div class="el-chip" data-val="male"     onclick="elFilterVoices('male',this)">Male</div>
+                  <div class="el-chip" data-val="energetic" onclick="elFilterVoices('energetic',this)">Energetic</div>
+                  <div class="el-chip" data-val="podcast"  onclick="elFilterVoices('podcast',this)">Podcast</div>
+                  <div class="el-chip" data-val="gaming"   onclick="elFilterVoices('gaming',this)">Gaming</div>
+                </div>
+                <button class="btn-sm" onclick="elLoadVoices()" id="el-reload-voices-btn" style="flex-shrink:0">↻ Reload</button>
+              </div>
+              <div id="el-voice-loading" style="font-size:12px;color:var(--muted);padding:8px 0;display:none">Loading voices...</div>
+              <div class="el-voice-grid" id="el-voice-grid">
+                <!-- populated by JS -->
+              </div>
+              <div id="el-voice-none" style="font-size:12px;color:var(--muted);padding:8px 0;display:none">No voices match this filter.</div>
+            </div>
+
+            <!-- Step 3: Generate Audio -->
+            <div class="el-step">
+              <div class="el-step-hdr"><div class="el-step-num" id="el-step3-num">3</div> Generate Audio</div>
+
+              <!-- Voice settings -->
+              <div class="el-slider-row">
+                <div class="el-slider-label">
+                  <span>Stability <span style="font-size:9px;color:var(--muted)">(Stable ↔ Variable)</span></span>
+                  <strong id="el-stab-val">50</strong>
+                </div>
+                <input type="range" class="el-slider" id="el-stability" min="0" max="100" value="50" oninput="document.getElementById('el-stab-val').textContent=this.value" />
+              </div>
+              <div class="el-slider-row">
+                <div class="el-slider-label">
+                  <span>Clarity <span style="font-size:9px;color:var(--muted)">(Natural ↔ Enhanced)</span></span>
+                  <strong id="el-sim-val">75</strong>
+                </div>
+                <input type="range" class="el-slider" id="el-similarity" min="0" max="100" value="75" oninput="document.getElementById('el-sim-val').textContent=this.value" />
+              </div>
+              <div class="el-slider-row" id="el-style-row" style="display:none">
+                <div class="el-slider-label">
+                  <span>Expressiveness <span style="font-size:9px;color:var(--muted)">(Neutral ↔ Expressive)</span></span>
+                  <strong id="el-sty-val">30</strong>
+                </div>
+                <input type="range" class="el-slider" id="el-style" min="0" max="100" value="30" oninput="document.getElementById('el-sty-val').textContent=this.value" />
+              </div>
+
+              <button class="btn btn-purple" id="el-gen-audio-btn" onclick="elGenerateAudio()">
+                <span class="spinner" id="el-audio-spinner"></span>
+                <span id="el-audio-btn-text">🔊 Generate Audio</span>
+              </button>
+
+              <!-- Preview + use -->
+              <audio id="el-audio-preview" controls></audio>
+              <div id="el-use-audio-wrap" style="display:none;margin-top:6px">
+                <button class="btn btn-cyan" onclick="elUseGeneratedAudio()" style="margin-bottom:0">
+                  ✓ Use This Audio for Avatar
+                </button>
+              </div>
+            </div>
+
+            <!-- Confirmed audio pill (shown after "Use This Audio") -->
+            <div class="el-audio-confirmed" id="el-audio-confirmed">
+              <div class="el-audio-confirmed-icon">🎵</div>
+              <div class="el-audio-confirmed-info">
+                <div class="el-audio-confirmed-name" id="el-confirmed-name">ElevenLabs Audio Ready</div>
+                <div class="el-audio-confirmed-size" id="el-confirmed-desc">Will be used for avatar generation</div>
+              </div>
+              <button class="file-pill-rm" onclick="elClearGeneratedAudio()" title="Remove">✕</button>
+            </div>
+
+          </div><!-- end el-panel-generate -->
         </div>
 
         <!-- Prompt -->
@@ -1668,13 +1909,259 @@ function clearFile(prefix) {
 
 function fmtSize(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
 
+// ══════ ElevenLabs Audio Generation ══════
+// State
+let elVoices = [];           // full voice list from API
+let elSelectedVoiceId = '';  // currently selected voice ID
+let elSelectedVoiceName = '';
+let elGeneratedAudioPath = ''; // server path to generated audio (/uploads/xxx.mp3)
+let elCurrentPreviewAudio = null; // playing preview Audio object
+let elChipState = { type: 'game', dur: '30', pace: 'natural', energy: 'moderate' };
+
+function elToggleAudioSource(source) {
+  document.getElementById('el-tab-upload').classList.toggle('active', source === 'upload');
+  document.getElementById('el-tab-generate').classList.toggle('active', source === 'generate');
+  document.getElementById('el-panel-upload').classList.toggle('active', source === 'upload');
+  document.getElementById('el-panel-generate').classList.toggle('active', source === 'generate');
+  if (source === 'generate' && elVoices.length === 0) elLoadVoices();
+}
+
+function elSelectChip(group, el) {
+  // Deselect siblings in same chip group
+  const groupMap = { type: 'el-type-chips', dur: 'el-dur-chips', pace: 'el-pace-chips', energy: 'el-energy-chips' };
+  document.getElementById(groupMap[group])?.querySelectorAll('.el-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  elChipState[group] = el.dataset.val;
+  elUpdateWordCount();
+}
+
+function elSelectVersion(ver) {
+  document.getElementById('el-ver-v2-opt').classList.toggle('selected', ver === 'v2');
+  document.getElementById('el-ver-v3-opt').classList.toggle('selected', ver === 'v3');
+  document.querySelector(`input[name="el-version"][value="${ver}"]`).checked = true;
+  // Show/hide style slider (v3 only)
+  document.getElementById('el-style-row').style.display = ver === 'v3' ? 'block' : 'none';
+}
+
+function elGetVersion() {
+  return document.querySelector('input[name="el-version"]:checked')?.value || 'v2';
+}
+
+const EL_WPM = { slow: 100, natural: 130, fast: 160 };
+
+function elUpdateWordCount() {
+  const script = document.getElementById('el-script').value;
+  const words = script.trim() ? script.trim().split(/\s+/).length : 0;
+  const wpm = EL_WPM[elChipState.pace] || 130;
+  const estSec = words > 0 ? Math.round((words / wpm) * 60) : 0;
+  const targetSec = parseInt(elChipState.dur) || 30;
+  const budget = Math.round((targetSec / 60) * wpm);
+  const el = document.getElementById('el-word-count');
+  el.textContent = `${words} words · ~${estSec}s estimated (budget: ${budget} words for ${targetSec}s)`;
+  el.classList.toggle('over', words > budget + 5);
+}
+
+async function elGenerateScript() {
+  const topic = document.getElementById('el-topic').value.trim();
+  if (!topic) {
+    alert('Please enter a topic or description for the script.');
+    return;
+  }
+  const btn = document.getElementById('el-gen-script-btn');
+  const spinner = document.getElementById('el-script-spinner');
+  const btnText = document.getElementById('el-script-btn-text');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Generating…';
+
+  try {
+    const res = await fetch('/api/elevenlabs/generate-script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contentType: elChipState.type,
+        topic,
+        duration: elChipState.dur,
+        pacing: elChipState.pace,
+        energy: elChipState.energy,
+        apiVersion: elGetVersion(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Script generation failed');
+    document.getElementById('el-script').value = data.script;
+    elUpdateWordCount();
+    document.getElementById('el-step1-num').classList.add('done');
+  } catch (err) {
+    alert(`Script generation failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '✨ Generate Script with Claude';
+  }
+}
+
+async function elLoadVoices() {
+  document.getElementById('el-voice-loading').style.display = 'block';
+  document.getElementById('el-voice-grid').innerHTML = '';
+  document.getElementById('el-voice-none').style.display = 'none';
+  document.getElementById('el-reload-voices-btn').disabled = true;
+  try {
+    const res = await fetch('/api/elevenlabs/voices');
+    const data = await res.json();
+    elVoices = data.voices || [];
+    elRenderVoices('all');
+  } catch (err) {
+    document.getElementById('el-voice-grid').innerHTML = `<div style="font-size:12px;color:var(--red);padding:6px 0">Failed to load voices: ${err.message}</div>`;
+  } finally {
+    document.getElementById('el-voice-loading').style.display = 'none';
+    document.getElementById('el-reload-voices-btn').disabled = false;
+  }
+}
+
+function elFilterVoices(filter, chipEl) {
+  document.getElementById('el-voice-filters').querySelectorAll('.el-chip').forEach(c => c.classList.remove('selected'));
+  chipEl.classList.add('selected');
+  elRenderVoices(filter);
+}
+
+function elRenderVoices(filter) {
+  const grid = document.getElementById('el-voice-grid');
+  const filtered = filter === 'all' ? elVoices : elVoices.filter(v => {
+    if (filter === 'young')     return v.age === 'young';
+    if (filter === 'female')    return v.gender === 'female';
+    if (filter === 'male')      return v.gender === 'male';
+    if (filter === 'energetic') return v.description.includes('energetic') || v.description.includes('strong') || v.description.includes('lively');
+    if (filter === 'podcast')   return v.useCase.includes('podcast') || v.useCase.includes('conversational') || v.useCase.includes('news');
+    if (filter === 'gaming')    return v.useCase.includes('gaming') || v.useCase.includes('video_games') || v.useCase.includes('entertainment');
+    return true;
+  });
+
+  document.getElementById('el-voice-none').style.display = filtered.length === 0 ? 'block' : 'none';
+  grid.innerHTML = filtered.map(v => `
+    <div class="el-voice-card${v.voiceId === elSelectedVoiceId ? ' selected' : ''}" id="el-vc-${v.voiceId}" onclick="elSelectVoice('${v.voiceId}','${v.name.replace(/'/g,'\\\'')}')" >
+      <div class="el-voice-name">${v.name}</div>
+      <div class="el-voice-badges">
+        ${v.gender ? `<span class="el-voice-badge evb-${v.gender}">${v.gender}</span>` : ''}
+        ${v.age    ? `<span class="el-voice-badge evb-${v.age}">${v.age.replace('_',' ')}</span>` : ''}
+      </div>
+      <div class="el-voice-desc">${v.description || v.useCase || ''}</div>
+      ${v.previewUrl ? `<button class="el-voice-preview" id="el-prev-${v.voiceId}" onclick="event.stopPropagation();elPreviewVoice('${v.voiceId}','${v.previewUrl}')">▶ Preview</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function elSelectVoice(voiceId, voiceName) {
+  elSelectedVoiceId = voiceId;
+  elSelectedVoiceName = voiceName;
+  document.querySelectorAll('.el-voice-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`el-vc-${voiceId}`);
+  if (card) card.classList.add('selected');
+  document.getElementById('el-step2-num').classList.add('done');
+}
+
+function elPreviewVoice(voiceId, previewUrl) {
+  // Stop any currently playing preview
+  if (elCurrentPreviewAudio) {
+    elCurrentPreviewAudio.pause();
+    elCurrentPreviewAudio = null;
+  }
+  // Reset all preview buttons
+  document.querySelectorAll('.el-voice-preview').forEach(btn => {
+    btn.classList.remove('playing');
+    btn.textContent = '▶ Preview';
+  });
+
+  const btn = document.getElementById(`el-prev-${voiceId}`);
+  const audio = new Audio(previewUrl);
+  elCurrentPreviewAudio = audio;
+  audio.play().then(() => {
+    if (btn) { btn.classList.add('playing'); btn.textContent = '⏹ Stop'; }
+    audio.onended = () => {
+      if (btn) { btn.classList.remove('playing'); btn.textContent = '▶ Preview'; }
+      elCurrentPreviewAudio = null;
+    };
+  }).catch(() => {
+    if (btn) btn.textContent = '✗ Preview N/A';
+  });
+}
+
+async function elGenerateAudio() {
+  const script = document.getElementById('el-script').value.trim();
+  if (!script) { alert('Please generate or write a script first (Step 1).'); return; }
+  if (!elSelectedVoiceId) { alert('Please select a voice (Step 2).'); return; }
+
+  const btn = document.getElementById('el-gen-audio-btn');
+  const spinner = document.getElementById('el-audio-spinner');
+  const btnText = document.getElementById('el-audio-btn-text');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Generating…';
+
+  const preview = document.getElementById('el-audio-preview');
+  preview.classList.remove('show');
+  document.getElementById('el-use-audio-wrap').style.display = 'none';
+
+  try {
+    const ver = elGetVersion();
+    const res = await fetch('/api/elevenlabs/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        script,
+        voiceId: elSelectedVoiceId,
+        apiVersion: ver,
+        stability:      parseInt(document.getElementById('el-stability').value) / 100,
+        similarityBoost:parseInt(document.getElementById('el-similarity').value) / 100,
+        style:          parseInt(document.getElementById('el-style').value) / 100,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Audio generation failed');
+
+    elGeneratedAudioPath = data.audioPath;
+    preview.src = data.audioPath;
+    preview.classList.add('show');
+    document.getElementById('el-use-audio-wrap').style.display = 'block';
+    document.getElementById('el-step3-num').classList.add('done');
+  } catch (err) {
+    alert(`Audio generation failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '🔊 Generate Audio';
+  }
+}
+
+function elUseGeneratedAudio() {
+  if (!elGeneratedAudioPath) return;
+  const filename = elGeneratedAudioPath.split('/').pop();
+  document.getElementById('el-confirmed-name').textContent = `${elSelectedVoiceName || 'ElevenLabs'} — ${filename}`;
+  document.getElementById('el-confirmed-desc').textContent = 'Ready for avatar generation';
+  document.getElementById('el-audio-confirmed').classList.add('show');
+}
+
+function elClearGeneratedAudio() {
+  elGeneratedAudioPath = '';
+  document.getElementById('el-audio-confirmed').classList.remove('show');
+  document.getElementById('el-audio-preview').classList.remove('show');
+  document.getElementById('el-use-audio-wrap').style.display = 'none';
+  document.getElementById('el-step3-num').classList.remove('done');
+}
+
 // ══════ Avatar submit ══════
 async function submitAvatar() {
-  const aud = document.getElementById('aud-input').files[0];
   const prompt = document.getElementById('avatar-prompt').value.trim();
   const isHeyGen = (models || []).find(m => m.id === selectedModel)?.isHeyGen;
 
-  if (!aud) { setStatus('avatar','error','⚠ Please select an audio file.'); return; }
+  // Determine audio source
+  const audioSource = document.getElementById('el-panel-generate').classList.contains('active') ? 'generate' : 'upload';
+  if (audioSource === 'upload') {
+    const aud = document.getElementById('aud-input').files[0];
+    if (!aud) { setStatus('avatar','error','⚠ Please select an audio file.'); return; }
+  } else {
+    if (!elGeneratedAudioPath) { setStatus('avatar','error','⚠ Please generate audio using ElevenLabs (complete Steps 1–3) and click "Use This Audio".'); return; }
+  }
 
   if (isHeyGen) {
     const heygenSource = document.querySelector('input[name="heygen-source"]:checked')?.value || 'builtin';
@@ -1695,7 +2182,11 @@ async function submitAvatar() {
 
   const fd = new FormData();
   fd.append('model', selectedModel);
-  fd.append('audio', aud);
+  if (audioSource === 'upload') {
+    fd.append('audio', document.getElementById('aud-input').files[0]);
+  } else {
+    fd.append('audioServerPath', elGeneratedAudioPath);
+  }
   if (prompt) fd.append('prompt', prompt);
 
   if (isHeyGen) {

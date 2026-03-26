@@ -35,6 +35,7 @@ router.post('/api/generate-avatar', upload.fields([
   const heygenAvatarId = (req.body.heygenAvatarId || '').trim(); // built-in avatar ID for HeyGen
   const heygenResolution = (req.body.resolution || '1080x1920').trim(); // e.g. "1080x1920"
   const imageServerPath = (req.body.imageServerPath || '').trim(); // e.g. "/output/stories/uuid/scene_1_image.jpg"
+  const audioServerPath = (req.body.audioServerPath || '').trim(); // e.g. "/uploads/el_xxx.mp3" (ElevenLabs generated)
   const modelInfo = AVATAR_MODELS.find(m => m.id === model) || { label: model, provider: 'Unknown' };
   const isHeyGen = !!modelInfo.isHeyGen;
 
@@ -49,6 +50,17 @@ router.post('/api/generate-avatar', upload.fields([
     }
   }
 
+  // Resolve server-side audio if provided (e.g. ElevenLabs generated audio)
+  let resolvedAudioPath = audioFile?.path || null;
+  if (!resolvedAudioPath && audioServerPath) {
+    const cleanPath = audioServerPath.replace(/^[/\\]+/, '');
+    const absPath = path.normalize(path.resolve(cleanPath));
+    const uploadsDir = path.normalize(path.resolve('uploads'));
+    if (absPath.startsWith(uploadsDir) && existsSync(absPath)) {
+      resolvedAudioPath = absPath;
+    }
+  }
+
   // HeyGen: needs either a built-in avatar ID OR a custom image (mutually exclusive)
   if (isHeyGen) {
     const hasBuiltin = !!heygenAvatarId;
@@ -56,16 +68,17 @@ router.post('/api/generate-avatar', upload.fields([
     if (!hasBuiltin && !hasCustom) {
       return res.status(400).json({ error: 'HeyGen requires either a built-in avatar selection or a custom portrait image.' });
     }
-    if (!audioFile) {
+    if (!resolvedAudioPath) {
       return res.status(400).json({ error: 'Audio file is required.' });
     }
   } else {
-    if ((!imageFile && !resolvedImagePath) || !audioFile) {
+    if ((!imageFile && !resolvedImagePath) || !resolvedAudioPath) {
       return res.status(400).json({ error: 'Both image and audio files are required.' });
     }
   }
 
   const imageName = imageFile?.originalname || (imageServerPath ? `[server: ${path.basename(resolvedImagePath || imageServerPath)}]` : null);
+  const audioName = audioFile?.originalname || (audioServerPath ? `[generated: ${path.basename(resolvedAudioPath || audioServerPath)}]` : null);
 
   console.log(`\n[Avatar] ── New Request ──────────────────────`);
   console.log(`[Avatar]  Model  : ${model}`);
@@ -74,7 +87,7 @@ router.post('/api/generate-avatar', upload.fields([
   } else {
     console.log(`[Avatar]  Image  : ${imageName} ${imageFile ? `(${(imageFile.size / 1024).toFixed(1)} KB)` : ''}`);
   }
-  console.log(`[Avatar]  Audio  : ${audioFile.originalname} (${(audioFile.size / 1024).toFixed(1)} KB)`);
+  console.log(`[Avatar]  Audio  : ${audioName} ${audioFile ? `(${(audioFile.size / 1024).toFixed(1)} KB)` : ''}`);
   console.log(`[Avatar]  Prompt : ${prompt || '(none)'}`);
 
   const taskUUID = randomUUID();
@@ -87,8 +100,8 @@ router.post('/api/generate-avatar', upload.fields([
     provider: modelInfo.provider,
     prompt: prompt || null,
     imageName: isHeyGen && heygenAvatarId ? `[built-in: ${heygenAvatarId}]` : (imageName || null),
-    audioName: audioFile.originalname,
-    audioSize: audioFile.size,
+    audioName: audioName,
+    audioSize: audioFile?.size || null,
     status: 'pending',
     submittedAt: new Date().toISOString(),
     completedAt: null,
@@ -108,7 +121,7 @@ router.post('/api/generate-avatar', upload.fields([
       await runware.ensureConnection();
       console.log(`[Avatar] Connected to Runware WebSocket`);
 
-      const audioDataURI = fileToDataURI(audioFile.path, getMimeType(audioFile.path));
+      const audioDataURI = fileToDataURI(resolvedAudioPath, getMimeType(resolvedAudioPath));
 
       let requestPayload;
       const isKling = model.startsWith('klingai:');
@@ -198,7 +211,8 @@ router.post('/api/generate-avatar', upload.fields([
     } finally {
       runware.disconnect();
       if (imageFile?.path) await unlink(imageFile.path).catch(() => {});
-      await unlink(audioFile.path).catch(() => {});
+      // Only delete audio if it was a direct upload (not a server-side path we generated)
+      if (audioFile?.path) await unlink(audioFile.path).catch(() => {});
     }
   })();
 });

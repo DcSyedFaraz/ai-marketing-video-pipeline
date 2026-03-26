@@ -967,11 +967,16 @@
         <!-- Original video -->
         <div class="fg">
           <label>Original Video <span class="req">*</span></label>
-          <!-- Podcast video picker -->
+          <!-- Generated video picker (podcast + avatar) -->
           <div style="margin-bottom:6px">
             <select id="bridge-podcast-pick" onchange="onBridgePodcastPick()" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--rs);padding:7px 10px;font-size:12px">
-              <option value="">🎙 Select from podcast videos (optional)…</option>
+              <option value="">🎬 Select from generated videos (optional)…</option>
             </select>
+          </div>
+          <!-- Inline video preview for server-path selections -->
+          <div id="bridge-server-vid-preview" style="display:none;margin-bottom:6px;border-radius:var(--rs);overflow:hidden;background:#000;border:1px solid var(--border)">
+            <video id="bridge-server-vid-player" controls playsinline style="width:100%;max-height:130px;display:block"></video>
+            <div id="bridge-server-vid-info" style="font-size:10px;color:var(--muted);padding:4px 8px;background:var(--surface2)"></div>
           </div>
           <div class="dropzone" id="bvid-dz">
             <input type="file" id="bvid-input" accept=".mp4,.webm,.mov,.mkv,.avi" onchange="onBridgeFileChange()" />
@@ -987,12 +992,12 @@
             </div>
             <button class="file-pill-rm" onclick="clearBridgeVideo()">✕</button>
           </div>
-          <!-- Selected podcast video preview pill -->
+          <!-- Selected server video pill -->
           <div id="bridge-podcast-pill" style="display:none;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--rs);padding:6px 10px;margin-top:4px;font-size:12px">
-            <span style="font-size:16px">🎙</span>
+            <span id="bridge-podcast-pill-icon" style="font-size:16px">🎬</span>
             <div style="flex:1;min-width:0">
               <div id="bridge-podcast-pill-name" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-              <div style="font-size:10px;color:var(--muted)">Podcast video (server path)</div>
+              <div id="bridge-podcast-pill-type" style="font-size:10px;color:var(--muted)">Generated video (server path)</div>
             </div>
             <button onclick="clearBridgePodcastPick()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0">✕</button>
           </div>
@@ -1633,10 +1638,12 @@ let models = [];
 let storyModels = [];
 
 const BRIDGE_MODELS = [
-  { id: 'google:3@2', label: 'Google Veo 3.1', provider: 'Google', description: 'Best quality, cinematic transitions', cost: '~$0.20/sec', badge: 'BEST' },
-  { id: 'google:3@3', label: 'Google Veo 3.1 Fast', provider: 'Google', description: 'Faster, slightly lower quality', cost: '~$0.15/sec', badge: null },
-  { id: 'klingai:avatar@2.0-pro', label: 'KlingAI 2.0 Pro', provider: 'KlingAI', description: 'Smooth motion, high fidelity', cost: '$0.087/sec', badge: 'PRO' },
-  { id: 'klingai:avatar@2.0-standard', label: 'KlingAI 2.0 Standard', provider: 'KlingAI', description: 'Economical, good quality', cost: '$0.044/sec', badge: null },
+  { id: 'google:3@2',                    label: 'Google Veo 3.1',         provider: 'Google',  description: 'Best quality, cinematic transitions', cost: '~$0.20/sec',  badge: 'BEST',     allowedDurations: [4, 6, 8] },
+  { id: 'google:3@3',                    label: 'Google Veo 3.1 Fast',    provider: 'Google',  description: 'Faster, slightly lower quality',       cost: '~$0.15/sec',  badge: null,       allowedDurations: [4, 6, 8] },
+  { id: 'klingai:kling-video@3-pro',     label: 'Kling 3.0 Pro',          provider: 'KlingAI', description: 'Top-tier quality, up to 15s',          cost: '$0.168/sec',  badge: 'PRO',      allowedDurations: [4, 6, 8, 10, 15] },
+  { id: 'klingai:kling-video@3-standard',label: 'Kling 3.0 Standard',     provider: 'KlingAI', description: 'High quality, cost-effective, up to 15s', cost: '$0.126/sec', badge: 'NEW',    allowedDurations: [4, 6, 8, 10, 15] },
+  { id: 'klingai:avatar@2.0-pro',        label: 'KlingAI 2.0 Pro',        provider: 'KlingAI', description: 'Smooth motion, high fidelity',          cost: '$0.087/sec',  badge: null,       allowedDurations: [4, 6, 8] },
+  { id: 'klingai:avatar@2.0-standard',   label: 'KlingAI 2.0 Standard',   provider: 'KlingAI', description: 'Economical, good quality',              cost: '$0.044/sec',  badge: null,       allowedDurations: [4, 6, 8] },
 ];
 
 const LIPSYNC_MODELS = [
@@ -1830,12 +1837,25 @@ function renderBridgeModelGrid() {
       <div class="model-card-cost">${m.cost}</div>
     </label>
   `).join('');
+  updateBridgeDurations(selectedBridgeModel);
 }
 
 function selectBridgeModel(id) {
   selectedBridgeModel = id;
   document.querySelectorAll('#bridge-model-grid .model-card').forEach(c => c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
+  updateBridgeDurations(id);
+}
+
+function updateBridgeDurations(modelId) {
+  const m = BRIDGE_MODELS.find(x => x.id === modelId);
+  const allowed = m?.allowedDurations || [4, 6, 8];
+  const labels = { 4: '4 seconds', 6: '6 seconds', 8: '8 seconds', 10: '10 seconds', 15: '15 seconds' };
+  const sel = document.getElementById('bridge-duration');
+  if (!sel) return;
+  const cur = parseInt(sel.value);
+  sel.innerHTML = allowed.map(d => `<option value="${d}"${d === cur ? ' selected' : ''}>${labels[d]}</option>`).join('');
+  if (!allowed.includes(cur)) sel.value = String(allowed[0]);
 }
 
 function renderLipSyncModelGrid() {
@@ -2261,20 +2281,49 @@ async function submitLipSync() {
 let bridgeSelectedPodcastPath = null; // server-side path of selected podcast video
 
 async function loadBridgePodcastVideos() {
+  const sel = document.getElementById('bridge-podcast-pick');
+  if (!sel) return;
   try {
-    const res = await fetch('/api/story-history');
-    const data = await res.json();
-    const entries = (data.history || []).filter(h => h.type === 'podcast' && h.status === 'completed' && h.finalVideoUrl);
-    const sel = document.getElementById('bridge-podcast-pick');
-    if (!sel) return;
-    const opts = entries.map(h => {
-      const date = new Date(h.submittedAt).toLocaleDateString();
-      const label = `🎙 ${h.gender || ''} · ${h.marketingAngle || ''} · ${date}`;
-      // finalVideoUrl is like /output/stories/uuid/file.mp4 → disk path: output/stories/uuid/file.mp4
-      const diskPath = h.finalVideoUrl.replace(/^\//, '');
-      return `<option value="${diskPath}" data-label="${label.replace(/"/g,'&quot;')}">${label}</option>`;
-    }).join('');
-    sel.innerHTML = '<option value="">🎙 Select from podcast videos (optional)…</option>' + opts;
+    // Load podcast videos from story history
+    const [storyRes, histRes] = await Promise.all([
+      fetch('/api/story-history'),
+      fetch('/api/history'),
+    ]);
+    const storyData = storyRes.ok ? await storyRes.json() : { history: [] };
+    const histData  = histRes.ok  ? await histRes.json()  : [];
+
+    // Podcast entries
+    const podcasts = (storyData.history || []).filter(h => h.type === 'podcast' && h.status === 'completed' && h.finalVideoUrl);
+    // Avatar entries from the regular history array
+    const histList = Array.isArray(histData) ? histData : (histData.history || []);
+    const avatars  = histList.filter(h => h.type === 'avatar' && h.status === 'completed' && h.videoUrl);
+
+    let opts = '<option value="">🎬 Select from generated videos (optional)…</option>';
+
+    if (podcasts.length) {
+      opts += '<optgroup label="🎙 Podcast Videos">';
+      opts += podcasts.map(h => {
+        const date  = new Date(h.submittedAt).toLocaleDateString();
+        const label = `🎙 ${h.gender || ''} · ${h.marketingAngle || ''} · ${date}`.trim().replace(/^· |· $/g, '');
+        const diskPath = h.finalVideoUrl.replace(/^\//, '');
+        return `<option value="${diskPath}" data-type="podcast" data-url="${h.finalVideoUrl}" data-label="${label.replace(/"/g,'&quot;')}">${label}</option>`;
+      }).join('');
+      opts += '</optgroup>';
+    }
+
+    if (avatars.length) {
+      opts += '<optgroup label="🎭 Avatar Videos">';
+      opts += avatars.map(h => {
+        const date  = new Date(h.submittedAt).toLocaleDateString();
+        const model = h.modelLabel || h.model || 'Avatar';
+        const label = `🎭 ${model} · ${date}`;
+        const diskPath = h.videoUrl.replace(/^\//, '');
+        return `<option value="${diskPath}" data-type="avatar" data-url="${h.videoUrl}" data-label="${label.replace(/"/g,'&quot;')}">${label}</option>`;
+      }).join('');
+      opts += '</optgroup>';
+    }
+
+    sel.innerHTML = opts;
   } catch {}
 }
 
@@ -2282,13 +2331,31 @@ function onBridgePodcastPick() {
   const sel = document.getElementById('bridge-podcast-pick');
   const val = sel?.value;
   if (!val) { clearBridgePodcastPick(); return; }
+
   bridgeSelectedPodcastPath = val;
-  const label = sel.options[sel.selectedIndex]?.dataset?.label || val;
-  // Show pill, hide dropzone pill, clear file input
-  document.getElementById('bridge-podcast-pill').style.display = 'flex';
+  const opt    = sel.options[sel.selectedIndex];
+  const label  = opt?.dataset?.label || val;
+  const type   = opt?.dataset?.type  || 'video';
+  const vidUrl = opt?.dataset?.url   || ('/' + val);
+
+  // Show pill with type-specific icon
+  const icon = type === 'avatar' ? '🎭' : '🎙';
+  const typeLabel = type === 'avatar' ? 'Avatar video (server path)' : 'Podcast video (server path)';
+  document.getElementById('bridge-podcast-pill-icon').textContent = icon;
   document.getElementById('bridge-podcast-pill-name').textContent = label;
-  document.getElementById('bvid-pill').style.display = 'none';
-  // Clear file input
+  document.getElementById('bridge-podcast-pill-type').textContent = typeLabel;
+  document.getElementById('bridge-podcast-pill').style.display = 'flex';
+
+  // Show inline video preview
+  const previewWrap  = document.getElementById('bridge-server-vid-preview');
+  const previewVideo = document.getElementById('bridge-server-vid-player');
+  const previewInfo  = document.getElementById('bridge-server-vid-info');
+  previewVideo.src = vidUrl;
+  previewInfo.textContent = label;
+  previewWrap.style.display = 'block';
+
+  // Clear file input pill
+  document.getElementById('bvid-pill').classList.remove('show');
   document.getElementById('bvid-input').value = '';
 }
 
@@ -2296,10 +2363,13 @@ function clearBridgePodcastPick() {
   bridgeSelectedPodcastPath = null;
   document.getElementById('bridge-podcast-pick').value = '';
   document.getElementById('bridge-podcast-pill').style.display = 'none';
+  document.getElementById('bridge-server-vid-preview').style.display = 'none';
+  const previewVideo = document.getElementById('bridge-server-vid-player');
+  if (previewVideo) { previewVideo.pause(); previewVideo.src = ''; }
 }
 
 function onBridgeFileChange() {
-  // If user picks a file, clear podcast selection
+  // If user picks a file, clear server-path selection and preview
   if (document.getElementById('bvid-input').files[0]) {
     clearBridgePodcastPick();
   }

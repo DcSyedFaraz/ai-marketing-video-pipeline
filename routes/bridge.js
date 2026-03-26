@@ -132,19 +132,63 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       console.log(`[Bridge] First frame: ${(firstFrameDataURI.length / 1024).toFixed(1)} KB | CTA: ${(ctaDataURI.length / 1024).toFixed(1)} KB`);
 
       // Step 3: Submit bridge generation
-      const requestPayload = {
-        taskUUID,
-        model,
-        positivePrompt: (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.',
-        negativePrompt: 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over',
-        duration: bridgeDuration,
-        outputFormat: 'mp4',
-        numberResults: 1,
-        frameImages: [
-          { inputImage: firstFrameDataURI },
-          { inputImage: ctaDataURI },
-        ],
-      };
+      const bridgePositivePrompt = (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
+      const bridgeNegativePrompt = 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over, human sounds, breathing sounds';
+
+      const isKling3 = model.includes('kling-video@3');
+      const isKling  = model.startsWith('klingai:');
+
+      let requestPayload;
+      if (isKling3) {
+        // Kling 3 uses inputs.frameImages with { image, frame } format; sound must be explicitly disabled
+        requestPayload = {
+          taskUUID,
+          model,
+          positivePrompt: bridgePositivePrompt,
+          negativePrompt: bridgeNegativePrompt,
+          duration: bridgeDuration,
+          outputFormat: 'mp4',
+          numberResults: 1,
+          inputs: {
+            frameImages: [
+              { image: firstFrameDataURI, frame: 'first' },
+              { image: ctaDataURI,        frame: 'last'  },
+            ],
+          },
+          providerSettings: { klingai: { sound: false } },
+        };
+      } else if (isKling) {
+        // Kling 2.0 avatar models — top-level frameImages format
+        requestPayload = {
+          taskUUID,
+          model,
+          positivePrompt: bridgePositivePrompt,
+          negativePrompt: bridgeNegativePrompt,
+          duration: bridgeDuration,
+          outputFormat: 'mp4',
+          numberResults: 1,
+          frameImages: [
+            { inputImage: firstFrameDataURI },
+            { inputImage: ctaDataURI },
+          ],
+        };
+      } else {
+        // Google Veo — top-level frameImages; disable audio generation
+        requestPayload = {
+          taskUUID,
+          model,
+          positivePrompt: bridgePositivePrompt,
+          negativePrompt: bridgeNegativePrompt,
+          duration: bridgeDuration,
+          outputFormat: 'mp4',
+          numberResults: 1,
+          frameImages: [
+            { inputImage: firstFrameDataURI },
+            { inputImage: ctaDataURI },
+          ],
+          providerSettings: { google: { generateAudio: false, enhancePrompt: false } },
+        };
+      }
 
       console.log(`[Bridge] Submitting bridge generation request...`);
       const result = await submitAndPoll(runware, requestPayload, 'Bridge', taskUUID);
@@ -334,19 +378,60 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
       const runware = new Runware({ apiKey: API_KEY });
       await runware.ensureConnection();
 
-      const requestPayload = {
-        taskUUID: bridgeTaskUUID,
-        model,
-        positivePrompt: (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.',
-        negativePrompt: 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over',
-        duration: bridgeDuration,
-        outputFormat: 'mp4',
-        numberResults: 1,
-        frameImages: [
-          { inputImage: lastFrameDataURI },
-          { inputImage: ctaDataURI },
-        ],
-      };
+      const autoPositivePrompt = (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
+      const autoNegativePrompt = 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over, human sounds, breathing sounds';
+
+      const isKling3Auto = model.includes('kling-video@3');
+      const isKlingAuto  = model.startsWith('klingai:');
+
+      let requestPayload;
+      if (isKling3Auto) {
+        requestPayload = {
+          taskUUID: bridgeTaskUUID,
+          model,
+          positivePrompt: autoPositivePrompt,
+          negativePrompt: autoNegativePrompt,
+          duration: bridgeDuration,
+          outputFormat: 'mp4',
+          numberResults: 1,
+          inputs: {
+            frameImages: [
+              { image: lastFrameDataURI, frame: 'first' },
+              { image: ctaDataURI,       frame: 'last'  },
+            ],
+          },
+          providerSettings: { klingai: { sound: false } },
+        };
+      } else if (isKlingAuto) {
+        requestPayload = {
+          taskUUID: bridgeTaskUUID,
+          model,
+          positivePrompt: autoPositivePrompt,
+          negativePrompt: autoNegativePrompt,
+          duration: bridgeDuration,
+          outputFormat: 'mp4',
+          numberResults: 1,
+          frameImages: [
+            { inputImage: lastFrameDataURI },
+            { inputImage: ctaDataURI },
+          ],
+        };
+      } else {
+        requestPayload = {
+          taskUUID: bridgeTaskUUID,
+          model,
+          positivePrompt: autoPositivePrompt,
+          negativePrompt: autoNegativePrompt,
+          duration: bridgeDuration,
+          outputFormat: 'mp4',
+          numberResults: 1,
+          frameImages: [
+            { inputImage: lastFrameDataURI },
+            { inputImage: ctaDataURI },
+          ],
+          providerSettings: { google: { generateAudio: false, enhancePrompt: false } },
+        };
+      }
 
       console.log(`[Bridge-Auto] Submitting bridge video generation...`);
       const vidResult = await submitAndPoll(runware, requestPayload, 'Bridge-Auto-Vid', bridgeTaskUUID);

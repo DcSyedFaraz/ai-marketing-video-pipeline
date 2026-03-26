@@ -1984,6 +1984,8 @@ async function generatePodcasterImage() {
     result.style.display = '';
     status.style.borderColor = 'var(--green)';
     status.textContent = `✅ Done${data.cost != null ? ' · cost $' + data.cost.toFixed(4) : ''}`;
+    // Refresh HeyGen image grid immediately so the new image appears
+    loadPodcastImagesForAvatar();
   } catch (err) {
     status.style.borderColor = 'var(--red)';
     status.textContent = `❌ ${err.message}`;

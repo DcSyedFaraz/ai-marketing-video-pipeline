@@ -142,7 +142,8 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       const ctaDataURI = fileToDataURI(ctaFile.path, getMimeType(ctaFile.path));
       console.log(`[Bridge] First frame: ${(firstFrameDataURI.length / 1024).toFixed(1)} KB | CTA: ${(ctaDataURI.length / 1024).toFixed(1)} KB`);
 
-      const bridgePositivePrompt = (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
+      const BASE_BRIDGE_PROMPT = 'Smooth transition. The character gently closes their mouth, lips fully shut with zero lip movement, teeth hidden, mouth completely closed and still. No talking, no speaking, no lip sync, no facial animation. Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
+      const bridgePositivePrompt = (prompt ? prompt + '. ' : '') + BASE_BRIDGE_PROMPT;
       const bridgeNegativePrompt = 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over, human sounds, breathing sounds';
 
       const isKling3 = model.includes('kling-video@3');
@@ -180,6 +181,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
           ],
         };
       } else {
+        // Google Veo — uses inputs.frameImages with { image, frame } format
         requestPayload = {
           taskUUID,
           model,
@@ -188,11 +190,13 @@ router.post('/api/generate-bridge', uploadBridge.fields([
           duration: bridgeDuration,
           outputFormat: 'mp4',
           numberResults: 1,
-          frameImages: [
-            { inputImage: firstFrameDataURI },
-            { inputImage: ctaDataURI },
-          ],
-          providerSettings: { google: { generateAudio: false, enhancePrompt: false } },
+          inputs: {
+            frameImages: [
+              { image: firstFrameDataURI, frame: 'first' },
+              { image: ctaDataURI,        frame: 'last'  },
+            ],
+          },
+          providerSettings: { google: { generateAudio: false } },
         };
       }
 
@@ -201,8 +205,8 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       console.log(`[Bridge] Task submitted OK. Registered with global poller.`);
 
     } catch (submitErr) {
-      const errMsg = submitErr?.message || String(submitErr);
-      console.error(`[Bridge] ❌ Submit/prep failed: ${errMsg}`);
+      const errMsg = submitErr?.message || submitErr?.error || JSON.stringify(submitErr) || String(submitErr);
+      console.error(`[Bridge] ❌ Submit/prep failed:`, submitErr);
       updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
       sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
       if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
@@ -476,7 +480,7 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
             { inputImage: lastFrameDataURI },
             { inputImage: ctaDataURI },
           ],
-          providerSettings: { google: { generateAudio: false, enhancePrompt: false } },
+          providerSettings: { google: { generateAudio: false } },
         };
       }
 

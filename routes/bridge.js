@@ -4,7 +4,6 @@
 // then concatenates original video + bridge video into final output.
 
 import { Router } from 'express';
-import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { unlink, mkdir, access } from 'fs/promises';
 import { readFileSync, createWriteStream } from 'fs';
@@ -17,8 +16,9 @@ import { uploadBridge } from '../lib/multer.js';
 import { AVATAR_MODELS } from '../lib/models.js';
 import { fileToDataURI, getMimeType, downloadVideo } from '../lib/helpers.js';
 import { extractLastFrame, concatVideos, mixMusicIntoVideo } from '../lib/ffmpeg.js';
-import { imageSubmitAndPollOwn, submitAndPoll } from '../lib/runware.js';
+import { imageSubmitAndPollOwn } from '../lib/runware.js';
 import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
+import { globalPoller, sseEmitter } from '../lib/globalPoller.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,6 +34,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   const ctaFile = req.files?.ctaImage?.[0];
   const musicFile = req.files?.musicFile?.[0];
   const musicFileRef = (req.body.musicFileRef || '').trim(); // server-side music path from uploads
+  const musicScope = (req.body.musicScope || 'full').trim(); // 'full' or 'bridge-only'
   const prompt = (req.body.prompt || '').trim().slice(0, 2500);
   const model = req.body.model || 'google:3@2';
   const bridgeDuration = parseInt(req.body.duration || '7');
@@ -84,6 +85,18 @@ router.post('/api/generate-bridge', uploadBridge.fields([
 
   const taskUUID = randomUUID();
 
+  const ts = Date.now();
+  const frameJpg = path.join('uploads', `frame_${ts}.jpg`);
+  const bridgeGenerated = path.join('output', `bridge_gen_${ts}.mp4`);
+  // bridge-only: music is mixed into the bridge clip before concat; no separate final file needed
+  const bridgeWithMusic = (resolvedMusicPath && musicScope === 'bridge-only')
+    ? path.join('output', `bridge_music_${ts}.mp4`)
+    : null;
+  const bridgeConcatted = path.join('output', `bridge_concat_${ts}.mp4`);
+  const bridgeFinal = (resolvedMusicPath && musicScope === 'full')
+    ? path.join('output', `bridge_final_${ts}.mp4`)
+    : bridgeConcatted;
+
   addHistoryEntry({
     taskUUID,
     type: 'bridge',
@@ -102,45 +115,40 @@ router.post('/api/generate-bridge', uploadBridge.fields([
     cost: null,
     costSource: null,
     error: null,
+    // Pipeline paths — needed to reconstruct handler after server restart
+    _pipeline: {
+      sourceVideoPath: resolvedVideoPath,
+      bridgeGenerated,
+      bridgeWithMusic: bridgeWithMusic || null,
+      bridgeConcatted,
+      bridgeFinal,
+      musicPath: resolvedMusicPath || null,
+      musicScope,
+    },
   });
 
   console.log(`[Bridge]  taskUUID: ${taskUUID} → added to history as PENDING`);
   res.json({ success: true, taskUUID, status: 'pending', message: 'Task submitted. Use taskUUID to check status.' });
 
-  const runware = new Runware({ apiKey: API_KEY });
   (async () => {
-    const ts = Date.now();
-    const frameJpg = path.join('uploads', `frame_${ts}.jpg`);
-    const bridgeGenerated = path.join('output', `bridge_gen_${ts}.mp4`);
-    const bridgeConcatted = path.join('output', `bridge_concat_${ts}.mp4`);
-    const bridgeFinal = resolvedMusicPath
-      ? path.join('output', `bridge_final_${ts}.mp4`)
-      : bridgeConcatted;
 
+    let requestPayload;
     try {
-      await runware.ensureConnection();
-      console.log(`[Bridge] Connected to Runware WebSocket`);
-
-      // Step 1: Extract last frame from video
       console.log(`[Bridge] Extracting last frame from: ${resolvedVideoPath}`);
       await extractLastFrame(resolvedVideoPath, frameJpg);
       console.log(`[Bridge] Last frame extracted → ${frameJpg}`);
 
-      // Step 2: Encode both images to data URIs
       const firstFrameDataURI = fileToDataURI(frameJpg, 'image/jpeg');
       const ctaDataURI = fileToDataURI(ctaFile.path, getMimeType(ctaFile.path));
       console.log(`[Bridge] First frame: ${(firstFrameDataURI.length / 1024).toFixed(1)} KB | CTA: ${(ctaDataURI.length / 1024).toFixed(1)} KB`);
 
-      // Step 3: Submit bridge generation
       const bridgePositivePrompt = (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
       const bridgeNegativePrompt = 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over, human sounds, breathing sounds';
 
       const isKling3 = model.includes('kling-video@3');
       const isKling  = model.startsWith('klingai:');
 
-      let requestPayload;
       if (isKling3) {
-        // Kling 3 uses inputs.frameImages with { image, frame } format; sound must be explicitly disabled
         requestPayload = {
           taskUUID,
           model,
@@ -158,7 +166,6 @@ router.post('/api/generate-bridge', uploadBridge.fields([
           providerSettings: { klingai: { sound: false } },
         };
       } else if (isKling) {
-        // Kling 2.0 avatar models — top-level frameImages format
         requestPayload = {
           taskUUID,
           model,
@@ -173,7 +180,6 @@ router.post('/api/generate-bridge', uploadBridge.fields([
           ],
         };
       } else {
-        // Google Veo — top-level frameImages; disable audio generation
         requestPayload = {
           taskUUID,
           model,
@@ -190,54 +196,93 @@ router.post('/api/generate-bridge', uploadBridge.fields([
         };
       }
 
-      console.log(`[Bridge] Submitting bridge generation request...`);
-      const result = await submitAndPoll(runware, requestPayload, 'Bridge', taskUUID);
+      console.log(`[Bridge] Submitting task ${taskUUID} via global connection (skipResponse)...`);
+      await globalPoller.getConnection().videoInference({ ...requestPayload, includeCost: true, skipResponse: true });
+      console.log(`[Bridge] Task submitted OK. Registered with global poller.`);
 
-      // Step 4: Download generated bridge video
-      console.log(`[Bridge] Downloading generated bridge → ${bridgeGenerated}`);
-      await downloadVideo(result.videoURL, bridgeGenerated);
-      console.log(`[Bridge] ✅ Bridge video downloaded`);
-
-      // Step 5: Concatenate original + bridge
-      console.log(`[Bridge] Concatenating: ${resolvedVideoPath} + ${bridgeGenerated} → ${bridgeConcatted}`);
-      await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted);
-      console.log(`[Bridge] ✅ Concatenation complete`);
-
-      // Step 6 (optional): Mix background music at low volume
-      if (resolvedMusicPath) {
-        console.log(`[Bridge] Mixing bg music (vol 0.15): ${resolvedMusicPath}`);
-        await mixMusicIntoVideo(bridgeConcatted, resolvedMusicPath, bridgeFinal, 0.25);
-        console.log(`[Bridge] ✅ Music mixed`);
-        await unlink(bridgeConcatted).catch(() => {});
-      }
-
-      const filename = path.basename(bridgeFinal);
-      const resolvedCost = result.cost ?? null;
-
-      updateHistoryEntry(taskUUID, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-        videoUrl: `/output/${filename}`,
-        videoURL: result.videoURL,
-        filename,
-        cost: resolvedCost,
-        costSource: resolvedCost !== null ? 'api' : null,
-      });
-      console.log(`[Bridge] History updated → COMPLETED`);
-
-    } catch (err) {
-      const errMsg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
-      console.error(`[Bridge] ❌ ERROR (full):`, err);
-      console.error(`[Bridge] ❌ ERROR: ${errMsg}`);
+    } catch (submitErr) {
+      const errMsg = submitErr?.message || String(submitErr);
+      console.error(`[Bridge] ❌ Submit/prep failed: ${errMsg}`);
       updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
-    } finally {
-      runware.disconnect();
+      sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
       if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
       await unlink(ctaFile.path).catch(() => {});
       if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
       await unlink(frameJpg).catch(() => {});
-      await unlink(bridgeGenerated).catch(() => {});
+      return;
     }
+
+    globalPoller.register(taskUUID, {
+      type: 'video',
+      label: 'Bridge',
+      onComplete: async (result) => {
+        try {
+          console.log(`[Bridge] Downloading generated bridge → ${bridgeGenerated}`);
+          await downloadVideo(result.videoURL, bridgeGenerated);
+          console.log(`[Bridge] ✅ Bridge video downloaded`);
+
+          // If bridge-only music: mix into bridge clip before concat
+          let bridgeClipForConcat = bridgeGenerated;
+          if (resolvedMusicPath && musicScope === 'bridge-only') {
+            console.log(`[Bridge] Mixing music into bridge clip only → ${bridgeWithMusic}`);
+            await mixMusicIntoVideo(bridgeGenerated, resolvedMusicPath, bridgeWithMusic, 0.25);
+            console.log(`[Bridge] ✅ Bridge music mixed`);
+            bridgeClipForConcat = bridgeWithMusic;
+          }
+
+          console.log(`[Bridge] Concatenating: ${resolvedVideoPath} + ${bridgeClipForConcat} → ${bridgeConcatted}`);
+          await concatVideos(resolvedVideoPath, bridgeClipForConcat, bridgeConcatted);
+          console.log(`[Bridge] ✅ Concatenation complete`);
+
+          if (resolvedMusicPath && musicScope === 'full') {
+            console.log(`[Bridge] Mixing bg music into full video: ${resolvedMusicPath}`);
+            await mixMusicIntoVideo(bridgeConcatted, resolvedMusicPath, bridgeFinal, 0.25);
+            console.log(`[Bridge] ✅ Music mixed`);
+            await unlink(bridgeConcatted).catch(() => {});
+          }
+
+          const filename = path.basename(bridgeFinal);
+          const resolvedCost = result.cost ?? null;
+
+          const updated = updateHistoryEntry(taskUUID, {
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+            videoUrl: `/output/${filename}`,
+            videoURL: result.videoURL,
+            filename,
+            cost: resolvedCost,
+            costSource: resolvedCost !== null ? 'api' : null,
+          });
+          console.log(`[Bridge] History updated → COMPLETED`);
+
+          sseEmitter.emit('task-complete', {
+            taskUUID,
+            type: 'bridge',
+            status: 'completed',
+            videoUrl: `/output/${filename}`,
+            entry: updated,
+          });
+        } finally {
+          if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
+          await unlink(ctaFile.path).catch(() => {});
+          if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+          await unlink(frameJpg).catch(() => {});
+          await unlink(bridgeGenerated).catch(() => {});
+          if (bridgeWithMusic) await unlink(bridgeWithMusic).catch(() => {});
+        }
+      },
+      onError: async (err) => {
+        const errMsg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+        console.error(`[Bridge] ❌ ERROR: ${errMsg}`);
+        updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
+        sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
+        if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
+        await unlink(ctaFile.path).catch(() => {});
+        if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+        await unlink(frameJpg).catch(() => {});
+        await unlink(bridgeGenerated).catch(() => {});
+      },
+    });
   })();
 });
 
@@ -329,6 +374,10 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
       ? path.join('output', `bridge_final_${ts2}.mp4`)
       : bridgeConcatted;
 
+    let ctaImageCost = null;
+    let bridgeTaskUUID;
+    let lastFrameDataURI;
+
     try {
       await mkdir(ctaDir, { recursive: true });
 
@@ -339,7 +388,7 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
 
       // Step 2: Generate CTA image using Nano Bana 2 + reference.jpg
       const refImagePath = path.join(__dirname, '..', 'public', 'reference.jpg');
-      const lastFrameDataURI = fileToDataURI(frameJpg, 'image/jpeg');
+      lastFrameDataURI = fileToDataURI(frameJpg, 'image/jpeg');
       const refDataURI = fileToDataURI(refImagePath, 'image/jpeg');
 
       console.log(`[Bridge-Auto] Generating CTA image with Nano Bana 2...`);
@@ -370,13 +419,11 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
         }).on('error', reject);
       });
       console.log(`[Bridge-Auto] ✅ CTA image saved → ${ctaImagePath} | cost: ${ctaResult.cost != null ? '$' + ctaResult.cost : 'N/A'}`);
+      ctaImageCost = ctaResult.cost ?? null;
 
-      // Step 3: Generate bridge video (last frame → CTA image)
+      // Step 3: Build bridge video payload and submit via global connection
       const ctaDataURI = fileToDataURI(ctaImagePath, 'image/jpeg');
-      const bridgeTaskUUID = randomUUID();
-
-      const runware = new Runware({ apiKey: API_KEY });
-      await runware.ensureConnection();
+      bridgeTaskUUID = randomUUID();
 
       const autoPositivePrompt = (prompt ? prompt + '. ' : '') + 'Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no facial animation, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
       const autoNegativePrompt = 'talking, speaking, lip movement, mouth movement, speech, dialogue, vocals, singing, lip sync, facial animation, exaggerated expressions, open mouth, words, narration, voice over, human sounds, breathing sounds';
@@ -433,52 +480,82 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
         };
       }
 
-      console.log(`[Bridge-Auto] Submitting bridge video generation...`);
-      const vidResult = await submitAndPoll(runware, requestPayload, 'Bridge-Auto-Vid', bridgeTaskUUID);
-      runware.disconnect();
+      console.log(`[Bridge-Auto] Submitting bridge video task ${bridgeTaskUUID} via global connection (skipResponse)...`);
+      await globalPoller.getConnection().videoInference({ ...requestPayload, includeCost: true, skipResponse: true });
+      console.log(`[Bridge-Auto] Task submitted OK. Registered with global poller.`);
 
-      // Step 4: Download bridge video
-      console.log(`[Bridge-Auto] Downloading bridge video → ${bridgeGenerated}`);
-      await downloadVideo(vidResult.videoURL, bridgeGenerated);
-
-      // Step 5: Concat original video + bridge video
-      console.log(`[Bridge-Auto] Concatenating: original + bridge → ${bridgeConcatted}`);
-      await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted);
-      console.log(`[Bridge-Auto] ✅ Concatenation complete`);
-
-      // Step 6 (optional): Mix background music at low volume
-      if (resolvedMusicPath) {
-        console.log(`[Bridge-Auto] Mixing bg music (vol 0.15): ${resolvedMusicPath}`);
-        await mixMusicIntoVideo(bridgeConcatted, resolvedMusicPath, bridgeFinal, 0.25);
-        console.log(`[Bridge-Auto] ✅ Music mixed`);
-        await unlink(bridgeConcatted).catch(() => {});
-      }
-
-      const filename = path.basename(bridgeFinal);
-      const totalCost = (ctaResult.cost ?? 0) + (vidResult.cost ?? 0);
-
-      updateHistoryEntry(taskUUID, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-        videoUrl: `/output/${filename}`,
-        videoURL: vidResult.videoURL,
-        ctaImageUrl: `/output/cta_frames/${taskUUID}/cta_frame.jpg`,
-        filename,
-        cost: totalCost || null,
-        costSource: 'api',
-      });
-      console.log(`[Bridge-Auto] ✅ Pipeline complete | total cost: $${totalCost.toFixed(3)}`);
-
-    } catch (err) {
-      const errMsg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
-      console.error(`[Bridge-Auto] ❌ ERROR: ${errMsg}`);
+    } catch (setupErr) {
+      const errMsg = setupErr?.message || String(setupErr);
+      console.error(`[Bridge-Auto] ❌ Setup failed: ${errMsg}`);
       updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
-    } finally {
+      sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
       if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
       if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
       await unlink(frameJpg).catch(() => {});
-      await unlink(bridgeGenerated).catch(() => {});
+      return;
     }
+
+    // Register bridge video task (uses bridgeTaskUUID for polling, but history is under taskUUID)
+    const capturedCtaCost = ctaImageCost;
+    globalPoller.register(bridgeTaskUUID, {
+      type: 'video',
+      label: 'Bridge-Auto-Vid',
+      onComplete: async (result) => {
+        try {
+          console.log(`[Bridge-Auto] Downloading bridge video → ${bridgeGenerated}`);
+          await downloadVideo(result.videoURL, bridgeGenerated);
+
+          console.log(`[Bridge-Auto] Concatenating: original + bridge → ${bridgeConcatted}`);
+          await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted);
+          console.log(`[Bridge-Auto] ✅ Concatenation complete`);
+
+          if (resolvedMusicPath) {
+            console.log(`[Bridge-Auto] Mixing bg music (vol 0.15): ${resolvedMusicPath}`);
+            await mixMusicIntoVideo(bridgeConcatted, resolvedMusicPath, bridgeFinal, 0.25);
+            console.log(`[Bridge-Auto] ✅ Music mixed`);
+            await unlink(bridgeConcatted).catch(() => {});
+          }
+
+          const filename = path.basename(bridgeFinal);
+          const totalCost = (capturedCtaCost ?? 0) + (result.cost ?? 0);
+
+          const updated = updateHistoryEntry(taskUUID, {
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+            videoUrl: `/output/${filename}`,
+            videoURL: result.videoURL,
+            ctaImageUrl: `/output/cta_frames/${taskUUID}/cta_frame.jpg`,
+            filename,
+            cost: totalCost || null,
+            costSource: 'api',
+          });
+          console.log(`[Bridge-Auto] ✅ Pipeline complete | total cost: $${totalCost.toFixed(3)}`);
+
+          sseEmitter.emit('task-complete', {
+            taskUUID,
+            type: 'bridge',
+            status: 'completed',
+            videoUrl: `/output/${filename}`,
+            entry: updated,
+          });
+        } finally {
+          if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
+          if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+          await unlink(frameJpg).catch(() => {});
+          await unlink(bridgeGenerated).catch(() => {});
+        }
+      },
+      onError: async (err) => {
+        const errMsg = err?.message || String(err);
+        console.error(`[Bridge-Auto] ❌ ERROR: ${errMsg}`);
+        updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
+        sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
+        if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
+        if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+        await unlink(frameJpg).catch(() => {});
+        await unlink(bridgeGenerated).catch(() => {});
+      },
+    });
   })();
 });
 

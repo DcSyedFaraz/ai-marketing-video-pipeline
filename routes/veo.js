@@ -2,16 +2,14 @@
 // POST /api/generate-veo
 
 import { Router } from 'express';
-import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import path from 'path';
 
-import { submitAndPoll } from '../lib/runware.js';
 import { downloadVideo } from '../lib/helpers.js';
 import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
+import { globalPoller, sseEmitter } from '../lib/globalPoller.js';
 
 const router = Router();
-const API_KEY = process.env.RUNWARE_API_KEY;
 
 router.post('/api/generate-veo', async (req, res) => {
   const { prompt, duration = 7, width = 1280, height = 720, model = 'google:3@2' } = req.body;
@@ -48,49 +46,66 @@ router.post('/api/generate-veo', async (req, res) => {
   console.log(`[Veo]  taskUUID: ${taskUUID} → added to history as PENDING`);
   res.json({ success: true, taskUUID, status: 'pending', message: 'Task submitted. Use taskUUID to check status.' });
 
-  const runware = new Runware({ apiKey: API_KEY });
-  (async () => {
-    try {
-      await runware.ensureConnection();
-      console.log(`[Veo] Connected to Runware WebSocket`);
+  // Submit via shared global connection
+  const requestPayload = {
+    taskUUID,
+    model,
+    positivePrompt: prompt.trim(),
+    duration: parseInt(duration),
+    width: parseInt(width),
+    height: parseInt(height),
+    outputFormat: 'mp4',
+    numberResults: 1,
+    includeCost: true,
+  };
 
-      const requestPayload = {
-        taskUUID,
-        model,
-        positivePrompt: prompt.trim(),
-        duration: parseInt(duration),
-        width: parseInt(width),
-        height: parseInt(height),
-        outputFormat: 'mp4',
-        numberResults: 1,
-      };
+  try {
+    console.log(`[Veo] Submitting task ${taskUUID} via global connection (skipResponse)...`);
+    await globalPoller.getConnection().videoInference({ ...requestPayload, skipResponse: true });
+    console.log(`[Veo] Task submitted OK. Registered with global poller.`);
+  } catch (submitErr) {
+    const errMsg = submitErr?.message || String(submitErr);
+    console.error(`[Veo] ❌ Submit failed: ${errMsg}`);
+    updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
+    sseEmitter.emit('task-complete', { taskUUID, type: 'veo', status: 'failed', error: errMsg });
+    return;
+  }
 
-      const result = await submitAndPoll(runware, requestPayload, 'Veo', taskUUID);
-
+  globalPoller.register(taskUUID, {
+    type: 'video',
+    label: 'Veo',
+    onComplete: async (result) => {
       const filename = `veo_${Date.now()}.mp4`;
       const outputPath = path.join('output', filename);
       await downloadVideo(result.videoURL, outputPath);
       console.log(`[Veo] ✅ Download complete: ${outputPath}`);
 
-      const resolvedCost = result.cost ?? null;
-      updateHistoryEntry(taskUUID, {
+      const updated = updateHistoryEntry(taskUUID, {
         status: 'completed',
         completedAt: new Date().toISOString(),
         videoUrl: `/output/${filename}`,
         videoURL: result.videoURL,
         filename,
-        cost: resolvedCost,
-        costSource: resolvedCost !== null ? 'api' : null,
+        cost: result.cost ?? null,
+        costSource: result.cost != null ? 'api' : null,
       });
       console.log(`[Veo] History updated → COMPLETED`);
 
-    } catch (err) {
-      console.error(`[Veo] ❌ ERROR: ${err.message}`);
-      updateHistoryEntry(taskUUID, { status: 'failed', error: err.message, completedAt: new Date().toISOString() });
-    } finally {
-      runware.disconnect();
-    }
-  })();
+      sseEmitter.emit('task-complete', {
+        taskUUID,
+        type: 'veo',
+        status: 'completed',
+        videoUrl: `/output/${filename}`,
+        entry: updated,
+      });
+    },
+    onError: async (err) => {
+      const errMsg = err?.message || String(err);
+      console.error(`[Veo] ❌ ERROR: ${errMsg}`);
+      updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
+      sseEmitter.emit('task-complete', { taskUUID, type: 'veo', status: 'failed', error: errMsg });
+    },
+  });
 });
 
 export default router;

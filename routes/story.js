@@ -8,7 +8,6 @@
 // GET  /api/story-models      — Return STORY_VIDEO_MODELS
 
 import { Router } from 'express';
-import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { mkdir, rm, unlink } from 'fs/promises';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, copyFileSync } from 'fs';
@@ -18,7 +17,8 @@ import { STORY_VIDEO_MODELS } from '../lib/models.js';
 import { planScenes, generateVideoDescription, ensureUnder5MB } from '../lib/gemini.js';
 import { fileToDataURI, downloadVideo, downloadImage, getMimeType, generateImageThumb, generateVideoThumb } from '../lib/helpers.js';
 import { concatMultipleVideos, extractLastFrame, mixMusicIntoVideo } from '../lib/ffmpeg.js';
-import { submitAndPoll, imageSubmitAndPollOwn, BatchPoller, checkOnce, checkImageOnce } from '../lib/runware.js';
+import { imageSubmitAndPollOwn, checkOnce, checkImageOnce } from '../lib/runware.js';
+import { GlobalPoller } from '../lib/globalPoller.js';
 import { uploadStory } from '../lib/multer.js';
 import multer from 'multer';
 import {
@@ -27,6 +27,27 @@ import {
 
 const router = Router();
 const API_KEY = process.env.RUNWARE_API_KEY;
+
+// ── Dedicated pollers for story pipeline tasks ───────────────────────────────
+// Initialized lazily so connections aren't created until first use.
+let storyPoller = null;     // for video tasks
+let storyImagePoller = null; // for image tasks
+
+async function getStoryPoller() {
+  if (!storyPoller) {
+    storyPoller = new GlobalPoller('StoryPoller');
+    await storyPoller.init(API_KEY);
+  }
+  return storyPoller;
+}
+
+async function getStoryImagePoller() {
+  if (!storyImagePoller) {
+    storyImagePoller = new GlobalPoller('StoryImagePoller');
+    await storyImagePoller.init(API_KEY);
+  }
+  return storyImagePoller;
+}
 
 // ─── Load game hero catalog (Blitz_of_Battle_Heroes.json) once at startup ────
 let HEROES_DATA = null;
@@ -246,52 +267,52 @@ async function runFastPacedVideoPhase(taskUUID, current, dir, startSceneIdx = 0,
     updateSceneInStory(taskUUID, i, { videoStatus: 'generating', videoError: null });
   }
 
-  // Use a single shared connection + BatchPoller for all video tasks
-  const vidConn = new Runware({ apiKey: API_KEY });
-  await vidConn.ensureConnection();
-  const vidPoller = new BatchPoller(vidConn);
+  // Use storyPoller (single shared connection + batch polling) for all parallel video tasks
+  const vidPoller = await getStoryPoller();
   let results;
-  try {
-    results = await Promise.allSettled(
-      pendingScenes.map(async ({ s, i }) => {
-        const isLast = (i === lastIdx);
-        const imgPath = path.join(dir, `scene_${s.sceneNumber}_image.jpg`);
-        if (!existsSync(imgPath)) throw new Error(`Scene ${s.sceneNumber}: opening image not found on disk`);
-        const firstFrameDataURI = fileToDataURI(imgPath, 'image/jpeg');
+  results = await Promise.allSettled(
+    pendingScenes.map(async ({ s, i }) => {
+      const isLast = (i === lastIdx);
+      const imgPath = path.join(dir, `scene_${s.sceneNumber}_image.jpg`);
+      if (!existsSync(imgPath)) throw new Error(`Scene ${s.sceneNumber}: opening image not found on disk`);
+      const firstFrameDataURI = fileToDataURI(imgPath, 'image/jpeg');
 
-        let lastFrameDataURI = null;
-        if (isLast) {
-          const ctaPath = path.join(dir, `scene_${s.sceneNumber}_cta_image.jpg`);
-          if (existsSync(ctaPath)) {
-            lastFrameDataURI = fileToDataURI(ctaPath, 'image/jpeg');
-            console.log(`[Story/FastPaced] Scene ${s.sceneNumber} (last): will animate to CTA frame`);
-          }
+      let lastFrameDataURI = null;
+      if (isLast) {
+        const ctaPath = path.join(dir, `scene_${s.sceneNumber}_cta_image.jpg`);
+        if (existsSync(ctaPath)) {
+          lastFrameDataURI = fileToDataURI(ctaPath, 'image/jpeg');
+          console.log(`[Story/FastPaced] Scene ${s.sceneNumber} (last): will animate to CTA frame`);
         }
+      }
 
-        const videoTaskUUID = randomUUID();
-        const heroRefDataURIs = loadSceneHeroRefDataURIs(s.heroes, current.namedHeroes, maxVideoRefs);
-        const requestPayload = buildVideoPayload(isKling, current.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
-          negativePrompt: s.negativePrompt || current.negativePrompt,
-          heroRefDataURIs,
+      const videoTaskUUID = randomUUID();
+      const heroRefDataURIs = loadSceneHeroRefDataURIs(s.heroes, current.namedHeroes, maxVideoRefs);
+      const requestPayload = buildVideoPayload(isKling, current.videoModel, s, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
+        negativePrompt: s.negativePrompt || current.negativePrompt,
+        heroRefDataURIs,
+      });
+
+      updateSceneInStory(taskUUID, i, { videoTaskUUID });
+
+      const label = `Story-Scene${s.sceneNumber}-Vid-FP`;
+      console.log(`[Story/FastPaced] Scene ${s.sceneNumber} video submit | ${isKling ? 'KlingAI' : 'Google'} | taskUUID: ${videoTaskUUID}`);
+      await vidPoller.getConnection().videoInference({ ...requestPayload, includeCost: true, skipResponse: true });
+      const vidResult = await new Promise((resolve, reject) => {
+        vidPoller.register(videoTaskUUID, {
+          type: 'video',
+          label,
+          onComplete: async (r) => { resolve(r); },
+          onError: async (e) => { reject(e); },
         });
-
-        updateSceneInStory(taskUUID, i, { videoTaskUUID });
-
-        const label = `Story-Scene${s.sceneNumber}-Vid-FP`;
-        console.log(`[Story/FastPaced] Scene ${s.sceneNumber} video submit | ${isKling ? 'KlingAI' : 'Google'} | taskUUID: ${videoTaskUUID}`);
-        await vidConn.videoInference({ ...requestPayload, includeCost: true, skipResponse: true });
-        const vidResult = await vidPoller.register(videoTaskUUID, 'video', label);
-        if (!vidResult.videoURL) throw new Error('No videoURL in response');
-        const videoFilename = `scene_${s.sceneNumber}_video.mp4`;
-        await downloadVideo(vidResult.videoURL, path.join(dir, videoFilename));
-        console.log(`[Story/FastPaced] ✅ Scene ${s.sceneNumber} video saved | cost: ${vidResult.cost != null ? '$' + vidResult.cost : 'N/A'}`);
-        return { i, videoFilename, cost: vidResult.cost ?? null };
-      })
-    );
-  } finally {
-    vidPoller.destroy();
-    try { vidConn.disconnect(); } catch {}
-  }
+      });
+      if (!vidResult.videoURL) throw new Error('No videoURL in response');
+      const videoFilename = `scene_${s.sceneNumber}_video.mp4`;
+      await downloadVideo(vidResult.videoURL, path.join(dir, videoFilename));
+      console.log(`[Story/FastPaced] ✅ Scene ${s.sceneNumber} video saved | cost: ${vidResult.cost != null ? '$' + vidResult.cost : 'N/A'}`);
+      return { i, videoFilename, cost: vidResult.cost ?? null };
+    })
+  );
 
   let anyFailed = false;
   for (let pi = 0; pi < results.length; pi++) {
@@ -332,10 +353,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
   const dir = storyDir(taskUUID);
   await mkdir(dir, { recursive: true });
 
-  const runware = new Runware({ apiKey: API_KEY });
-
   try {
-    await runware.ensureConnection();
     console.log(`[Story] Pipeline started for ${taskUUID} | phase: ${startPhase} | scene: ${startSceneIdx}`);
 
     // ── PHASE: PLANNING ──────────────────────────────────────────────────────
@@ -634,38 +652,38 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
           }
         }
 
-        // Use a single shared connection + BatchPoller for all image tasks
-        const imgConn = new Runware({ apiKey: API_KEY });
-        await imgConn.ensureConnection();
-        const imgPoller = new BatchPoller(imgConn);
+        // Use storyImagePoller (single shared connection + batch polling) for all image tasks
+        const imgPoller = await getStoryImagePoller();
         let parallelResults;
-        try {
-          parallelResults = await Promise.allSettled(
-            allImageJobs.map(async (job) => {
-              const scene = current.scenes[job.i];
-              const suffix = job.type === 'cta' ? '-CTA' : (job.type === 'imageB' ? '-FrameB' : '');
-              const label = `Story-Scene${scene.sceneNumber}${suffix}-Img`;
-              const refs = job.task.payload.inputs?.referenceImages || [];
-              const heroNames = scene.heroes?.length ? scene.heroes.join(', ') : 'all';
-              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: heroes=[${heroNames}] | heroRefs=${refs.length} | taskUUID: ${job.task.taskUUID}`);
-              // Log full payload with base64 truncated for readability
-              const debugPayload = JSON.parse(JSON.stringify(job.task.payload));
-              if (debugPayload.inputs?.referenceImages) {
-                debugPayload.inputs.referenceImages = debugPayload.inputs.referenceImages.map(r =>
-                  typeof r === 'string' && r.startsWith('data:') ? `${r.slice(0, 30)}...(${(r.length/1024).toFixed(0)}KB)` : r
-                );
-              }
-              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: REQUEST →`, JSON.stringify(debugPayload));
-              await imgConn.imageInference({ ...job.task.payload, includeCost: true, skipResponse: true, deliveryMethod: 'async' });
-              const img = await imgPoller.register(job.task.taskUUID, 'image', label);
-              console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: poll fulfilled | raw keys: ${Object.keys(img || {}).join(', ')}`);
-              return { i: job.i, type: job.type, img };
-            })
-          );
-        } finally {
-          imgPoller.destroy();
-          try { imgConn.disconnect(); } catch {}
-        }
+        parallelResults = await Promise.allSettled(
+          allImageJobs.map(async (job) => {
+            const scene = current.scenes[job.i];
+            const suffix = job.type === 'cta' ? '-CTA' : (job.type === 'imageB' ? '-FrameB' : '');
+            const label = `Story-Scene${scene.sceneNumber}${suffix}-Img`;
+            const refs = job.task.payload.inputs?.referenceImages || [];
+            const heroNames = scene.heroes?.length ? scene.heroes.join(', ') : 'all';
+            console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: heroes=[${heroNames}] | heroRefs=${refs.length} | taskUUID: ${job.task.taskUUID}`);
+            // Log full payload with base64 truncated for readability
+            const debugPayload = JSON.parse(JSON.stringify(job.task.payload));
+            if (debugPayload.inputs?.referenceImages) {
+              debugPayload.inputs.referenceImages = debugPayload.inputs.referenceImages.map(r =>
+                typeof r === 'string' && r.startsWith('data:') ? `${r.slice(0, 30)}...(${(r.length/1024).toFixed(0)}KB)` : r
+              );
+            }
+            console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: REQUEST →`, JSON.stringify(debugPayload));
+            await imgPoller.getConnection().imageInference({ ...job.task.payload, includeCost: true, skipResponse: true, deliveryMethod: 'async' });
+            const img = await new Promise((resolve, reject) => {
+              imgPoller.register(job.task.taskUUID, {
+                type: 'image',
+                label,
+                onComplete: async (r) => { resolve(r); },
+                onError: async (e) => { reject(e); },
+              });
+            });
+            console.log(`[Story] Scene ${scene.sceneNumber}${suffix}: poll fulfilled | raw keys: ${Object.keys(img || {}).join(', ')}`);
+            return { i: job.i, type: job.type, img };
+          })
+        );
 
         const fulfilled = parallelResults.filter(r => r.status === 'fulfilled').length;
         const rejected  = parallelResults.filter(r => r.status === 'rejected').length;
@@ -929,7 +947,16 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
             console.log(`[Story] Scene ${scene.sceneNumber} video submit | ${isKling ? 'KlingAI' : 'Google'} | taskUUID: ${videoTaskUUID}`);
 
             try {
-              const vidResult = await submitAndPoll(runware, requestPayload, label, videoTaskUUID);
+              const vidPoller = await getStoryPoller();
+              await vidPoller.getConnection().videoInference({ ...requestPayload, includeCost: true, skipResponse: true });
+              const vidResult = await new Promise((resolve, reject) => {
+                vidPoller.register(videoTaskUUID, {
+                  type: 'video',
+                  label,
+                  onComplete: async (r) => { resolve(r); },
+                  onError: async (e) => { reject(e); },
+                });
+              });
 
               if (!vidResult.videoURL) throw new Error(`No videoURL in response. Raw: ${JSON.stringify(vidResult)?.slice(0, 300)}`);
 
@@ -1074,8 +1101,6 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
       error: `Pipeline error: ${err.message}`,
       completedAt: new Date().toISOString(),
     });
-  } finally {
-    try { runware.disconnect(); } catch {}
   }
 }
 
@@ -1516,7 +1541,6 @@ router.post('/api/recheck-generating/:taskUUID', async (req, res) => {
   // Run recheck in background (don't block the response)
   (async () => {
     let completed = 0, stillPending = [], failed = 0;
-    const conn = new Runware({ apiKey: API_KEY });
 
     // Helper: save a completed task result to disk and update story history
     async function saveTaskResult(task, result) {
@@ -1578,6 +1602,9 @@ router.post('/api/recheck-generating/:taskUUID', async (req, res) => {
     }
 
     try {
+      // Use a shared Runware connection for quick-check phase
+      const { Runware } = await import('@runware/sdk-js');
+      const conn = new Runware({ apiKey: API_KEY });
       await conn.ensureConnection();
 
       // ── Phase 1: quick check — see which tasks already finished ──
@@ -1600,40 +1627,65 @@ router.post('/api/recheck-generating/:taskUUID', async (req, res) => {
           failed++;
         }
       }
+      try { conn.disconnect(); } catch {}
 
-      // ── Phase 2: for still-processing tasks, use BatchPoller to wait (up to 30 min) ──
+      // ── Phase 2: for still-processing tasks, use storyPoller (up to 30 min) ──
       if (stillPending.length > 0) {
-        console.log(`[Recheck] ${stillPending.length} task(s) still running — starting BatchPoller to wait for them...`);
+        console.log(`[Recheck] ${stillPending.length} task(s) still running — registering with storyPoller...`);
         updateStoryEntry(entry.taskUUID, { status: 'processing' });
 
-        const poller = new BatchPoller(conn, { pollIntervalMs: 3000, taskTimeoutMs: 30 * 60 * 1000 });
-        try {
-          const pollerResults = await Promise.allSettled(
-            stillPending.map(task =>
-              poller.register(task.taskUUID, task.type, `Recheck-Scene${task.sceneNumber}-${task.type}`)
-                .then(result => ({ task, result }))
-            )
-          );
+        const videoTasks = stillPending.filter(t => t.type === 'video');
+        const imageTasks = stillPending.filter(t => t.type === 'image');
 
-          for (const r of pollerResults) {
-            if (r.status === 'fulfilled') {
-              try {
-                await saveTaskResult(r.value.task, r.value.result);
-                completed++;
-              } catch (saveErr) {
-                markFailed(r.value.task, saveErr?.message || String(saveErr));
-                failed++;
-              }
-            } else {
-              // Find which task this was — poller rejects with error message
-              const errMsg = r.reason?.message || String(r.reason);
-              // Mark all as failed if we can't correlate (poller destroy error)
-              console.error(`[Recheck] BatchPoller task failed: ${errMsg}`);
+        const pollerResults = await Promise.allSettled([
+          ...(videoTasks.length > 0
+            ? await (async () => {
+                const vPoller = await getStoryPoller();
+                return videoTasks.map(task =>
+                  new Promise((resolve, reject) => {
+                    vPoller.register(task.taskUUID, {
+                      type: 'video',
+                      label: `Recheck-Scene${task.sceneNumber}-video`,
+                      timeoutMs: 30 * 60 * 1000,
+                      onComplete: async (r) => { resolve({ task, result: r }); },
+                      onError: async (e) => { reject(e); },
+                    });
+                  })
+                );
+              })()
+            : []),
+          ...(imageTasks.length > 0
+            ? await (async () => {
+                const iPoller = await getStoryImagePoller();
+                return imageTasks.map(task =>
+                  new Promise((resolve, reject) => {
+                    iPoller.register(task.taskUUID, {
+                      type: 'image',
+                      label: `Recheck-Scene${task.sceneNumber}-image`,
+                      timeoutMs: 30 * 60 * 1000,
+                      onComplete: async (r) => { resolve({ task, result: r }); },
+                      onError: async (e) => { reject(e); },
+                    });
+                  })
+                );
+              })()
+            : []),
+        ]);
+
+        for (const r of pollerResults) {
+          if (r.status === 'fulfilled') {
+            try {
+              await saveTaskResult(r.value.task, r.value.result);
+              completed++;
+            } catch (saveErr) {
+              markFailed(r.value.task, saveErr?.message || String(saveErr));
               failed++;
             }
+          } else {
+            const errMsg = r.reason?.message || String(r.reason);
+            console.error(`[Recheck] Poller task failed: ${errMsg}`);
+            failed++;
           }
-        } finally {
-          poller.destroy();
         }
       }
 
@@ -1658,9 +1710,7 @@ router.post('/api/recheck-generating/:taskUUID', async (req, res) => {
         updateStoryEntry(entry.taskUUID, { status: 'paused', pauseReason: 'Recheck completed — resume to continue pipeline' });
       }
     } catch (connErr) {
-      console.error(`[Recheck] Connection failed:`, connErr?.message || connErr);
-    } finally {
-      try { conn.disconnect(); } catch {}
+      console.error(`[Recheck] Error:`, connErr?.message || connErr);
     }
   })();
 });
@@ -1701,8 +1751,9 @@ router.post('/api/resume-story/:taskUUID', async (req, res) => {
   if (generatingScenes.length > 0) {
     console.log(`[Story] Resume: quick-checking ${generatingScenes.length} generating task(s) before resetting...`);
     let recovered = 0;
-    const conn = new Runware({ apiKey: API_KEY });
     try {
+      const { Runware } = await import('@runware/sdk-js');
+      const conn = new Runware({ apiKey: API_KEY });
       await conn.ensureConnection();
       for (const { s, i } of generatingScenes) {
         if (s.videoStatus === 'generating' && s.videoTaskUUID) {
@@ -1743,8 +1794,8 @@ router.post('/api/resume-story/:taskUUID', async (req, res) => {
         }
       }
       if (recovered > 0) console.log(`[Story] Resume: recovered ${recovered} task(s) that had already completed`);
+      try { conn.disconnect(); } catch {}
     } catch (e) { console.warn(`[Story] Resume: recheck connection failed:`, e?.message); }
-    finally { try { conn.disconnect(); } catch {} }
   }
 
   const freshReloaded = loadStoryHistory().find(h => h.taskUUID === taskUUID);
@@ -1923,9 +1974,16 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
       });
       const label = `Story-Scene${s.sceneNumber}-Vid-Solo`;
       console.log(`[Story] Scene ${s.sceneNumber}: run-single video | taskUUID: ${videoTaskUUID}`);
-      const soloConn = new Runware({ apiKey: API_KEY });
-      await soloConn.ensureConnection();
-      const vid = await submitAndPoll(soloConn, payload, label, videoTaskUUID);
+      const soloPoller = await getStoryPoller();
+      await soloPoller.getConnection().videoInference({ ...payload, includeCost: true, skipResponse: true });
+      const vid = await new Promise((resolve, reject) => {
+        soloPoller.register(videoTaskUUID, {
+          type: 'video',
+          label,
+          onComplete: async (r) => { resolve(r); },
+          onError: async (e) => { reject(e); },
+        });
+      });
       const vidURL = vid?.videoURL || vid?.url;
       if (!vidURL) throw new Error(`No video URL in response`);
       const vidFilename = `scene_${s.sceneNumber}_video.mp4`;

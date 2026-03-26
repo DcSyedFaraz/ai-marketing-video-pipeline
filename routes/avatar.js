@@ -3,7 +3,6 @@
 // POST /api/models (list avatar models)
 
 import { Router } from 'express';
-import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { unlink } from 'fs/promises';
 import { existsSync } from 'fs';
@@ -12,11 +11,10 @@ import path from 'path';
 import { upload } from '../lib/multer.js';
 import { AVATAR_MODELS } from '../lib/models.js';
 import { fileToDataURI, getMimeType, downloadVideo } from '../lib/helpers.js';
-import { submitAndPoll } from '../lib/runware.js';
 import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
+import { globalPoller, sseEmitter } from '../lib/globalPoller.js';
 
 const router = Router();
-const API_KEY = process.env.RUNWARE_API_KEY;
 
 router.get('/api/models', (req, res) => {
   res.json({ models: AVATAR_MODELS });
@@ -115,20 +113,16 @@ router.post('/api/generate-avatar', upload.fields([
   console.log(`[Avatar]  taskUUID: ${taskUUID} → added to history as PENDING`);
   res.json({ success: true, taskUUID, status: 'pending', message: 'Task submitted. Use taskUUID to check status.' });
 
-  const runware = new Runware({ apiKey: API_KEY });
+  // Encode files and build request payload in background
   (async () => {
+    let requestPayload;
     try {
-      await runware.ensureConnection();
-      console.log(`[Avatar] Connected to Runware WebSocket`);
-
       const audioDataURI = fileToDataURI(resolvedAudioPath, getMimeType(resolvedAudioPath));
 
-      let requestPayload;
       const isKling = model.startsWith('klingai:');
       const isOmniHuman = model.startsWith('bytedance:');
 
       if (isHeyGen) {
-        // HeyGen: use built-in avatar ID OR custom image — never both
         const inputs = { audio: audioDataURI };
         if (heygenAvatarId) {
           inputs.avatar = heygenAvatarId;
@@ -138,7 +132,6 @@ router.post('/api/generate-avatar', upload.fields([
           inputs.image = fileToDataURI(imgPath, getMimeType(imgPath));
           console.log(`[Avatar] HeyGen custom image encoded: ${(inputs.image.length / 1024).toFixed(1)} KB`);
         }
-        // Parse resolution string "WxH" → width/height
         const [resW, resH] = heygenResolution.split('x').map(Number);
         requestPayload = {
           taskUUID,
@@ -153,7 +146,6 @@ router.post('/api/generate-avatar', upload.fields([
         console.log(`[Avatar] HeyGen resolution: ${resW}×${resH}`);
 
       } else if (isOmniHuman) {
-        // OmniHuman 1 / 1.5: supports width/height for resolution control
         const imgPath = resolvedImagePath || imageFile.path;
         const imageDataURI = fileToDataURI(imgPath, getMimeType(imgPath));
         console.log(`[Avatar] OmniHuman image encoded: ${(imageDataURI.length / 1024).toFixed(1)} KB`);
@@ -185,35 +177,66 @@ router.post('/api/generate-avatar', upload.fields([
         if (prompt) requestPayload.positivePrompt = prompt;
       }
 
-      console.log(`[Avatar] Audio encoded: ${(audioDataURI.length / 1024).toFixed(1)} KB`);
-      const result = await submitAndPoll(runware, requestPayload, 'Avatar', taskUUID);
+      console.log(`[Avatar] Audio encoded: ${(fileToDataURI(resolvedAudioPath, getMimeType(resolvedAudioPath)).length / 1024).toFixed(1)} KB`);
 
-      const filename = `avatar_${Date.now()}.mp4`;
-      const outputPath = path.join('output', filename);
-      await downloadVideo(result.videoURL, outputPath);
-      console.log(`[Avatar] ✅ Download complete: ${outputPath}`);
+      // Submit via shared global connection
+      console.log(`[Avatar] Submitting task ${taskUUID} via global connection (skipResponse)...`);
+      await globalPoller.getConnection().videoInference({ ...requestPayload, skipResponse: true });
+      console.log(`[Avatar] Task submitted OK. Registered with global poller.`);
 
-      const resolvedCost = result.cost ?? null;
-      updateHistoryEntry(taskUUID, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-        videoUrl: `/output/${filename}`,
-        videoURL: result.videoURL,
-        filename,
-        cost: resolvedCost,
-        costSource: resolvedCost !== null ? 'api' : null,
-      });
-      console.log(`[Avatar] History updated → COMPLETED`);
-
-    } catch (err) {
-      console.error(`[Avatar] ❌ ERROR: ${err.message}`);
-      updateHistoryEntry(taskUUID, { status: 'failed', error: err.message, completedAt: new Date().toISOString() });
-    } finally {
-      runware.disconnect();
+    } catch (submitErr) {
+      const errMsg = submitErr?.message || String(submitErr);
+      console.error(`[Avatar] ❌ Submit failed: ${errMsg}`);
+      updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
+      sseEmitter.emit('task-complete', { taskUUID, type: 'avatar', status: 'failed', error: errMsg });
+      // Cleanup temp files
       if (imageFile?.path) await unlink(imageFile.path).catch(() => {});
-      // Only delete audio if it was a direct upload (not a server-side path we generated)
       if (audioFile?.path) await unlink(audioFile.path).catch(() => {});
+      return;
     }
+
+    globalPoller.register(taskUUID, {
+      type: 'video',
+      label: 'Avatar',
+      onComplete: async (result) => {
+        const filename = `avatar_${Date.now()}.mp4`;
+        const outputPath = path.join('output', filename);
+        await downloadVideo(result.videoURL, outputPath);
+        console.log(`[Avatar] ✅ Download complete: ${outputPath}`);
+
+        const updated = updateHistoryEntry(taskUUID, {
+          status: 'completed',
+          completedAt: new Date().toISOString(),
+          videoUrl: `/output/${filename}`,
+          videoURL: result.videoURL,
+          filename,
+          cost: result.cost ?? null,
+          costSource: result.cost != null ? 'api' : null,
+        });
+        console.log(`[Avatar] History updated → COMPLETED`);
+
+        sseEmitter.emit('task-complete', {
+          taskUUID,
+          type: 'avatar',
+          status: 'completed',
+          videoUrl: `/output/${filename}`,
+          entry: updated,
+        });
+
+        // Cleanup temp upload files
+        if (imageFile?.path) await unlink(imageFile.path).catch(() => {});
+        if (audioFile?.path) await unlink(audioFile.path).catch(() => {});
+      },
+      onError: async (err) => {
+        const errMsg = err?.message || String(err);
+        console.error(`[Avatar] ❌ ERROR: ${errMsg}`);
+        updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
+        sseEmitter.emit('task-complete', { taskUUID, type: 'avatar', status: 'failed', error: errMsg });
+        // Cleanup temp upload files
+        if (imageFile?.path) await unlink(imageFile.path).catch(() => {});
+        if (audioFile?.path) await unlink(audioFile.path).catch(() => {});
+      },
+    });
   })();
 });
 

@@ -25,6 +25,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { mkdir } from 'fs/promises';
+import { initGlobalPoller, restorePendingTasks, sseEmitter } from './lib/globalPoller.js';
 
 import avatarRouter      from './routes/avatar.js';
 import veoRouter         from './routes/veo.js';
@@ -53,6 +54,35 @@ await mkdir('public', { recursive: true });
 
 const app = express();
 app.use(express.json());
+
+// ── SSE endpoint for real-time task completion notifications ─────────────────
+const sseClients = new Set();
+
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  // Send heartbeat every 25s to keep connection alive
+  const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 25000);
+
+  sseClients.add(res);
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.delete(res);
+  });
+});
+
+// Forward globalPoller events to all SSE clients
+sseEmitter.on('task-complete', (payload) => {
+  const data = `event: task-complete\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const client of sseClients) {
+    client.write(data);
+  }
+});
+
 app.use(express.static('public'));
 app.use('/output', express.static('output'));
 app.use('/uploads', express.static('uploads'));
@@ -69,11 +99,15 @@ app.use(storyRouter);
 app.use(podcastRouter);
 app.use(elevenLabsRouter);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log('\n╔══════════════════════════════════════════╗');
   console.log('║   Runware Video Generator GUI            ║');
   console.log('╠══════════════════════════════════════════╣');
   console.log(`║   Open : http://localhost:${PORT}             ║`);
   console.log('║   Models: KlingAI, OmniHuman, Veo 3.1   ║');
   console.log('╚══════════════════════════════════════════╝\n');
+
+  // Initialize global batch poller and restore any pending tasks
+  await initGlobalPoller(API_KEY);
+  await restorePendingTasks();
 });

@@ -9,7 +9,6 @@
 // DELETE /api/podcast-history/:id   — Remove podcast entry + files
 
 import { Router } from 'express';
-import { Runware } from '@runware/sdk-js';
 import { randomUUID } from 'crypto';
 import { mkdir, rm, copyFile } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
@@ -18,10 +17,23 @@ import sharp from 'sharp';
 
 import { planPodcast } from '../lib/gemini.js';
 import { fileToDataURI, downloadVideo, downloadImage, generateImageThumb, generateVideoThumb } from '../lib/helpers.js';
-import { imageSubmitAndPollOwn, submitAndPoll } from '../lib/runware.js';
+import { imageSubmitAndPollOwn } from '../lib/runware.js';
+import { GlobalPoller } from '../lib/globalPoller.js';
 import {
   loadStoryHistory, addStoryEntry, updateStoryEntry, updateSceneInStory, saveStoryHistory,
 } from '../lib/storyHistory.js';
+
+// ── Dedicated poller for podcast video tasks ─────────────────────────────────
+// Initialized lazily on first video task so the connection isn't created until needed.
+let podcastPoller = null;
+
+async function getPodcastPoller() {
+  if (!podcastPoller) {
+    podcastPoller = new GlobalPoller('PodcastPoller');
+    await podcastPoller.init(API_KEY);
+  }
+  return podcastPoller;
+}
 
 const router = Router();
 const API_KEY = process.env.RUNWARE_API_KEY;
@@ -249,15 +261,20 @@ async function runPodcastPipeline(taskUUID, startPhase = 'planning') {
 
           console.log(`[Podcast] Generating video | Kling 3.0 Standard | ${scene.duration}s | taskUUID: ${videoTaskUUID}`);
 
-          // submitAndPoll expects a Runware connection instance
-          const vidConn = new Runware({ apiKey: API_KEY });
-          let vidResult;
-          try {
-            await vidConn.ensureConnection();
-            vidResult = await submitAndPoll(vidConn, videoPayload, 'Podcast-Vid', videoTaskUUID);
-          } finally {
-            try { vidConn.disconnect(); } catch {}
-          }
+          // Use podcastPoller for batched single-connection polling
+          const poller = await getPodcastPoller();
+          await poller.getConnection().videoInference({ ...videoPayload, includeCost: true, skipResponse: true });
+          console.log(`[Podcast] Video task submitted. Waiting for result via podcastPoller...`);
+
+          // Register and await via Promise
+          const vidResult = await new Promise((resolve, reject) => {
+            poller.register(videoTaskUUID, {
+              type: 'video',
+              label: `Podcast-Vid-${videoTaskUUID.slice(0, 8)}`,
+              onComplete: async (result) => { resolve(result); },
+              onError: async (err) => { reject(err); },
+            });
+          });
           if (!vidResult?.videoURL) throw new Error('No videoURL in response');
 
           const vidFilename = 'scene_1_video.mp4';

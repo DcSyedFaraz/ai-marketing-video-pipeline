@@ -1,23 +1,20 @@
 // ── History Tab + Gallery + Manual Check ─────────────────────────────────────
-// POST /api/check/:taskUUID  — manually poll a pending task
+// POST /api/check/:taskUUID  — register pending task with global poller
 // GET  /api/history          — list all history entries
 // DELETE /api/history/:uuid  — remove a history entry
 // GET  /api/videos           — list output MP4 files (gallery)
 // DELETE /api/videos/:file   — delete a video file
 
 import { Router } from 'express';
-import { Runware } from '@runware/sdk-js';
 import { readdir, unlink } from 'fs/promises';
 import path from 'path';
 
-import { checkOnce } from '../lib/runware.js';
-import { downloadVideo } from '../lib/helpers.js';
-import { loadHistory, saveHistory, updateHistoryEntry } from '../lib/history.js';
+import { loadHistory, saveHistory } from '../lib/history.js';
+import { globalPoller, makeVideoCompleteHandler, makeErrorHandler } from '../lib/globalPoller.js';
 
 const router = Router();
-const API_KEY = process.env.RUNWARE_API_KEY;
 
-// Manual check for a pending task
+// Manual check — register task with global poller (result arrives via SSE)
 router.post('/api/check/:taskUUID', async (req, res) => {
   const { taskUUID } = req.params;
   const history = loadHistory();
@@ -27,58 +24,20 @@ router.post('/api/check/:taskUUID', async (req, res) => {
   if (entry.status === 'completed') return res.json({ status: 'completed', entry });
   if (entry.status === 'failed') return res.json({ status: 'failed', entry });
 
-  const logs = [];
-  const log = (msg) => { console.log(msg); logs.push(msg); };
-
-  log(`[Check] Manual check for taskUUID: ${taskUUID}`);
-  log(`[Check] Type: ${entry.type} | Model: ${entry.modelLabel || entry.model}`);
-
-  const runware = new Runware({ apiKey: API_KEY });
-  try {
-    await runware.ensureConnection();
-    log(`[Check] Connected to Runware WebSocket`);
-
-    const result = await checkOnce(runware, taskUUID, 'Check');
-
-    if (!result) {
-      log(`[Check] Status: still processing / not ready yet`);
-      return res.json({ status: 'pending', entry, logs });
-    }
-
-    log(`[Check] ✅ Result ready! videoURL: ${result.videoURL}`);
-
-    const typeMap = { avatar: 'avatar', veo: 'veo', bridge: 'bridge_final', lipsync: 'lipsync' };
-    const prefix = typeMap[entry.type] || entry.type || 'video';
-    const filename = `${prefix}_${Date.now()}.mp4`;
-    const outputPath = path.join('output', filename);
-    log(`[Check] Downloading → ${outputPath}`);
-    await downloadVideo(result.videoURL, outputPath);
-    log(`[Check] ✅ Download complete: ${filename}`);
-
-    const resolvedCost = result.cost ?? null;
-    log(`[Check] Cost: ${resolvedCost !== null ? '$' + resolvedCost : 'not returned by API'}`);
-
-    const updated = updateHistoryEntry(taskUUID, {
-      status: 'completed',
-      completedAt: new Date().toISOString(),
-      videoUrl: `/output/${filename}`,
-      videoURL: result.videoURL,
-      filename,
-      cost: resolvedCost,
-      costSource: resolvedCost !== null ? 'api' : null,
-    });
-
-    res.json({ status: 'completed', entry: updated, logs });
-
-  } catch (err) {
-    const errMsg = err?.message || JSON.stringify(err);
-    log(`[Check] ❌ ERROR: ${errMsg}`);
-    console.error(`[Check] ERROR (full):`, err);
-    const updated = updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg });
-    res.status(500).json({ status: 'failed', error: errMsg, entry: updated, logs });
-  } finally {
-    runware.disconnect();
+  // Already registered — avoid duplicate
+  if (globalPoller.has(taskUUID)) {
+    return res.json({ status: 'checking', message: 'Already being polled by global poller. Watch SSE for completion.' });
   }
+
+  // Register with global poller — completion fires SSE event
+  globalPoller.register(taskUUID, {
+    type: 'video',
+    label: `Check-${entry.type}-${taskUUID.slice(0, 8)}`,
+    onComplete: makeVideoCompleteHandler(taskUUID, entry.type),
+    onError: makeErrorHandler(taskUUID, entry.type),
+  });
+
+  res.json({ status: 'checking', message: 'Task registered with global poller. Watch SSE /api/events for completion.' });
 });
 
 // Get full history

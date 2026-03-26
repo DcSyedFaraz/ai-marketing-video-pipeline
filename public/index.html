@@ -1047,7 +1047,14 @@
             <div class="dz-hint">MP3, WAV, M4A, AAC, OGG</div>
           </div>
           <input type="file" id="bridge-music-input" accept=".mp3,.wav,.m4a,.aac,.ogg" style="display:none" onchange="handleBridgeMusicFilePick(this)" />
-          <button class="dz-from-uploads" onclick="openMediaPicker('bridge-music','audio')">📂 Choose from uploads</button>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <button class="dz-from-uploads" style="flex:1" onclick="openMediaPicker('bridge-music','audio')">📂 Choose from uploads</button>
+            <button class="dz-from-uploads" style="flex:1;background:rgba(168,85,247,0.12);border-color:rgba(168,85,247,0.4)" onclick="useGameMusic()">🎮 game_music.wav</button>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="bridge-music-bridge-only" style="accent-color:var(--accent)">
+            Apply music to <strong>bridge video only</strong> (not the full final video)
+          </label>
         </div>
 
         <button class="btn btn-purple" id="btn-bridge" onclick="submitBridge()" style="background:linear-gradient(135deg,var(--orange),#ef4444)">
@@ -1153,7 +1160,7 @@
               <div class="status-text" id="am-status-text"></div>
             </div>
 
-            <div class="result-wrap" id="am-result" style="display:none;margin-top:12px">
+            <div class="result-wrap" id="am-result" style="margin-top:12px">
               <video id="am-video" controls playsinline style="width:100%;border-radius:var(--rs)"></video>
               <div class="result-actions" style="margin-top:8px">
                 <a class="btn-sm green" id="am-dl" href="#" download>⬇ Download</a>
@@ -1651,6 +1658,30 @@ const LIPSYNC_MODELS = [
   { id: 'sync:lipsync-2-pro@1', label: 'Sync LipSync 2 Pro', provider: 'Sync', description: 'Studio-grade, 4K, preserves facial details', cost: '$0.073/sec', badge: 'PRO' },
 ];
 
+// ══════ SSE — real-time task completion notifications ══════
+(function initSSE() {
+  const sse = new EventSource('/api/events');
+  sse.addEventListener('task-complete', async (e) => {
+    try {
+      const payload = JSON.parse(e.data);
+      console.log('[SSE] task-complete:', payload);
+      if (payload.status === 'completed') {
+        await loadHistory();
+        await loadGallery();
+        updatePendingBadge((await (await fetch('/api/history')).json()).history);
+      } else if (payload.status === 'failed') {
+        await loadHistory();
+        updatePendingBadge((await (await fetch('/api/history')).json()).history);
+      }
+    } catch (err) {
+      console.warn('[SSE] Error handling task-complete event:', err);
+    }
+  });
+  sse.onerror = () => {
+    console.warn('[SSE] Connection lost — browser will reconnect automatically.');
+  };
+})();
+
 // ══════ Init ══════
 async function init() {
   await loadModels();
@@ -2066,7 +2097,7 @@ function elRenderVoices(filter) {
         ${v.age    ? `<span class="el-voice-badge evb-${v.age}">${v.age.replace('_',' ')}</span>` : ''}
       </div>
       <div class="el-voice-desc">${v.description || v.useCase || ''}</div>
-      ${v.previewUrl ? `<button class="el-voice-preview" id="el-prev-${v.voiceId}" onclick="event.stopPropagation();elPreviewVoice('${v.voiceId}','${v.previewUrl}')">▶ Preview</button>` : ''}
+      ${v.previewUrl ? `<button class="el-voice-preview" id="el-prev-${v.voiceId}" data-url="${v.previewUrl.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();elPreviewVoice('${v.voiceId}',this.dataset.url)">▶ Preview</button>` : ''}
     </div>
   `).join('');
 }
@@ -2424,6 +2455,8 @@ async function submitBridge() {
     if (bridgeMusicFile) {
       if (bridgeMusicFile.isUploadRef) fd.append('musicFileRef', bridgeMusicFile.serverPath);
       else fd.append('musicFile', bridgeMusicFile.file);
+      const bridgeOnly = document.getElementById('bridge-music-bridge-only')?.checked;
+      if (bridgeOnly) fd.append('musicScope', 'bridge-only');
     }
 
     try {
@@ -2722,38 +2755,31 @@ async function manualCheck(taskUUID, btn) {
   const logBox = document.getElementById(`check-logs-${taskUUID}`);
   if (indicator) indicator.style.display = 'flex';
   if (btn) btn.disabled = true;
-  if (logBox) { logBox.style.display = 'block'; logBox.textContent = '⏳ Checking…'; }
+  if (logBox) { logBox.style.display = 'block'; logBox.textContent = '⏳ Registering with poller…'; }
 
   try {
     const res = await fetch(`/api/check/${taskUUID}`, { method: 'POST' });
     const data = await res.json();
-
-    // Build log output: server logs + full raw response
-    if (logBox) {
-      const logLines = [];
-      if (data.logs?.length) logLines.push(...data.logs);
-      logLines.push('');
-      logLines.push('─── Raw Response ───');
-      logLines.push(JSON.stringify(data, null, 2));
-      logBox.textContent = logLines.join('\n');
-    }
-    console.log(`[Check ${taskUUID}] Raw response:`, data);
+    console.log(`[Check ${taskUUID}] Response:`, data);
 
     if (data.status === 'completed') {
+      if (logBox) logBox.textContent = '✅ Already completed.';
       await loadHistory();
       await loadGallery();
       updatePendingBadge(await (await fetch('/api/history')).json().then(d => d.history));
     } else if (data.status === 'failed') {
+      if (logBox) logBox.textContent = '❌ Task failed on server.';
       await loadHistory();
-    } else {
-      // still pending
+    } else if (data.status === 'checking') {
+      // Registered with global poller — SSE will fire on completion
       if (indicator) indicator.style.display = 'none';
-      if (btn) { btn.disabled = false; btn.textContent = '🔍 Check Again'; }
+      if (btn) { btn.disabled = false; btn.textContent = '👁 Watching…'; }
+      if (logBox) logBox.textContent = data.message || 'Registered with global poller. Completion will appear automatically via SSE.';
     }
   } catch (err) {
     if (indicator) indicator.style.display = 'none';
     if (btn) { btn.disabled = false; }
-    if (logBox) logBox.textContent = `❌ Error: ${err.message}\n\n─── Raw Error ───\n${JSON.stringify(err, null, 2)}`;
+    if (logBox) logBox.textContent = `❌ Error: ${err.message}`;
     console.error('Check error:', err);
   }
 }
@@ -2768,24 +2794,11 @@ async function deleteHistory(taskUUID) {
 function toggleAutoPoll() {
   const on = document.getElementById('auto-poll-toggle').checked;
   if (on) {
+    // SSE handles real-time completion notifications.
+    // Auto-poll just refreshes the history display every 10s as a fallback.
     autoPollInterval = setInterval(async () => {
-      const res = await fetch('/api/history');
-      const data = await res.json();
-      const pending = data.history.filter(h => h.status === 'pending');
-      if (pending.length > 0) {
-        renderHistory(data.history);
-        updatePendingBadge(data.history);
-        // auto-check each pending one
-        for (const p of pending) {
-          const checkRes = await fetch(`/api/check/${p.taskUUID}`, { method: 'POST' });
-          const checkData = await checkRes.json();
-          if (checkData.status === 'completed' || checkData.status === 'failed') {
-            await loadHistory();
-            await loadGallery();
-          }
-        }
-      }
-    }, 5000);
+      await loadHistory();
+    }, 10000);
   } else {
     clearInterval(autoPollInterval);
     autoPollInterval = null;
@@ -3390,6 +3403,11 @@ function handleBridgeMusicFilePick(input) {
   }
 }
 
+function useGameMusic() {
+  bridgeMusicFile = { file: null, isUploadRef: true, serverPath: 'uploads/game_music.wav', name: 'game_music.wav' };
+  document.getElementById('bridge-music-label').innerHTML = `🎮 <strong>game_music.wav</strong> (from uploads)`;
+}
+
 // ── Add Music to Video ────────────────────────────────────────────────────────
 let amMusicFile = null; // { file } or { isUploadRef, serverPath, name }
 
@@ -3432,7 +3450,7 @@ async function submitAddMusic() {
 
   setBtnLoading('am', true);
   showAmStatus('loading', '⏳ Mixing music into video...');
-  document.getElementById('am-result').style.display = 'none';
+  document.getElementById('am-result').classList.remove('show');
 
   const fd = new FormData();
   fd.append('volume', volume.toString());
@@ -3464,7 +3482,7 @@ async function submitAddMusic() {
     vidEl.src = data.videoUrl + '?t=' + Date.now();
     dlEl.href = data.videoUrl;
     dlEl.download = data.filename;
-    document.getElementById('am-result').style.display = '';
+    document.getElementById('am-result').classList.add('show');
   } catch (err) {
     showAmStatus('error', `❌ ${err.message}`);
   } finally {

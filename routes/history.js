@@ -83,4 +83,20 @@ router.delete('/api/videos/:filename', async (req, res) => {
   }
 });
 
+// ── GET /api/podcaster-images ────────────────────────────────────────────────
+// Lists AI-generated podcaster portrait images from output/podcaster_imgs/
+router.get('/api/podcaster-images', async (req, res) => {
+  try {
+    const dir = path.join('output', 'podcaster_imgs');
+    const files = await readdir(dir);
+    const images = files
+      .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+      .map(f => ({ filename: f, url: `/output/podcaster_imgs/${f}` }))
+      .sort((a, b) => b.filename.localeCompare(a.filename));
+    res.json({ images });
+  } catch {
+    res.json({ images: [] });
+  }
+});
+
 export default router;

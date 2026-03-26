@@ -14,7 +14,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSy
 import path from 'path';
 
 import { STORY_VIDEO_MODELS } from '../lib/models.js';
-import { planScenes, generateVideoDescription, ensureUnder5MB } from '../lib/gemini.js';
+import { planScenes, generateVideoDescription, ensureUnder5MB } from '../lib/claude.js';
 import { fileToDataURI, downloadVideo, downloadImage, getMimeType, generateImageThumb, generateVideoThumb } from '../lib/helpers.js';
 import { concatMultipleVideos, extractLastFrame, mixMusicIntoVideo } from '../lib/ffmpeg.js';
 import { imageSubmitAndPollOwn, checkOnce, checkImageOnce } from '../lib/runware.js';

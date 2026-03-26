@@ -18,7 +18,7 @@
  *   lib/history.js  — loadHistory, saveHistory, addHistoryEntry, updateHistoryEntry
  *   lib/runware.js  — submitAndPoll, checkOnce
  *   lib/multer.js   — upload (small files), uploadBridge (large video files)
- *   lib/gemini.js   — planScenes (Gemini AI scene planner)
+ *   lib/claude.js   — planScenes, planPodcast (Claude AI scene/podcast planner)
  *   lib/storyHistory.js — loadStoryHistory, addStoryEntry, updateStoryEntry, updateSceneInStory
  */
 

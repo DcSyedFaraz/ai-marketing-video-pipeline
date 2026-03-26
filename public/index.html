@@ -426,6 +426,38 @@
           </div>
         </div>
 
+        <!-- Generate Podcaster Image (shown for non-HeyGen models) -->
+        <div class="fg" id="gen-podcaster-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="margin:0">Or generate a podcaster image</label>
+            <button class="btn-sm" onclick="toggleGenPodcasterPanel()" id="gen-podcaster-toggle" style="font-size:10px;padding:3px 8px">＋ Generate</button>
+          </div>
+          <div id="gen-podcaster-panel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:12px;margin-top:4px">
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <label style="display:flex;align-items:center;gap:5px;flex:1;background:var(--surface);border:2px solid var(--accent);border-radius:var(--rs);padding:6px 10px;cursor:pointer;font-size:12px" id="genpi-male-opt">
+                <input type="radio" name="genpi-gender" value="boy" checked onchange="genpiHighlightGender()" style="width:auto;accent-color:var(--accent)"> 👦 Male
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;flex:1;background:var(--surface);border:2px solid var(--border);border-radius:var(--rs);padding:6px 10px;cursor:pointer;font-size:12px" id="genpi-female-opt">
+                <input type="radio" name="genpi-gender" value="girl" onchange="genpiHighlightGender()" style="width:auto;accent-color:var(--accent)"> 👩 Female
+              </label>
+            </div>
+            <div class="fg" style="margin-bottom:10px">
+              <label style="font-size:11px">Custom Prompt <small style="font-weight:400">(optional — leave blank to auto-generate)</small></label>
+              <textarea id="genpi-prompt" rows="2" placeholder="e.g. Hyper-realistic portrait of a young woman with curly hair..." style="width:100%;resize:vertical;font-size:12px"></textarea>
+            </div>
+            <button class="btn btn-purple" id="btn-genpi" onclick="generatePodcasterImage()" style="width:100%;padding:8px;font-size:13px">
+              <span class="spinner" id="genpi-spinner" style="display:none"></span>
+              <span id="genpi-btn-text">🎙 Generate Podcaster Image</span>
+            </button>
+            <div id="genpi-status" style="display:none;margin-top:8px;font-size:12px;padding:6px 10px;border-radius:var(--rs);border:1px solid var(--border)"></div>
+            <div id="genpi-result" style="display:none;margin-top:10px;text-align:center">
+              <img id="genpi-img" src="" alt="Generated podcaster" style="max-width:160px;border-radius:var(--rs);border:2px solid var(--border);cursor:pointer" onclick="usePodcasterImage()" title="Click to use as portrait" />
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">Click image to use as portrait</div>
+              <button class="btn-sm green" style="margin-top:6px;width:100%" onclick="usePodcasterImage()">✓ Use This Image</button>
+            </div>
+          </div>
+        </div>
+
         <!-- HeyGen Avatar Section (shown only when HeyGen model is selected) -->
         <div class="fg" id="heygen-avatar-section" style="display:none">
           <label>Avatar <span class="req">*</span></label>
@@ -477,9 +509,31 @@
 
           <!-- Custom image upload (shown when Custom is selected) -->
           <div id="heygen-custom-upload" style="display:none">
-            <!-- Podcast image picker -->
+            <!-- AI Image Generator (inline for HeyGen) -->
+            <div style="margin-bottom:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Generate AI Podcaster Image</div>
+                <button class="btn-sm" onclick="toggleHeygenGenPanel()" id="heygen-gen-toggle" style="font-size:10px;padding:3px 8px">＋ Generate</button>
+              </div>
+              <div id="heygen-gen-panel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px;margin-bottom:8px">
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                  <label style="display:flex;align-items:center;gap:5px;flex:1;background:var(--surface);border:2px solid var(--accent);border-radius:var(--rs);padding:5px 8px;cursor:pointer;font-size:11px" id="hgpi-male-opt">
+                    <input type="radio" name="hgpi-gender" value="boy" checked onchange="hgpiHighlightGender()" style="width:auto;accent-color:var(--accent)"> 👦 Male
+                  </label>
+                  <label style="display:flex;align-items:center;gap:5px;flex:1;background:var(--surface);border:2px solid var(--border);border-radius:var(--rs);padding:5px 8px;cursor:pointer;font-size:11px" id="hgpi-female-opt">
+                    <input type="radio" name="hgpi-gender" value="girl" onchange="hgpiHighlightGender()" style="width:auto;accent-color:var(--accent)"> 👩 Female
+                  </label>
+                </div>
+                <button class="btn btn-purple" id="btn-hgpi" onclick="generateHeygenPodcasterImage()" style="width:100%;padding:6px;font-size:12px;margin-bottom:6px">
+                  <span class="spinner" id="hgpi-spinner" style="display:none"></span>
+                  <span id="hgpi-btn-text">🎙 Generate Image</span>
+                </button>
+                <div id="hgpi-status" style="display:none;font-size:11px;padding:5px 8px;border-radius:var(--rs);border:1px solid var(--border)"></div>
+              </div>
+            </div>
+            <!-- Podcast image picker (shows podcast history + AI generated images) -->
             <div id="heygen-podcast-imgs" style="margin-bottom:10px">
-              <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Or use a podcast image</div>
+              <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Or use a generated image</div>
               <div id="heygen-podcast-img-grid" style="display:flex;flex-wrap:wrap;gap:6px">
                 <!-- populated by JS -->
               </div>
@@ -1630,7 +1684,7 @@
 
 <script>
 // ══════ State ══════
-let selectedModel = 'klingai:avatar@2.0-pro';
+let selectedModel = 'heygen:avatar@4';
 let selectedBridgeModel = 'google:3@2';
 let bridgeMusicFile = null; // { file } or { isUploadRef, serverPath, name } or null
 let selectedLipSyncModel = 'pixverse:lipsync@1';
@@ -1708,6 +1762,14 @@ async function loadModels() {
     const data = await res.json();
     models = data.models;
     renderModelGrid();
+    // Apply initial HeyGen section visibility based on default selected model
+    const isHeyGenDefault = (models || []).find(m => m.id === selectedModel)?.isHeyGen;
+    if (isHeyGenDefault) {
+      document.getElementById('avatar-img-section').style.display = 'none';
+      document.getElementById('gen-podcaster-section').style.display = 'none';
+      document.getElementById('heygen-avatar-section').style.display = '';
+      renderHeyGenAvatarGrid(selectedModel);
+    }
   } catch {}
 }
 
@@ -1737,6 +1799,7 @@ function selectModel(id) {
   // Show/hide HeyGen vs standard image sections
   const isHeyGen = (models || []).find(m => m.id === id)?.isHeyGen;
   document.getElementById('avatar-img-section').style.display = isHeyGen ? 'none' : '';
+  document.getElementById('gen-podcaster-section').style.display = isHeyGen ? 'none' : '';
   document.getElementById('heygen-avatar-section').style.display = isHeyGen ? '' : 'none';
   if (isHeyGen) renderHeyGenAvatarGrid(id);
 }
@@ -1818,22 +1881,39 @@ async function loadPodcastImagesForAvatar() {
   const grid = document.getElementById('heygen-podcast-img-grid');
   if (!grid) return;
   try {
-    const res = await fetch('/api/story-history');
-    const data = await res.json();
-    const podcasts = (data.history || []).filter(h => h.type === 'podcast' && h.scenes?.[0]?.imageStatus === 'completed' && h.scenes[0].imageThumbUrl);
-    if (!podcasts.length) {
-      grid.innerHTML = '<div style="font-size:11px;color:var(--muted)">No podcast images yet</div>';
-      return;
-    }
-    grid.innerHTML = podcasts.map(p => {
-      const sc = p.scenes[0];
-      const genderCap = p.gender === 'girl' ? 'Girl' : 'Boy';
-      const time = new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return `<div class="podcast-img-card" onclick="selectPodcastImageForAvatar('${sc.imageUrl}', this)" style="cursor:pointer;border:2px solid var(--border);border-radius:8px;padding:4px;width:72px;text-align:center;transition:border-color .15s">
-        <img src="${sc.imageThumbUrl}" style="width:64px;height:auto;border-radius:6px;display:block;margin:0 auto" />
-        <div style="font-size:9px;color:var(--muted);margin-top:3px">🎙 ${genderCap} · ${time}</div>
-      </div>`;
-    }).join('');
+    const cards = [];
+
+    // AI-generated podcaster images (from this tab's generator)
+    try {
+      const vRes = await fetch('/api/podcaster-images');
+      const vData = await vRes.json();
+      (vData.images || []).forEach(img => {
+        cards.push(`<div class="podcast-img-card" onclick="selectPodcastImageForAvatar('${img.url}', this)" style="cursor:pointer;border:2px solid var(--border);border-radius:8px;padding:4px;width:72px;text-align:center;transition:border-color .15s">
+          <img src="${img.url}" style="width:64px;height:auto;border-radius:6px;display:block;margin:0 auto" />
+          <div style="font-size:9px;color:var(--muted);margin-top:3px">🎙 AI</div>
+        </div>`);
+      });
+    } catch {}
+
+    // Podcast pipeline images
+    try {
+      const res = await fetch('/api/story-history');
+      const data = await res.json();
+      const podcasts = (data.history || []).filter(h => h.type === 'podcast' && h.scenes?.[0]?.imageStatus === 'completed' && h.scenes[0].imageThumbUrl);
+      podcasts.forEach(p => {
+        const sc = p.scenes[0];
+        const genderCap = p.gender === 'girl' ? 'Girl' : 'Boy';
+        const time = new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        cards.push(`<div class="podcast-img-card" onclick="selectPodcastImageForAvatar('${sc.imageUrl}', this)" style="cursor:pointer;border:2px solid var(--border);border-radius:8px;padding:4px;width:72px;text-align:center;transition:border-color .15s">
+          <img src="${sc.imageThumbUrl}" style="width:64px;height:auto;border-radius:6px;display:block;margin:0 auto" />
+          <div style="font-size:9px;color:var(--muted);margin-top:3px">🎙 ${genderCap} · ${time}</div>
+        </div>`);
+      });
+    } catch {}
+
+    grid.innerHTML = cards.length
+      ? cards.join('')
+      : '<div style="font-size:11px;color:var(--muted)">No generated images yet</div>';
   } catch (e) { console.warn('loadPodcastImagesForAvatar:', e); }
 }
 
@@ -1852,6 +1932,143 @@ function selectPodcastImageForAvatar(serverPath, el) {
   document.getElementById('heygen-img-size').textContent = 'From history';
   document.getElementById('heygen-img-pill').classList.add('show');
   document.getElementById('heygen-img-dz').style.display = 'none';
+}
+
+// ── Generate Podcaster Image (Avatar tab) ─────────────────────────────────────
+let genpiServerPath = null; // server path of last generated podcaster image
+
+function toggleGenPodcasterPanel() {
+  const panel = document.getElementById('gen-podcaster-panel');
+  const btn = document.getElementById('gen-podcaster-toggle');
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? '' : 'none';
+  btn.textContent = open ? '− Close' : '＋ Generate';
+}
+
+function genpiHighlightGender() {
+  const val = document.querySelector('input[name="genpi-gender"]:checked')?.value;
+  document.getElementById('genpi-male-opt').style.borderColor = val === 'boy' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('genpi-female-opt').style.borderColor = val === 'girl' ? 'var(--accent)' : 'var(--border)';
+}
+
+async function generatePodcasterImage() {
+  const gender = document.querySelector('input[name="genpi-gender"]:checked')?.value || 'boy';
+  const prompt = document.getElementById('genpi-prompt').value.trim();
+
+  const btn = document.getElementById('btn-genpi');
+  const spinner = document.getElementById('genpi-spinner');
+  const btnText = document.getElementById('genpi-btn-text');
+  const status = document.getElementById('genpi-status');
+  const result = document.getElementById('genpi-result');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Generating…';
+  status.style.display = '';
+  status.style.borderColor = 'var(--accent)';
+  status.textContent = '⏳ Generating podcaster image (may take ~30s)…';
+  result.style.display = 'none';
+  genpiServerPath = null;
+
+  try {
+    const res = await fetch('/api/generate-podcaster-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gender, prompt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Generation failed.');
+
+    genpiServerPath = data.serverPath;
+    document.getElementById('genpi-img').src = data.imageUrl + '?t=' + Date.now();
+    result.style.display = '';
+    status.style.borderColor = 'var(--green)';
+    status.textContent = `✅ Done${data.cost != null ? ' · cost $' + data.cost.toFixed(4) : ''}`;
+  } catch (err) {
+    status.style.borderColor = 'var(--red)';
+    status.textContent = `❌ ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '🎙 Generate Podcaster Image';
+  }
+}
+
+function usePodcasterImage() {
+  if (!genpiServerPath) return;
+  // Set the server path as the portrait image source
+  const imgUrl = document.getElementById('genpi-img').src;
+  // Show pill in main portrait section
+  document.getElementById('img-thumb').src = imgUrl;
+  document.getElementById('img-name').textContent = 'Generated podcaster';
+  document.getElementById('img-size').textContent = 'AI generated';
+  document.getElementById('img-pill').classList.add('show');
+  document.getElementById('img-dz').style.display = 'none';
+  // Store server path so submitAvatar can use it
+  window._avatarServerImagePath = genpiServerPath;
+  // Close panel
+  document.getElementById('gen-podcaster-panel').style.display = 'none';
+  document.getElementById('gen-podcaster-toggle').textContent = '＋ Generate';
+  // Refresh the HeyGen image grid too so the new image appears there
+  loadPodcastImagesForAvatar();
+}
+
+// ── HeyGen inline podcaster image generator ───────────────────────────────────
+function toggleHeygenGenPanel() {
+  const panel = document.getElementById('heygen-gen-panel');
+  const btn = document.getElementById('heygen-gen-toggle');
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? '' : 'none';
+  btn.textContent = open ? '− Close' : '＋ Generate';
+}
+
+function hgpiHighlightGender() {
+  const val = document.querySelector('input[name="hgpi-gender"]:checked')?.value;
+  document.getElementById('hgpi-male-opt').style.borderColor = val === 'boy' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('hgpi-female-opt').style.borderColor = val === 'girl' ? 'var(--accent)' : 'var(--border)';
+}
+
+async function generateHeygenPodcasterImage() {
+  const gender = document.querySelector('input[name="hgpi-gender"]:checked')?.value || 'boy';
+  const btn = document.getElementById('btn-hgpi');
+  const spinner = document.getElementById('hgpi-spinner');
+  const btnText = document.getElementById('hgpi-btn-text');
+  const status = document.getElementById('hgpi-status');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Generating…';
+  status.style.display = '';
+  status.style.borderColor = 'var(--accent)';
+  status.textContent = '⏳ Generating (~30s)…';
+
+  try {
+    const res = await fetch('/api/generate-podcaster-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gender }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Generation failed.');
+
+    status.style.borderColor = 'var(--green)';
+    status.textContent = `✅ Done${data.cost != null ? ' · $' + data.cost.toFixed(4) : ''} — select below`;
+    // Reload grid to show the new image
+    await loadPodcastImagesForAvatar();
+    // Auto-select the newly generated image
+    const firstCard = document.querySelector('#heygen-podcast-img-grid .podcast-img-card');
+    if (firstCard) firstCard.click();
+    // Collapse the panel
+    document.getElementById('heygen-gen-panel').style.display = 'none';
+    document.getElementById('heygen-gen-toggle').textContent = '＋ Generate';
+  } catch (err) {
+    status.style.borderColor = 'var(--red)';
+    status.textContent = `❌ ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '🎙 Generate Image';
+  }
 }
 
 function renderBridgeModelGrid() {
@@ -1950,12 +2167,17 @@ function handleFile(input, pillId, nameId, sizeId, thumbId, type) {
   document.getElementById(sizeId).textContent = fmtSize(file.size);
   document.getElementById(pillId).classList.add('show');
   if (thumbId) { const r = new FileReader(); r.onload = e => document.getElementById(thumbId).src = e.target.result; r.readAsDataURL(file); }
+  if (input.id === 'img-input') window._avatarServerImagePath = null;
 }
 
 function clearFile(prefix) {
   document.getElementById(`${prefix}-input`).value = '';
   document.getElementById(`${prefix}-pill`).classList.remove('show');
-  if (prefix === 'img') document.getElementById('img-thumb').src = '';
+  if (prefix === 'img') {
+    document.getElementById('img-thumb').src = '';
+    document.getElementById('img-dz').style.display = '';
+    window._avatarServerImagePath = null;
+  }
 }
 
 function fmtSize(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
@@ -2224,7 +2446,7 @@ async function submitAvatar() {
     }
   } else {
     const img = document.getElementById('img-input').files[0];
-    if (!img) { setStatus('avatar','error','⚠ Please select a portrait image.'); return; }
+    if (!img && !window._avatarServerImagePath) { setStatus('avatar','error','⚠ Please select or generate a portrait image.'); return; }
   }
 
   setBtnLoading('avatar', true);
@@ -2251,6 +2473,8 @@ async function submitAvatar() {
     }
     const heygenRes = document.querySelector('input[name="heygen-res"]:checked')?.value || '1080x1920';
     fd.append('resolution', heygenRes);
+  } else if (window._avatarServerImagePath) {
+    fd.append('imageServerPath', window._avatarServerImagePath);
   } else {
     fd.append('image', document.getElementById('img-input').files[0]);
   }

@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 
-import { planPodcast } from '../lib/gemini.js';
+import { planPodcast, buildPodcasterImagePrompt } from '../lib/claude.js';
 import { fileToDataURI, downloadVideo, downloadImage, generateImageThumb, generateVideoThumb } from '../lib/helpers.js';
 import { imageSubmitAndPollOwn } from '../lib/runware.js';
 import { GlobalPoller } from '../lib/globalPoller.js';
@@ -558,6 +558,65 @@ router.post('/api/regen-podcast-video/:taskUUID', async (req, res) => {
   console.log(`[Podcast] ── New Regen Entry ──── ${newUUID} | keepImage: ${!!keepImage} | phase: ${startPhase}`);
   res.json({ success: true, taskUUID: newUUID, message: 'New podcast video generation started.' });
   runPodcastPipeline(newUUID, startPhase);
+});
+
+// ── POST /api/generate-podcaster-image ───────────────────────────────────────
+// Generates a podcaster portrait image directly (same model/size as podcast flow).
+// Body: { gender: 'boy'|'girl', prompt?: string (optional override — skips Gemini) }
+router.post('/api/generate-podcaster-image', async (req, res) => {
+  const gender = (req.body.gender || 'boy').trim();
+  const customPrompt = (req.body.prompt || '').trim();
+
+  let imagePrompt;
+  if (customPrompt) {
+    imagePrompt = customPrompt;
+  } else {
+    try {
+      console.log(`[PodcasterImg] Building image prompt via Claude | gender: ${gender}`);
+      imagePrompt = await buildPodcasterImagePrompt(gender);
+    } catch (err) {
+      console.error(`[PodcasterImg] Prompt generation failed:`, err.message);
+      return res.status(500).json({ error: `Failed to generate image prompt: ${err.message}` });
+    }
+  }
+
+  console.log(`[PodcasterImg] Generating image | prompt: ${imagePrompt.slice(0, 80)}...`);
+
+  const imgTaskUUID = randomUUID();
+  const imgPayload = {
+    taskUUID: imgTaskUUID,
+    model: 'google:4@3',
+    positivePrompt: imagePrompt,
+    width: 3072,
+    height: 5504,
+    numberResults: 1,
+    includeCost: true,
+    outputType: ['URL'],
+  };
+
+  try {
+    const imgResult = await imageSubmitAndPollOwn(API_KEY, imgPayload, 'PodcasterImg');
+    if (!imgResult?.imageURL) throw new Error('No imageURL in response');
+
+    // Save to a temp output folder accessible via /output/
+    const outDir = path.join('output', 'podcaster_imgs');
+    await mkdir(outDir, { recursive: true });
+    const filename = `podcaster_${Date.now()}.jpg`;
+    const filePath = path.join(outDir, filename);
+    await downloadImage(imgResult.imageURL, filePath);
+
+    console.log(`[PodcasterImg] ✅ Done → ${filename} | cost: ${imgResult.cost != null ? '$' + imgResult.cost : 'N/A'}`);
+    res.json({
+      success: true,
+      imageUrl: `/output/podcaster_imgs/${filename}`,
+      serverPath: `output/podcaster_imgs/${filename}`,
+      prompt: imagePrompt,
+      cost: imgResult.cost ?? null,
+    });
+  } catch (err) {
+    console.error(`[PodcasterImg] ❌ Image generation failed:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── GET /api/podcast-history ────────────────────────────────────────────────

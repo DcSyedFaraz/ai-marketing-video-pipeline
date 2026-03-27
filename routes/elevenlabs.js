@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { writeFile } from 'fs/promises';
+import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -14,6 +15,20 @@ const router = Router();
 const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const EL_BASE = 'https://api.elevenlabs.io/v1';
+
+// ─── Load marketing angles once at startup ────────────────────────────────────
+let MARKETING_ANGLES_DATA = null;
+try {
+  const maPath = path.resolve('public', 'marketing_angles.json');
+  if (existsSync(maPath)) {
+    MARKETING_ANGLES_DATA = JSON.parse(readFileSync(maPath, 'utf8'));
+    console.log(`[ElevenLabs] Loaded ${MARKETING_ANGLES_DATA.marketing_angles?.length ?? 0} marketing angles`);
+  } else {
+    console.log('[ElevenLabs] No marketing_angles.json found — angle enrichment disabled');
+  }
+} catch (e) {
+  console.warn(`[ElevenLabs] Failed to load marketing_angles.json: ${e.message}`);
+}
 
 // ── Fallback voice list (used when no API key or fetch fails) ─────────────────
 // These are stable ElevenLabs premade voices with known IDs
@@ -119,15 +134,68 @@ router.post('/api/elevenlabs/generate-script', async (req, res) => {
   const pacing      = (req.body.pacing || 'natural').toLowerCase();
   const energy      = (req.body.energy || 'moderate').toLowerCase();
   const apiVersion  = (req.body.apiVersion || 'v2').toLowerCase(); // 'v2' or 'v3'
+  const angleIdRaw  = req.body.angleId;
+  const angleId     = angleIdRaw != null ? Number(angleIdRaw) : null;
 
-  if (!topic) {
-    return res.status(400).json({ error: 'Topic/description is required.' });
+  // Resolve angle object if provided
+  const angle = (angleId !== null && MARKETING_ANGLES_DATA)
+    ? (MARKETING_ANGLES_DATA.marketing_angles?.find(a => a.id === angleId) ?? null)
+    : null;
+
+  if (!topic && angle === null) {
+    return res.status(400).json({ error: 'Topic/description is required, or select a marketing angle.' });
   }
 
   const wpm       = PACING_WPM[pacing] || 130;
   const wordBudget = Math.round((duration / 60) * wpm);
   const contentRule = CONTENT_RULES[contentType] || CONTENT_RULES.podcast;
   const energyRule  = ENERGY_TONE[energy] || ENERGY_TONE.moderate;
+
+  // ── Game context (always injected when data is available) ────────────────────
+  let gameContext = '';
+  if (MARKETING_ANGLES_DATA?.game) {
+    const g = MARKETING_ANGLES_DATA.game;
+    const tiers = Array.isArray(g.ranked_tiers) ? g.ranked_tiers.join(' → ') : '';
+    const platforms = Array.isArray(g.platforms) ? g.platforms.join(', ') : '';
+    gameContext = `
+GAME CONTEXT:
+Game: ${g.title || ''}
+Genre: ${g.genre || ''}
+Format: ${g.format || ''}
+Match Duration: ~${g.match_duration_minutes ?? '?'} minutes
+${tiers ? `Ranked Tiers: ${tiers}` : ''}
+${platforms ? `Platforms: ${platforms}` : ''}
+`.trim();
+  }
+
+  // ── Marketing angle context (only when angle selected) ───────────────────────
+  let angleContext = '';
+  if (angle) {
+    const emotionalList = Array.isArray(angle.emotional_territory)
+      ? angle.emotional_territory.join(', ')
+      : String(angle.emotional_territory || '');
+    const creativeList = Array.isArray(angle.creative_directions)
+      ? angle.creative_directions.map((d, i) => `${i + 1}. ${d}`).join('\n')
+      : '';
+    const messagingList = Array.isArray(angle.messaging_examples)
+      ? angle.messaging_examples.map(m => `- "${m}"`).join('\n')
+      : '';
+    const formatStyle = angle.format?.style || '';
+
+    angleContext = `
+MARKETING ANGLE: ${angle.name}
+CORE MESSAGE: ${angle.core_message}
+EMOTIONAL TERRITORY: ${emotionalList}
+VISUAL/STYLE REFERENCE (for tone only — this is audio): ${formatStyle}
+
+CREATIVE DIRECTIONS (choose one as the narrative spine):
+${creativeList}
+
+APPROVED MESSAGING EXAMPLES (use as inspiration, not verbatim):
+${messagingList}
+
+The script must embody the emotional territory above. Every line should serve the core message.`;
+  }
 
   const v3TagsSection = apiVersion === 'v3' ? `
 V3 EXPRESSION TAGS (use sparingly — max 2-3 per script):
@@ -156,7 +224,7 @@ ${contentRule}
 
 ENERGY & TONE:
 ${energyRule}
-
+${gameContext ? `\n${gameContext}\n` : ''}${angleContext ? `\n${angleContext}\n` : ''}
 UNIVERSAL RULES:
 - No filler words: um, uh, well, so, basically, literally, actually, right
 - No speaker labels, no asterisks, no parenthetical directions
@@ -169,11 +237,18 @@ ${v3TagsSection}
 OUTPUT FORMAT:
 Return ONLY the script text. No JSON, no labels, no quotes, no preamble.`;
 
-  const userPrompt = topic
-    ? `Write a ${duration}-second ${contentType} script about: ${topic}`
-    : `Write a ${duration}-second ${contentType} script. Make it engaging and natural.`;
+  let userPrompt;
+  if (angle) {
+    const topicAddendum = topic ? ` Additional context from creator: ${topic}` : '';
+    userPrompt = `Write a ${duration}-second ${contentType} script for the "${angle.name}" marketing angle.${topicAddendum}`;
+  } else {
+    userPrompt = topic
+      ? `Write a ${duration}-second ${contentType} script about: ${topic}`
+      : `Write a ${duration}-second ${contentType} script. Make it engaging and natural.`;
+  }
 
-  console.log(`[ElevenLabs] Generating script — type:${contentType} duration:${duration}s pacing:${pacing} energy:${energy} v:${apiVersion} budget:${wordBudget}w`);
+  const angleLabel = angle ? `angle:"${angle.name}"` : 'no-angle';
+  console.log(`[ElevenLabs] Generating script — type:${contentType} ${angleLabel} duration:${duration}s pacing:${pacing} energy:${energy} v:${apiVersion} budget:${wordBudget}w`);
 
   try {
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY });

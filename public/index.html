@@ -329,6 +329,10 @@
     .el-word-count { font-size: 10px; color: var(--muted); margin-top: 3px; text-align: right; }
     .el-word-count.over { color: var(--red); }
 
+    /* EL angle "None" chip */
+    .el-angle-none { border: 1.5px solid var(--border); border-radius: 20px; font-size: 11px; font-weight: 600; padding: 4px 10px; cursor: pointer; transition: all .15s; background: var(--surface2); color: var(--muted); display: inline-block; margin-bottom: 6px; }
+    .el-angle-none.selected { border-color: var(--accent); background: rgba(124,58,237,.15); color: var(--accent); }
+
     /* Voice grid */
     .el-voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 7px; max-height: 300px; overflow-y: auto; padding-right: 2px; }
     .el-voice-card { border: 2px solid var(--border); border-radius: var(--rs); padding: 9px 10px; cursor: pointer; transition: all .15s; background: var(--surface2); }
@@ -600,9 +604,18 @@
                 <div class="el-chip"          data-val="story"       onclick="elSelectChip('type',this)">📖 Story</div>
               </div>
 
+              <!-- Marketing Angle (optional) -->
+              <label>Marketing Angle <small style="font-weight:400">(optional)</small></label>
+              <div style="margin-bottom:6px">
+                <div class="el-angle-none selected" id="el-angle-none-opt" onclick="elSelectAngle(null)">✕ None (manual topic)</div>
+              </div>
+              <div class="angle-grid" id="el-angle-grid" style="margin-bottom:10px">
+                <div style="color:var(--muted);font-size:12px;padding:4px;grid-column:1/-1">Loading angles…</div>
+              </div>
+
               <!-- Topic -->
               <div style="margin-bottom:8px">
-                <label>Topic / Description</label>
+                <label>Topic / Description <span id="el-topic-req" style="color:var(--red)">*</span><span id="el-topic-hint" style="display:none;font-size:10px;color:var(--muted);margin-left:4px">(optional — angle provides context)</span></label>
                 <textarea id="el-topic" placeholder="What is this audio about? e.g. Promote a mobile game, introduce a product, explain a concept..." style="min-height:56px"></textarea>
               </div>
 
@@ -672,13 +685,15 @@
               <div class="el-step-hdr"><div class="el-step-num" id="el-step2-num">2</div> Select Voice</div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
                 <div class="el-voice-filters" id="el-voice-filters">
-                  <div class="el-chip selected" data-val="all"      onclick="elFilterVoices('all',this)">All</div>
-                  <div class="el-chip" data-val="young"    onclick="elFilterVoices('young',this)">Young</div>
-                  <div class="el-chip" data-val="female"   onclick="elFilterVoices('female',this)">Female</div>
-                  <div class="el-chip" data-val="male"     onclick="elFilterVoices('male',this)">Male</div>
-                  <div class="el-chip" data-val="energetic" onclick="elFilterVoices('energetic',this)">Energetic</div>
-                  <div class="el-chip" data-val="podcast"  onclick="elFilterVoices('podcast',this)">Podcast</div>
-                  <div class="el-chip" data-val="gaming"   onclick="elFilterVoices('gaming',this)">Gaming</div>
+                  <div class="el-chip selected" data-val="all"        onclick="elFilterVoices('all',this)">All</div>
+                  <div class="el-chip" data-val="young"      onclick="elFilterVoices('young',this)">Young</div>
+                  <div class="el-chip" data-val="young-girl" onclick="elFilterVoices('young-girl',this)">👧 Young Girl</div>
+                  <div class="el-chip" data-val="young-boy"  onclick="elFilterVoices('young-boy',this)">👦 Young Boy</div>
+                  <div class="el-chip" data-val="female"     onclick="elFilterVoices('female',this)">Female</div>
+                  <div class="el-chip" data-val="male"       onclick="elFilterVoices('male',this)">Male</div>
+                  <div class="el-chip" data-val="energetic"  onclick="elFilterVoices('energetic',this)">Energetic</div>
+                  <div class="el-chip" data-val="podcast"    onclick="elFilterVoices('podcast',this)">Podcast</div>
+                  <div class="el-chip" data-val="gaming"     onclick="elFilterVoices('gaming',this)">Gaming</div>
                 </div>
                 <button class="btn-sm" onclick="elLoadVoices()" id="el-reload-voices-btn" style="flex-shrink:0">↻ Reload</button>
               </div>
@@ -2192,6 +2207,8 @@ let elSelectedVoiceName = '';
 let elGeneratedAudioPath = ''; // server path to generated audio (/uploads/xxx.mp3)
 let elCurrentPreviewAudio = null; // playing preview Audio object
 let elChipState = { type: 'game', dur: '30', pace: 'natural', energy: 'moderate' };
+let elSelectedAngleId = null;       // number | null
+let _elMarketingAngles = [];        // cached angle list for EL panel
 
 function elToggleAudioSource(source) {
   document.getElementById('el-tab-upload').classList.toggle('active', source === 'upload');
@@ -2199,6 +2216,7 @@ function elToggleAudioSource(source) {
   document.getElementById('el-panel-upload').classList.toggle('active', source === 'upload');
   document.getElementById('el-panel-generate').classList.toggle('active', source === 'generate');
   if (source === 'generate' && elVoices.length === 0) elLoadVoices();
+  if (source === 'generate' && _elMarketingAngles.length === 0) elLoadAngles();
 }
 
 function elSelectChip(group, el) {
@@ -2222,6 +2240,67 @@ function elGetVersion() {
   return document.querySelector('input[name="el-version"]:checked')?.value || 'v2';
 }
 
+async function elLoadAngles() {
+  try {
+    const res = await fetch('/api/marketing-angles');
+    if (!res.ok) return;
+    const data = await res.json();
+    _elMarketingAngles = data.angles || [];
+    elRenderAngles(_elMarketingAngles);
+  } catch (e) {
+    const grid = document.getElementById('el-angle-grid');
+    if (grid) grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px;grid-column:1/-1">Angles unavailable.</div>';
+  }
+}
+
+function elRenderAngles(angles) {
+  const grid = document.getElementById('el-angle-grid');
+  if (!grid) return;
+  if (!angles.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No angles found.</div>';
+    return;
+  }
+  grid.innerHTML = angles.map(a => {
+    const statusClass = a.status === 'in_pipeline' ? 'in-pipeline' : a.status === 'untested_gap' ? 'untested-gap' : 'untested';
+    const statusLabel = a.status === 'in_pipeline' ? '▶ In Pipeline' : a.status === 'untested_gap' ? `★ Gap (P${a.test_priority})` : '○ Untested';
+    return `<div class="angle-card" id="el-angle-card-${a.id}" onclick="elSelectAngle(${a.id})">
+      <div class="angle-card-name">${a.name}</div>
+      <div class="angle-card-msg">${a.core_message}</div>
+      <div class="angle-card-status ${statusClass}">${statusLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+function elSelectAngle(id) {
+  elSelectedAngleId = id;
+
+  // Toggle "None" chip
+  document.getElementById('el-angle-none-opt')?.classList.toggle('selected', id === null);
+
+  // Toggle angle cards (scoped to EL grid only)
+  document.querySelectorAll('#el-angle-grid .angle-card').forEach(c => c.classList.remove('selected'));
+  if (id !== null) {
+    document.getElementById(`el-angle-card-${id}`)?.classList.add('selected');
+  }
+
+  // Update topic field hint and required marker
+  const topicReq  = document.getElementById('el-topic-req');
+  const topicHint = document.getElementById('el-topic-hint');
+  const topicTA   = document.getElementById('el-topic');
+  if (id !== null) {
+    if (topicReq)  topicReq.style.display  = 'none';
+    if (topicHint) topicHint.style.display = 'inline';
+    // Pre-fill with core_message only if textarea is currently empty
+    const angle = _elMarketingAngles.find(a => a.id === id);
+    if (angle && topicTA && !topicTA.value.trim()) {
+      topicTA.value = angle.core_message;
+    }
+  } else {
+    if (topicReq)  topicReq.style.display  = '';
+    if (topicHint) topicHint.style.display = 'none';
+  }
+}
+
 const EL_WPM = { slow: 100, natural: 130, fast: 160 };
 
 function elUpdateWordCount() {
@@ -2237,9 +2316,10 @@ function elUpdateWordCount() {
 }
 
 async function elGenerateScript() {
-  const topic = document.getElementById('el-topic').value.trim();
-  if (!topic) {
-    alert('Please enter a topic or description for the script.');
+  const topic   = document.getElementById('el-topic').value.trim();
+  const angleId = elSelectedAngleId;
+  if (!topic && angleId === null) {
+    alert('Please enter a topic or select a marketing angle.');
     return;
   }
   const btn = document.getElementById('el-gen-script-btn');
@@ -2256,6 +2336,7 @@ async function elGenerateScript() {
       body: JSON.stringify({
         contentType: elChipState.type,
         topic,
+        angleId,
         duration: elChipState.dur,
         pacing: elChipState.pace,
         energy: elChipState.energy,
@@ -2284,6 +2365,10 @@ async function elLoadVoices() {
   try {
     const res = await fetch('/api/elevenlabs/voices');
     const data = await res.json();
+    if (data.error && (!data.voices || data.voices.length === 0)) {
+      document.getElementById('el-voice-grid').innerHTML = `<div style="font-size:12px;color:var(--red);padding:6px 0">⚠ ${data.error}</div>`;
+      return;
+    }
     elVoices = data.voices || [];
     elRenderVoices('all');
   } catch (err) {
@@ -2303,7 +2388,9 @@ function elFilterVoices(filter, chipEl) {
 function elRenderVoices(filter) {
   const grid = document.getElementById('el-voice-grid');
   const filtered = filter === 'all' ? elVoices : elVoices.filter(v => {
-    if (filter === 'young')     return v.age === 'young';
+    if (filter === 'young')      return v.age === 'young';
+    if (filter === 'young-girl') return v.age === 'young' && v.gender === 'female';
+    if (filter === 'young-boy')  return v.age === 'young' && v.gender === 'male';
     if (filter === 'female')    return v.gender === 'female';
     if (filter === 'male')      return v.gender === 'male';
     if (filter === 'energetic') return v.description.includes('energetic') || v.description.includes('strong') || v.description.includes('lively');

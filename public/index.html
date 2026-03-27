@@ -627,6 +627,13 @@
                 <div class="el-chip" data-val="45"  onclick="elSelectChip('dur',this)">45s</div>
                 <div class="el-chip" data-val="60"  onclick="elSelectChip('dur',this)">60s</div>
                 <div class="el-chip" data-val="90"  onclick="elSelectChip('dur',this)">90s</div>
+                <div class="el-chip" data-val="custom" onclick="elSelectChip('dur',this)">Custom</div>
+              </div>
+              <div id="el-custom-dur-wrap" style="display:none;margin-top:6px;align-items:center;gap:6px">
+                <input type="number" id="el-custom-dur" min="5" max="600" placeholder="e.g. 120"
+                  style="width:90px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px"
+                  oninput="elOnCustomDur(this)" />
+                <span style="font-size:12px;color:var(--muted)">seconds</span>
               </div>
 
               <!-- Pacing -->
@@ -2225,7 +2232,22 @@ function elSelectChip(group, el) {
   document.getElementById(groupMap[group])?.querySelectorAll('.el-chip').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   elChipState[group] = el.dataset.val;
+  if (group === 'dur') {
+    const wrap = document.getElementById('el-custom-dur-wrap');
+    if (el.dataset.val === 'custom') {
+      wrap.style.display = 'flex';
+      const input = document.getElementById('el-custom-dur');
+      if (input.value) elChipState.dur = input.value;
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
   elUpdateWordCount();
+}
+
+function elOnCustomDur(input) {
+  const val = parseInt(input.value);
+  if (val >= 5) { elChipState.dur = String(val); elUpdateWordCount(); }
 }
 
 function elSelectVersion(ver) {

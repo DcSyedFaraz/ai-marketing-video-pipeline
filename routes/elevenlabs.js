@@ -35,9 +35,9 @@ const PACING_WPM = { slow: 100, natural: 130, fast: 160 };
 
 // ── Energy level → tone instruction ──────────────────────────────────────────
 const ENERGY_TONE = {
-  calm:     'Keep the tone relaxed, grounded, and conversational — like a friend sharing advice.',
-  moderate: 'Keep the tone confident and engaging — enthusiastic but not over the top.',
-  high:     'Keep the tone energetic and exciting — drive urgency and excitement forward.',
+  calm:     'Keep the tone warm and grounded — like a trusted friend sharing advice. Relaxed but never flat or lifeless.',
+  moderate: 'Keep the tone upbeat and lively — naturally enthusiastic, like someone genuinely excited to share something. Not over-the-top, but clearly energised and engaged. Avoid dull, flat, or monotone phrasing.',
+  high:     'Keep the tone high-energy and exciting — urgent, punchy, and electrifying. Drive real excitement and momentum in every line.',
 };
 
 // ── Content type tone rules ───────────────────────────────────────────────────
@@ -202,6 +202,7 @@ UNIVERSAL RULES:
 - Punctuation handles pauses — don't add extra ellipses or dashes unless natural
 - Word budget: exactly ${wordBudget} words (±5 words allowed)
 - Count your words before returning. If over budget, trim. If under by more than 5, add.
+- CRITICAL: The script must feel alive and engaging. Avoid passive, flat, or overly formal phrasing. Word choices should carry natural energy — use active verbs, punchy sentences, and phrases a real enthusiastic person would say out loud.
 ${v3TagsSection}
 OUTPUT FORMAT:
 Return ONLY the script text. No JSON, no labels, no quotes, no preamble.`;

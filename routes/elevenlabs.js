@@ -30,24 +30,6 @@ try {
   console.warn(`[ElevenLabs] Failed to load marketing_angles.json: ${e.message}`);
 }
 
-// ── Fallback voice list (used when no API key or fetch fails) ─────────────────
-// These are stable ElevenLabs premade voices with known IDs
-const FALLBACK_VOICES = [
-  { voiceId: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel',  gender: 'female', age: 'young',        description: 'calm, clear',       useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/21m00Tcm4TlvDq8ikWAM/df6788f9-5c96-470d-8312-aab3b3d8f50a.mp3' },
-  { voiceId: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi',    gender: 'female', age: 'young',        description: 'strong, confident', useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/AZnzlk1XvdvUeBnXmlld/69c5c8f7-b4b3-490b-9d4d-e56c8cc2e4f5.mp3' },
-  { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella',   gender: 'female', age: 'young',        description: 'soft, friendly',    useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/04a2e90b-6194-4c21-9f24-1908e0f2c95e.mp3' },
-  { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',    gender: 'female', age: 'young',        description: 'emotional, lively', useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/MF3mGyEYCl7XYWbV9V6O/f9fd64c3-5d62-45cd-b0dc-ad722ee3284e.mp3' },
-  { voiceId: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily',   gender: 'female', age: 'young',        description: 'calm, warm',        useCase: 'audiobook',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/LcfcDJNUP1GQjkzn1xUU/e4b994b7-9713-4238-bfef-d42e7b0d35fe.mp3' },
-  { voiceId: 'ErXwobaYiN019PkySvjV', name: 'Antoni',  gender: 'male',   age: 'young',        description: 'well-rounded',      useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/ErXwobaYiN019PkySvjV/f4f20ea5-45bf-4c0a-b5d1-b5c1a0c09cc9.mp3' },
-  { voiceId: 'GBv7mTt0atIp3Br8iCZE', name: 'Thomas',  gender: 'male',   age: 'young',        description: 'calm, meditative',  useCase: 'meditation',    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/GBv7mTt0atIp3Br8iCZE/98542988-5267-4148-9a9e-baa8c4cf2d02.mp3' },
-  { voiceId: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam',   gender: 'male',   age: 'young',        description: 'energetic, social media', useCase: 'conversational', previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/TX3LPaxmHKxFdv7VOQHJ/ac833b71-8f7c-4f99-bc84-a4b3e62f6e71.mp3' },
-  { voiceId: 'SOYHLrjzK2X1ezoPC6cr', name: 'Harry',  gender: 'male',   age: 'young',        description: 'fierce, animated',  useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/SOYHLrjzK2X1ezoPC6cr/830f1d2b-2f3c-4b72-bf8a-e29b7deb3b6e.mp3' },
-  { voiceId: 'bIHbv24MWmeRgasZH58o', name: 'Will',   gender: 'male',   age: 'young',        description: 'relaxed, conversational', useCase: 'conversational', previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/bIHbv24MWmeRgasZH58o/e8e7b773-f891-4f8d-9c72-fec53df168e0.mp3' },
-  { voiceId: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', gender: 'male',   age: 'young',        description: 'Australian, confident', useCase: 'conversational', previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/IKne3meq5aSn9XLyUdCD/86a2b298-6253-4e89-9a22-e7f55e6d2c52.mp3' },
-  { voiceId: '2EiwWnXFnvU5JabPnv8n', name: 'Clyde',   gender: 'male',   age: 'middle_aged',  description: 'war veteran, deep', useCase: 'narration',     previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/2EiwWnXFnvU5JabPnv8n/65d80f52-703f-4cae-a91d-75d4e200ed02.mp3' },
-  { voiceId: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel',  gender: 'male',   age: 'middle_aged',  description: 'authoritative, news', useCase: 'news',         previewUrl: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/onwK4e9ZLuTAKqWW03F9/7eee0236-1a72-4b86-b303-5dcadc007ba9.mp3' },
-];
-
 // ── Pacing → words per minute ─────────────────────────────────────────────────
 const PACING_WPM = { slow: 100, natural: 130, fast: 160 };
 
@@ -70,8 +52,7 @@ const CONTENT_RULES = {
 // ── GET /api/elevenlabs/voices ────────────────────────────────────────────────
 router.get('/api/elevenlabs/voices', async (req, res) => {
   if (!ELEVENLABS_KEY) {
-    console.log('[ElevenLabs] No API key — returning fallback voice list');
-    return res.json({ voices: FALLBACK_VOICES, source: 'fallback' });
+    return res.status(400).json({ voices: [], error: 'ElevenLabs API key is not configured. Add ELEVENLABS_API_KEY to your .env file.' });
   }
 
   try {
@@ -82,43 +63,31 @@ router.get('/api/elevenlabs/voices', async (req, res) => {
     if (!response.ok) {
       const text = await response.text();
       console.warn(`[ElevenLabs] Voices API error ${response.status}: ${text}`);
-      return res.json({ voices: FALLBACK_VOICES, source: 'fallback' });
+      return res.status(response.status).json({ voices: [], error: `ElevenLabs API error ${response.status}` });
     }
 
     const data = await response.json();
     const allVoices = data.voices || [];
 
-    // Filter to relevant voices: young/middle-aged, conversational/podcast/gaming/narration use cases
-    const ALLOWED_USE_CASES = new Set(['narration', 'gaming', 'podcast', 'entertainment', 'conversational', 'news', 'video_games']);
-    const ALLOWED_AGES      = new Set(['young', 'middle_aged']);
-    const ALLOWED_DESCS     = new Set(['energetic', 'natural', 'casual', 'confident', 'friendly', 'expressive', 'warm', 'clear', 'lively']);
+    // Keep all non-cloned voices that have a preview URL (guarantees working previews)
+    const filtered = allVoices.filter(v => v.category !== 'cloned' && v.preview_url);
 
-    const filtered = allVoices.filter(v => {
-      if (v.category === 'cloned') return false; // skip user-cloned voices
-      const labels = v.labels || {};
-      const useCase = (labels.use_case || '').toLowerCase();
-      const age     = (labels.age     || '').toLowerCase().replace(/\s+/g, '_');
-      const desc    = (labels.description || '').toLowerCase();
-      return ALLOWED_USE_CASES.has(useCase) || ALLOWED_AGES.has(age) || ALLOWED_DESCS.has(desc);
-    });
-
-    // Map to clean shape
-    const voices = filtered.slice(0, 40).map(v => ({
+    const voices = filtered.map(v => ({
       voiceId:    v.voice_id,
       name:       v.name,
       gender:     (v.labels?.gender      || '').toLowerCase() || 'unknown',
       age:        (v.labels?.age         || '').toLowerCase().replace(/\s+/g, '_') || 'unknown',
       description:(v.labels?.description || v.labels?.accent || '').toLowerCase(),
       useCase:    (v.labels?.use_case    || '').toLowerCase().replace(/\s+/g, '_'),
-      previewUrl: v.preview_url || null,
+      previewUrl: v.preview_url,
     }));
 
-    console.log(`[ElevenLabs] Returning ${voices.length} filtered voices from API`);
+    console.log(`[ElevenLabs] Returning ${voices.length} voices from API`);
     res.json({ voices, source: 'api' });
 
   } catch (err) {
     console.error(`[ElevenLabs] Voices fetch error: ${err.message}`);
-    res.json({ voices: FALLBACK_VOICES, source: 'fallback' });
+    res.status(500).json({ voices: [], error: `Failed to fetch voices: ${err.message}` });
   }
 });
 

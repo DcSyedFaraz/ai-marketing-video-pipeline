@@ -685,13 +685,15 @@
               <div class="el-step-hdr"><div class="el-step-num" id="el-step2-num">2</div> Select Voice</div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
                 <div class="el-voice-filters" id="el-voice-filters">
-                  <div class="el-chip selected" data-val="all"      onclick="elFilterVoices('all',this)">All</div>
-                  <div class="el-chip" data-val="young"    onclick="elFilterVoices('young',this)">Young</div>
-                  <div class="el-chip" data-val="female"   onclick="elFilterVoices('female',this)">Female</div>
-                  <div class="el-chip" data-val="male"     onclick="elFilterVoices('male',this)">Male</div>
-                  <div class="el-chip" data-val="energetic" onclick="elFilterVoices('energetic',this)">Energetic</div>
-                  <div class="el-chip" data-val="podcast"  onclick="elFilterVoices('podcast',this)">Podcast</div>
-                  <div class="el-chip" data-val="gaming"   onclick="elFilterVoices('gaming',this)">Gaming</div>
+                  <div class="el-chip selected" data-val="all"        onclick="elFilterVoices('all',this)">All</div>
+                  <div class="el-chip" data-val="young"      onclick="elFilterVoices('young',this)">Young</div>
+                  <div class="el-chip" data-val="young-girl" onclick="elFilterVoices('young-girl',this)">👧 Young Girl</div>
+                  <div class="el-chip" data-val="young-boy"  onclick="elFilterVoices('young-boy',this)">👦 Young Boy</div>
+                  <div class="el-chip" data-val="female"     onclick="elFilterVoices('female',this)">Female</div>
+                  <div class="el-chip" data-val="male"       onclick="elFilterVoices('male',this)">Male</div>
+                  <div class="el-chip" data-val="energetic"  onclick="elFilterVoices('energetic',this)">Energetic</div>
+                  <div class="el-chip" data-val="podcast"    onclick="elFilterVoices('podcast',this)">Podcast</div>
+                  <div class="el-chip" data-val="gaming"     onclick="elFilterVoices('gaming',this)">Gaming</div>
                 </div>
                 <button class="btn-sm" onclick="elLoadVoices()" id="el-reload-voices-btn" style="flex-shrink:0">↻ Reload</button>
               </div>
@@ -2363,6 +2365,10 @@ async function elLoadVoices() {
   try {
     const res = await fetch('/api/elevenlabs/voices');
     const data = await res.json();
+    if (data.error && (!data.voices || data.voices.length === 0)) {
+      document.getElementById('el-voice-grid').innerHTML = `<div style="font-size:12px;color:var(--red);padding:6px 0">⚠ ${data.error}</div>`;
+      return;
+    }
     elVoices = data.voices || [];
     elRenderVoices('all');
   } catch (err) {
@@ -2382,7 +2388,9 @@ function elFilterVoices(filter, chipEl) {
 function elRenderVoices(filter) {
   const grid = document.getElementById('el-voice-grid');
   const filtered = filter === 'all' ? elVoices : elVoices.filter(v => {
-    if (filter === 'young')     return v.age === 'young';
+    if (filter === 'young')      return v.age === 'young';
+    if (filter === 'young-girl') return v.age === 'young' && v.gender === 'female';
+    if (filter === 'young-boy')  return v.age === 'young' && v.gender === 'male';
     if (filter === 'female')    return v.gender === 'female';
     if (filter === 'male')      return v.gender === 'male';
     if (filter === 'energetic') return v.description.includes('energetic') || v.description.includes('strong') || v.description.includes('lively');

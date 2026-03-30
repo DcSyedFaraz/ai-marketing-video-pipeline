@@ -49,6 +49,46 @@ const CONTENT_RULES = {
   story:       'Write in present tense with vivid action verbs. Build a narrative arc. Draw the listener in with specific sensory details.',
 };
 
+// ── Fetch all young shared voices for a given gender (paginated) ──────────────
+async function fetchAllSharedVoices(gender) {
+  const PAGE_SIZE = 100;
+  const allVoices = [];
+  let lastSortId = null;
+  let page = 0;
+
+  while (true) {
+    const params = new URLSearchParams({
+      page_size: PAGE_SIZE,
+      gender,
+      age: 'young',
+      sort: 'trending',
+    });
+    if (lastSortId) params.set('last_sort_id', lastSortId);
+
+    const response = await fetch(`${EL_BASE}/voices/shared?${params}`, {
+      headers: { 'xi-api-key': ELEVENLABS_KEY },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[ElevenLabs] Shared voices error ${response.status} (${gender}, page ${page}): ${text}`);
+      break;
+    }
+
+    const data = await response.json();
+    const voices = data.voices || [];
+    allVoices.push(...voices);
+
+    page++;
+    if (!data.has_more || voices.length === 0) break;
+    lastSortId = data.last_sort_id || null;
+    if (!lastSortId) break;
+  }
+
+  console.log(`[ElevenLabs] Fetched ${allVoices.length} young ${gender} shared voices across ${page} page(s)`);
+  return allVoices;
+}
+
 // ── GET /api/elevenlabs/voices ────────────────────────────────────────────────
 router.get('/api/elevenlabs/voices', async (req, res) => {
   if (!ELEVENLABS_KEY) {
@@ -56,34 +96,26 @@ router.get('/api/elevenlabs/voices', async (req, res) => {
   }
 
   try {
-    const response = await fetch(`${EL_BASE}/voices`, {
-      headers: { 'xi-api-key': ELEVENLABS_KEY },
-    });
+    // Fetch all young shared voices for both genders in parallel
+    const [femaleRaw, maleRaw] = await Promise.all([
+      fetchAllSharedVoices('female'),
+      fetchAllSharedVoices('male'),
+    ]);
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.warn(`[ElevenLabs] Voices API error ${response.status}: ${text}`);
-      return res.status(response.status).json({ voices: [], error: `ElevenLabs API error ${response.status}` });
-    }
+    const allRaw = [...femaleRaw, ...maleRaw].filter(v => v.preview_url);
 
-    const data = await response.json();
-    const allVoices = data.voices || [];
-
-    // Keep all non-cloned voices that have a preview URL (guarantees working previews)
-    const filtered = allVoices.filter(v => v.category !== 'cloned' && v.preview_url);
-
-    const voices = filtered.map(v => ({
+    const voices = allRaw.map(v => ({
       voiceId:    v.voice_id,
       name:       v.name,
       gender:     (v.labels?.gender      || '').toLowerCase() || 'unknown',
-      age:        (v.labels?.age         || '').toLowerCase().replace(/\s+/g, '_') || 'unknown',
+      age:        (v.labels?.age         || '').toLowerCase().replace(/\s+/g, '_') || 'young',
       description:(v.labels?.description || v.labels?.accent || '').toLowerCase(),
       useCase:    (v.labels?.use_case    || '').toLowerCase().replace(/\s+/g, '_'),
       previewUrl: v.preview_url,
     }));
 
-    console.log(`[ElevenLabs] Returning ${voices.length} voices from API`);
-    res.json({ voices, source: 'api' });
+    console.log(`[ElevenLabs] Returning ${voices.length} young shared voices total`);
+    res.json({ voices, source: 'shared' });
 
   } catch (err) {
     console.error(`[ElevenLabs] Voices fetch error: ${err.message}`);

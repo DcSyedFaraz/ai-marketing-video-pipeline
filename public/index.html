@@ -692,12 +692,9 @@
               <div class="el-step-hdr"><div class="el-step-num" id="el-step2-num">2</div> Select Voice</div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
                 <div class="el-voice-filters" id="el-voice-filters">
-                  <div class="el-chip selected" data-val="all"        onclick="elFilterVoices('all',this)">All</div>
-                  <div class="el-chip" data-val="young"      onclick="elFilterVoices('young',this)">Young</div>
-                  <div class="el-chip" data-val="young-girl" onclick="elFilterVoices('young-girl',this)">👧 Young Girl</div>
+                  <div class="el-chip" data-val="all"        onclick="elFilterVoices('all',this)">All</div>
+                  <div class="el-chip selected" data-val="young-girl" onclick="elFilterVoices('young-girl',this)">👧 Young Girl</div>
                   <div class="el-chip" data-val="young-boy"  onclick="elFilterVoices('young-boy',this)">👦 Young Boy</div>
-                  <div class="el-chip" data-val="female"     onclick="elFilterVoices('female',this)">Female</div>
-                  <div class="el-chip" data-val="male"       onclick="elFilterVoices('male',this)">Male</div>
                   <div class="el-chip" data-val="energetic"  onclick="elFilterVoices('energetic',this)">Energetic</div>
                   <div class="el-chip" data-val="podcast"    onclick="elFilterVoices('podcast',this)">Podcast</div>
                   <div class="el-chip" data-val="gaming"     onclick="elFilterVoices('gaming',this)">Gaming</div>
@@ -2392,7 +2389,7 @@ async function elLoadVoices() {
       return;
     }
     elVoices = data.voices || [];
-    elRenderVoices('all');
+    elRenderVoices('young-girl');
   } catch (err) {
     document.getElementById('el-voice-grid').innerHTML = `<div style="font-size:12px;color:var(--red);padding:6px 0">Failed to load voices: ${err.message}</div>`;
   } finally {

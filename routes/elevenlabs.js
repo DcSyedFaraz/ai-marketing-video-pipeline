@@ -5,9 +5,11 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { writeFile } from 'fs/promises';
-import { existsSync, readFileSync } from 'fs';
+import { writeFile, readFile, mkdir } from 'fs/promises';
+import { existsSync, readFileSync, createWriteStream } from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
@@ -62,10 +64,11 @@ async function fetchAllSharedVoices(gender) {
       gender,
       age: 'young',
       sort: 'trending',
+      language: 'en',
     });
     if (lastSortId) params.set('last_sort_id', lastSortId);
 
-    const response = await fetch(`${EL_BASE}/voices/shared?${params}`, {
+    const response = await fetch(`${EL_BASE}/shared-voices?${params}`, {
       headers: { 'xi-api-key': ELEVENLABS_KEY },
     });
 
@@ -89,10 +92,24 @@ async function fetchAllSharedVoices(gender) {
   return allVoices;
 }
 
+
 // ── GET /api/elevenlabs/voices ────────────────────────────────────────────────
 router.get('/api/elevenlabs/voices', async (req, res) => {
   if (!ELEVENLABS_KEY) {
     return res.status(400).json({ voices: [], error: 'ElevenLabs API key is not configured. Add ELEVENLABS_API_KEY to your .env file.' });
+  }
+
+  await mkdir(VOICES_CACHE_DIR, { recursive: true });
+
+  // Return cached voices if fresh
+  if (existsSync(VOICES_CACHE_FILE)) {
+    try {
+      const cached = JSON.parse(await readFile(VOICES_CACHE_FILE, 'utf8'));
+      if (Date.now() - cached.savedAt < VOICES_CACHE_TTL_MS) {
+        console.log(`[ElevenLabs] Returning ${cached.voices.length} cached voices`);
+        return res.json({ voices: cached.voices, source: 'cache' });
+      }
+    } catch {}
   }
 
   try {
@@ -102,19 +119,30 @@ router.get('/api/elevenlabs/voices', async (req, res) => {
       fetchAllSharedVoices('male'),
     ]);
 
-    const allRaw = [...femaleRaw, ...maleRaw].filter(v => v.preview_url);
+    const ENGLISH_ACCENTS = ['american', 'british', 'australian', 'irish', 'scottish', 'new zealand', 'canadian', 'south african', 'english'];
+    const allRaw = [...femaleRaw, ...maleRaw].filter(v => {
+      if (!v.preview_url) return false;
+      const lang   = (v.language || v.locale || '').toLowerCase();
+      const accent = (v.accent   || v.labels?.accent || '').toLowerCase();
+      if (!lang.startsWith('en')) return false;
+      if (accent && !ENGLISH_ACCENTS.some(a => accent.includes(a))) return false;
+      return true;
+    });
 
-    const voices = allRaw.map(v => ({
+    const voicesRaw = allRaw.map(v => ({
       voiceId:    v.voice_id,
       name:       v.name,
-      gender:     (v.labels?.gender      || '').toLowerCase() || 'unknown',
-      age:        (v.labels?.age         || '').toLowerCase().replace(/\s+/g, '_') || 'young',
-      description:(v.labels?.description || v.labels?.accent || '').toLowerCase(),
-      useCase:    (v.labels?.use_case    || '').toLowerCase().replace(/\s+/g, '_'),
+      gender:     (v.gender      || v.labels?.gender      || '').toLowerCase() || 'unknown',
+      age:        (v.age         || v.labels?.age         || '').toLowerCase().replace(/\s+/g, '_') || 'young',
+      description:(v.descriptive || v.labels?.description || v.labels?.accent || v.description || '').toLowerCase(),
+      useCase:    (v.use_case    || v.labels?.use_case    || '').toLowerCase().replace(/\s+/g, '_'),
       previewUrl: v.preview_url,
     }));
 
-    console.log(`[ElevenLabs] Returning ${voices.length} young shared voices total`);
+    const voices = voicesRaw;
+
+    await writeFile(VOICES_CACHE_FILE, JSON.stringify({ savedAt: Date.now(), voices }, null, 2));
+    console.log(`[ElevenLabs] Fetched & cached ${voices.length} young English voices`);
     res.json({ voices, source: 'shared' });
 
   } catch (err) {
@@ -204,14 +232,15 @@ CRITICAL RESTRICTION: Only use tags that affect HOW words are spoken (delivery t
 NEVER use non-verbal sound tags — they produce sounds that break lip-sync on avatar models.
 
 ALLOWED (speech delivery tags only):
-- [dramatic pause] — brief silence before a key point or CTA
 - [excited] — higher energy on the following sentence
 - [calm] — softer, slower delivery for the following sentence
 - [angry] — sharper, more forceful delivery for the following sentence
 
-FORBIDDEN (these produce non-verbal sounds that break lip-sync, never use them):
+FORBIDDEN — never use any of these under any circumstances:
+- [dramatic pause], [pause], any pause tag — pauses break the flow and feel unnatural
 - [laughs], [chuckles], [giggles], [sighs], [exhales], [gasps], [inhales], [crying]
 
+CRITICAL: Do NOT use any pause tags. Keep the delivery flowing and continuous.
 Place tag inline before the sentence it affects.
 Example: "You've been grinding for weeks. [excited] This is the moment everything changes."
 ` : `
@@ -231,7 +260,7 @@ UNIVERSAL RULES:
 - No speaker labels, no asterisks, no parenthetical directions
 - Sentences 8–15 words for natural breath grouping
 - Start with a strong hook: a bold question, vivid statement, or surprising fact
-- Punctuation handles pauses — don't add extra ellipses or dashes unless natural
+- Keep delivery flowing — no ellipses, no dashes for pausing, no pause tags of any kind
 - Word budget: exactly ${wordBudget} words (±5 words allowed)
 - Count your words before returning. If over budget, trim. If under by more than 5, add.
 - CRITICAL: The script must feel alive and engaging. Avoid passive, flat, or overly formal phrasing. Word choices should carry natural energy — use active verbs, punchy sentences, and phrases a real enthusiastic person would say out loud.

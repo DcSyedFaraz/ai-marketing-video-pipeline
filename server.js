@@ -78,10 +78,22 @@ app.get('/api/events', (req, res) => {
 // Forward globalPoller events to all SSE clients
 sseEmitter.on('task-complete', (payload) => {
   const data = `event: task-complete\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const client of sseClients) {
-    client.write(data);
-  }
+  for (const client of sseClients) client.write(data);
 });
+
+// ── Intercept console output → broadcast as SSE log events ───────────────────
+function broadcastLog(level, args) {
+  if (!sseClients.size) return;
+  const msg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+  const data = `event: server-log\ndata: ${JSON.stringify({ level, msg, ts: Date.now() })}\n\n`;
+  for (const client of sseClients) client.write(data);
+}
+const _log   = console.log.bind(console);
+const _warn  = console.warn.bind(console);
+const _error = console.error.bind(console);
+console.log   = (...a) => { _log(...a);   broadcastLog('log',   a); };
+console.warn  = (...a) => { _warn(...a);  broadcastLog('warn',  a); };
+console.error = (...a) => { _error(...a); broadcastLog('error', a); };
 
 app.use(express.static('public'));
 app.use('/output', express.static('output'));

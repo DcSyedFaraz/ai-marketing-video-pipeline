@@ -86,15 +86,22 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   const taskUUID = randomUUID();
 
   const ts = Date.now();
+  // Build a readable name: <source-video-stem>_bridge_<model-short>[_music]_<ts>
+  const srcStem = path.basename(resolvedVideoName, path.extname(resolvedVideoName))
+    .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 40);
+  const modelShort = model.includes('fast') ? 'veo31fast' : model.includes('veo') || model.includes('google') ? 'veo31' : model.replace(/[^a-z0-9]/gi, '').slice(0, 12);
+  const musicTag = resolvedMusicPath ? '_music' : '';
+  const bridgeBase = `${srcStem}_bridge_${modelShort}${musicTag}_${ts}`;
+
   const frameJpg = path.join('uploads', `frame_${ts}.jpg`);
-  const bridgeGenerated = path.join('output', `bridge_gen_${ts}.mp4`);
+  const bridgeGenerated = path.join('output', `${bridgeBase}_gen.mp4`);
   // bridge-only: music is mixed into the bridge clip before concat; no separate final file needed
   const bridgeWithMusic = (resolvedMusicPath && musicScope === 'bridge-only')
-    ? path.join('output', `bridge_music_${ts}.mp4`)
+    ? path.join('output', `${bridgeBase}_bridgemusic.mp4`)
     : null;
-  const bridgeConcatted = path.join('output', `bridge_concat_${ts}.mp4`);
+  const bridgeConcatted = path.join('output', `${bridgeBase}_concat.mp4`);
   const bridgeFinal = (resolvedMusicPath && musicScope === 'full')
-    ? path.join('output', `bridge_final_${ts}.mp4`)
+    ? path.join('output', `${bridgeBase}_final.mp4`)
     : bridgeConcatted;
 
   addHistoryEntry({
@@ -370,12 +377,18 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
 
   (async () => {
     const ts2 = Date.now();
+    const srcStem2 = path.basename(resolvedVideoName, path.extname(resolvedVideoName))
+      .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 40);
+    const modelShort2 = model.includes('fast') ? 'veo31fast' : model.includes('veo') || model.includes('google') ? 'veo31' : model.replace(/[^a-z0-9]/gi, '').slice(0, 12);
+    const musicTag2 = resolvedMusicPath ? '_music' : '';
+    const bridgeBase2 = `${srcStem2}_bridge_${modelShort2}${musicTag2}_${ts2}`;
+
     const frameJpg = path.join('uploads', `frame_${ts2}.jpg`);
     const ctaDir = path.join('output', 'cta_frames', taskUUID);
-    const bridgeGenerated = path.join('output', `bridge_gen_${ts2}.mp4`);
-    const bridgeConcatted = path.join('output', `bridge_concat_${ts2}.mp4`);
+    const bridgeGenerated = path.join('output', `${bridgeBase2}_gen.mp4`);
+    const bridgeConcatted = path.join('output', `${bridgeBase2}_concat.mp4`);
     const bridgeFinal = resolvedMusicPath
-      ? path.join('output', `bridge_final_${ts2}.mp4`)
+      ? path.join('output', `${bridgeBase2}_final.mp4`)
       : bridgeConcatted;
 
     let ctaImageCost = null;

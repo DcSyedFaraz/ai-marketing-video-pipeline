@@ -370,6 +370,100 @@
     /* Audio preview */
     #el-audio-preview { width: 100%; margin-top: 8px; border-radius: var(--rs); display: none; }
     #el-audio-preview.show { display: block; }
+
+    /* ── Mobile Responsive ── */
+    @media (max-width: 640px) {
+      /* Header */
+      header { padding: 10px 14px; gap: 8px; }
+      header h1 { font-size: 14px; }
+      header .sub { display: none; }
+
+      /* Main layout */
+      .main { padding: 14px 12px 80px; }
+
+      /* Nav tabs — horizontal scroll strip */
+      .nav-tabs {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        border-radius: var(--rs);
+        white-space: nowrap;
+        display: flex;
+        padding: 3px;
+        margin-bottom: 16px;
+      }
+      .nav-tabs::-webkit-scrollbar { display: none; }
+      .nav-tab {
+        padding: 7px 12px;
+        font-size: 12px;
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+
+      /* Cards */
+      .card { padding: 16px 14px; }
+      .card-title { font-size: 14px; margin-bottom: 14px; }
+
+      /* Grids collapse to single column */
+      .grid2 { grid-template-columns: 1fr; gap: 14px; }
+      .row2 { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .model-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .angle-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+
+      /* Tips list — single column */
+      .tips { padding: 12px 14px; }
+      .tips ul { grid-template-columns: 1fr; }
+      .tips h3 { margin-bottom: 6px; }
+
+      /* Form elements */
+      input[type=text], textarea, select { font-size: 14px; padding: 10px 12px; }
+      textarea { min-height: 70px; }
+
+      /* Buttons */
+      .btn { font-size: 13px; padding: 12px 16px; }
+      .btn-sm { font-size: 11px; padding: 5px 10px; }
+      .result-actions { flex-wrap: wrap; }
+
+      /* History */
+      .history-controls { gap: 8px; }
+      .filter-tabs { overflow-x: auto; scrollbar-width: none; }
+      .filter-tabs::-webkit-scrollbar { display: none; }
+      .filter-tab { white-space: nowrap; }
+      .hist-body-grid { grid-template-columns: 1fr; }
+      .hist-header { padding: 10px 12px; }
+      .hist-badges { flex-wrap: wrap; }
+
+      /* Gallery */
+      .gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+
+      /* Result video taller on mobile portrait */
+      .result-wrap video { max-height: 360px; }
+      .story-final video { max-height: 360px; }
+
+      /* EL voice grid */
+      .el-voice-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); max-height: 240px; }
+
+      /* Media picker modal */
+      .modal-box { padding: 16px; width: 95%; }
+      .media-picker-grid { grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); }
+
+      /* Scene rows */
+      .scene-prompt { display: none; }
+      .story-phase-bar { gap: 3px; }
+      .phase-step { font-size: 10px; padding: 5px 2px; }
+
+      /* Log panel */
+      #log-panel { font-size: 10px; }
+    }
+
+    @media (max-width: 400px) {
+      .nav-tab { padding: 6px 9px; font-size: 11px; }
+      .row2 { grid-template-columns: 1fr; }
+      .model-grid { grid-template-columns: 1fr; }
+      .angle-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -393,6 +487,7 @@
     <button class="nav-tab" onclick="showPage('ctaframe')">🖼 CTA Frame</button>
     <button class="nav-tab" onclick="showPage('story')">📖 Story</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
+    <button class="nav-tab" onclick="showPage('splitscreen')">✂️ Split Screen</button>
     <button class="nav-tab" onclick="openCanvas()" title="Open node-based pipeline canvas in new tab">🎨 Canvas</button>
   </div>
 
@@ -733,6 +828,13 @@
                   <strong id="el-sty-val">30</strong>
                 </div>
                 <input type="range" class="el-slider" id="el-style" min="0" max="100" value="30" oninput="document.getElementById('el-sty-val').textContent=this.value" />
+              </div>
+              <div class="el-slider-row">
+                <div class="el-slider-label">
+                  <span>Speed <span style="font-size:9px;color:var(--muted)">(0.7× Slow ↔ 1.2× Fast)</span></span>
+                  <strong id="el-speed-val">1.0</strong>
+                </div>
+                <input type="range" class="el-slider" id="el-speed" min="70" max="120" value="100" oninput="document.getElementById('el-speed-val').textContent=(this.value/100).toFixed(1)" />
               </div>
 
               <button class="btn btn-purple" id="el-gen-audio-btn" onclick="elGenerateAudio()">
@@ -1699,6 +1801,147 @@
     </div>
   </div>
 
+  <!-- ═══ SPLIT SCREEN PAGE ═══ -->
+  <div id="page-splitscreen" class="page">
+    <div class="grid2">
+
+      <!-- LEFT: Controls -->
+      <div class="card">
+        <div class="card-title">✂️ Split Screen Composer</div>
+
+        <!-- Podcast Video -->
+        <div class="fg" style="margin-bottom:16px">
+          <label>Podcast Video <span class="req">*</span></label>
+          <div class="row2" style="margin-bottom:8px">
+            <div class="model-card selected" id="ss-podcast-portrait-card" onclick="ssSwitchOrientation('podcast','portrait')" style="cursor:pointer">
+              <div class="model-card-name">📱 Portrait</div>
+              <div class="model-card-desc">9:16 vertical</div>
+            </div>
+            <div class="model-card" id="ss-podcast-landscape-card" onclick="ssSwitchOrientation('podcast','landscape')" style="cursor:pointer">
+              <div class="model-card-name">🖥 Landscape</div>
+              <div class="model-card-desc">16:9 horizontal</div>
+            </div>
+          </div>
+          <input type="hidden" id="ss-podcast-orientation" value="portrait">
+          <div class="dropzone" id="ss-podcast-dz" onclick="document.getElementById('ss-podcast-input').click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="ssDrop(event,'podcast')">
+            <input type="file" id="ss-podcast-input" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="display:none" onchange="ssFilePicked(this,'podcast')">
+            <div class="dz-icon" style="font-size:28px">🎙</div>
+            <div class="dz-text">Drop podcast video or <strong>click to browse</strong></div>
+            <div class="dz-hint">MP4, WEBM, MOV · max 500 MB</div>
+          </div>
+          <div class="file-pill" id="ss-podcast-pill">
+            <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎙</span>
+            <div class="file-pill-info">
+              <div class="file-pill-name" id="ss-podcast-name"></div>
+              <div class="file-pill-size" id="ss-podcast-size"></div>
+            </div>
+            <button class="file-pill-rm" onclick="ssClearFile('podcast')">✕</button>
+          </div>
+        </div>
+
+        <!-- UGC Video -->
+        <div class="fg" style="margin-bottom:16px">
+          <label>UGC Video <span class="req">*</span></label>
+          <div class="row2" style="margin-bottom:8px">
+            <div class="model-card selected" id="ss-ugc-portrait-card" onclick="ssSwitchOrientation('ugc','portrait')" style="cursor:pointer">
+              <div class="model-card-name">📱 Portrait</div>
+              <div class="model-card-desc">9:16 vertical</div>
+            </div>
+            <div class="model-card" id="ss-ugc-landscape-card" onclick="ssSwitchOrientation('ugc','landscape')" style="cursor:pointer">
+              <div class="model-card-name">🖥 Landscape</div>
+              <div class="model-card-desc">16:9 horizontal</div>
+            </div>
+          </div>
+          <input type="hidden" id="ss-ugc-orientation" value="portrait">
+          <div class="dropzone" id="ss-ugc-dz" onclick="document.getElementById('ss-ugc-input').click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="ssDrop(event,'ugc')">
+            <input type="file" id="ss-ugc-input" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="display:none" onchange="ssFilePicked(this,'ugc')">
+            <div class="dz-icon" style="font-size:28px">📱</div>
+            <div class="dz-text">Drop UGC video or <strong>click to browse</strong></div>
+            <div class="dz-hint">MP4, WEBM, MOV · max 500 MB</div>
+          </div>
+          <div class="file-pill" id="ss-ugc-pill">
+            <span class="file-pill-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">📱</span>
+            <div class="file-pill-info">
+              <div class="file-pill-name" id="ss-ugc-name"></div>
+              <div class="file-pill-size" id="ss-ugc-size"></div>
+            </div>
+            <button class="file-pill-rm" onclick="ssClearFile('ugc')">✕</button>
+          </div>
+        </div>
+
+        <!-- Background Music -->
+        <div class="fg" style="margin-bottom:16px">
+          <label>Background Music <small style="font-weight:400">(optional — mixed at low volume)</small></label>
+          <div class="dropzone" id="ss-music-dz" style="padding:12px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('ss-music-input').click()">
+            <div class="dz-icon" style="font-size:22px">🎵</div>
+            <div class="dz-text"><span id="ss-music-label">Drop music file or <strong>click to browse</strong></span></div>
+            <div class="dz-hint">MP3, WAV, M4A, AAC, OGG</div>
+          </div>
+          <input type="file" id="ss-music-input" accept=".mp3,.wav,.m4a,.aac,.ogg" style="display:none" onchange="handleSsMusicFilePick(this)">
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <button class="dz-from-uploads" style="flex:1" onclick="openMediaPicker('ss-music','audio')">📂 Choose from uploads</button>
+            <button class="dz-from-uploads" id="ss-music-clear-btn" style="flex:1;display:none" onclick="ssClearMusic()">✕ Remove Music</button>
+          </div>
+        </div>
+
+        <!-- Music Volume (hidden until music selected) -->
+        <div class="fg" id="ss-volume-row" style="display:none;margin-bottom:16px">
+          <div class="el-slider-row">
+            <div class="el-slider-label">
+              <span>Music Volume</span>
+              <strong id="ss-vol-val">15%</strong>
+            </div>
+            <input type="range" class="el-slider" id="ss-volume" min="5" max="50" value="15" step="1" oninput="document.getElementById('ss-vol-val').textContent=this.value+'%'">
+          </div>
+        </div>
+
+        <button class="btn btn-purple" id="ss-submit-btn" onclick="submitSplitScreen()">
+          <span class="spinner" id="ss-spinner" style="display:none"></span>
+          <span id="ss-btn-text">✂️ Create Split Screen</span>
+        </button>
+
+        <div class="status-box" id="ss-status">
+          <div class="status-text" id="ss-status-text"></div>
+          <div class="prog-wrap"><div class="prog-bar"></div></div>
+        </div>
+
+        <div class="result-wrap" id="ss-result">
+          <video id="ss-video" controls playsinline></video>
+          <div class="result-actions">
+            <a class="btn-sm green" id="ss-dl" href="#" download>⬇ Download</a>
+            <button class="btn-sm" onclick="document.getElementById('ss-video').requestFullscreen?.()">⛶ Fullscreen</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Tips -->
+      <div class="tips">
+        <h3>Split Screen Layout</h3>
+        <ul>
+          <li>Output is always portrait <strong>1080×1920</strong> (9:16)</li>
+          <li>Both videos play <strong>simultaneously</strong></li>
+          <li><strong>Portrait + Portrait:</strong> side-by-side, each 540px wide</li>
+          <li><strong>Landscape podcast + Portrait UGC:</strong> podcast top 1/3 (640px) · UGC bottom 2/3 (1280px)</li>
+          <li><strong>Portrait podcast + Landscape UGC:</strong> podcast top 2/3 (1280px) · UGC bottom 1/3 (640px)</li>
+          <li><strong>Both landscape:</strong> podcast top 1/3 · UGC bottom 2/3</li>
+        </ul>
+        <h3 style="margin-top:14px">Duration Handling</h3>
+        <ul>
+          <li>If podcast ends first → UGC plays <strong>full screen</strong> for the remainder</li>
+          <li>If UGC ends first → podcast plays <strong>full screen</strong> for the remainder</li>
+          <li>Total output = duration of the longer video</li>
+        </ul>
+        <h3 style="margin-top:14px">Music</h3>
+        <ul>
+          <li>Music is mixed softly under both video audio tracks</li>
+          <li>Choose an existing file from uploads or upload a new one</li>
+          <li>Volume slider controls music level (5%–50%)</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- /main -->
 
 <script>
@@ -2164,6 +2407,7 @@ function showPage(name) {
   if (name === 'gallery') loadGallery();
   if (name === 'story') loadStoryHistoryList();
   if (name === 'bridge') loadBridgePodcastVideos();
+  if (name === 'splitscreen') { /* nothing to preload */ }
 }
 
 function openCanvas() {
@@ -2499,6 +2743,7 @@ async function elGenerateAudio() {
         stability:      parseInt(document.getElementById('el-stability').value) / 100,
         similarityBoost:parseInt(document.getElementById('el-similarity').value) / 100,
         style:          parseInt(document.getElementById('el-style').value) / 100,
+        speed:          parseInt(document.getElementById('el-speed').value) / 100,
       }),
     });
     const data = await res.json();
@@ -3792,17 +4037,12 @@ async function submitAddMusic() {
   fd.append('volume', volume.toString());
 
   if (uploadedVideo) {
-    // For uploaded video we need server-side path — upload it first via a temp endpoint
-    // Instead: send as videoPath using the output path from select, or handle uploaded separately
-    // Since we don't have a generic upload endpoint, only support server-side paths for now
-    showAmStatus('error', '⚠ Please select a video from the history dropdown (upload not supported for this tool).');
-    setBtnLoading('am', false);
-    return;
+    fd.append('videoFile', uploadedVideo);
+  } else {
+    // Strip leading slash and use as relative path
+    const relPath = selectedPath.startsWith('/') ? selectedPath.slice(1) : selectedPath;
+    fd.append('videoPath', relPath);
   }
-
-  // Strip leading slash and use as relative path
-  const relPath = selectedPath.startsWith('/') ? selectedPath.slice(1) : selectedPath;
-  fd.append('videoPath', relPath);
 
   if (amMusicFile.isUploadRef) fd.append('musicFileRef', amMusicFile.serverPath);
   else fd.append('musicFile', amMusicFile.file);
@@ -3829,7 +4069,7 @@ async function submitAddMusic() {
 function showAmStatus(type, msg) {
   const box = document.getElementById('am-status');
   const txt = document.getElementById('am-status-text');
-  box.style.display = '';
+  box.style.display = 'block';
   txt.textContent = msg;
   box.style.borderColor = type === 'error' ? 'var(--red)' : type === 'success' ? 'var(--green)' : 'var(--accent)';
 }
@@ -3845,7 +4085,7 @@ async function openMediaPicker(target, filter) {
   _mpFilter = filter;
   _mpSelected = null;
 
-  const titles = { hero: '🦸 Choose Hero Image', bg: '🏞 Choose Background Image', music: '🎵 Choose Music File', 'bridge-music': '🎵 Choose Bridge Music File', 'am-music': '🎵 Choose Music File' };
+  const titles = { hero: '🦸 Choose Hero Image', bg: '🏞 Choose Background Image', music: '🎵 Choose Music File', 'bridge-music': '🎵 Choose Bridge Music File', 'am-music': '🎵 Choose Music File', 'ss-music': '🎵 Choose Music File' };
   document.getElementById('media-picker-title').textContent = titles[target] || '📂 Choose from Uploads';
   document.getElementById('media-picker-select-btn').disabled = true;
   document.getElementById('media-picker-modal').classList.add('show');
@@ -3944,6 +4184,11 @@ function confirmMediaPick() {
   } else if (_mpTarget === 'am-music') {
     amMusicFile = { file: null, isUploadRef: true, serverPath, name: filename };
     document.getElementById('am-music-label').innerHTML = `🎵 <strong>${filename}</strong> (from uploads)`;
+  } else if (_mpTarget === 'ss-music') {
+    ssMusicFile = { file: null, isUploadRef: true, serverPath, name: filename };
+    document.getElementById('ss-music-label').innerHTML = `🎵 <strong>${filename}</strong> (from uploads)`;
+    document.getElementById('ss-volume-row').style.display = '';
+    document.getElementById('ss-music-clear-btn').style.display = '';
   }
 
   closeMediaPicker();
@@ -4506,6 +4751,117 @@ async function deleteStoryEntry(taskUUID) {
       document.getElementById('story-resume-bar').style.display = 'none';
     }
   } catch {}
+}
+
+// ══════ Split Screen ══════
+let ssMusicFile = null; // { file } | { isUploadRef, serverPath, name } | null
+
+function ssSwitchOrientation(which, val) {
+  const other = val === 'portrait' ? 'landscape' : 'portrait';
+  document.getElementById(`ss-${which}-${val}-card`).classList.add('selected');
+  document.getElementById(`ss-${which}-${other}-card`).classList.remove('selected');
+  document.getElementById(`ss-${which}-orientation`).value = val;
+}
+
+function ssFilePicked(input, which) {
+  const file = input.files[0];
+  if (!file) return;
+  const pill = document.getElementById(`ss-${which}-pill`);
+  document.getElementById(`ss-${which}-name`).textContent = file.name;
+  document.getElementById(`ss-${which}-size`).textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
+  pill.classList.add('show');
+}
+
+function ssDrop(event, which) {
+  event.preventDefault();
+  document.getElementById(`ss-${which}-dz`).classList.remove('over');
+  const file = event.dataTransfer.files[0];
+  if (!file) return;
+  const input = document.getElementById(`ss-${which}-input`);
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  ssFilePicked(input, which);
+}
+
+function ssClearFile(which) {
+  document.getElementById(`ss-${which}-input`).value = '';
+  document.getElementById(`ss-${which}-pill`).classList.remove('show');
+}
+
+function handleSsMusicFilePick(input) {
+  const file = input.files[0];
+  if (!file) return;
+  ssMusicFile = { file, isUploadRef: false, name: file.name };
+  document.getElementById('ss-music-label').innerHTML = `🎵 <strong>${file.name}</strong> (${(file.size/1024).toFixed(0)} KB)`;
+  document.getElementById('ss-volume-row').style.display = '';
+  document.getElementById('ss-music-clear-btn').style.display = '';
+}
+
+function ssClearMusic() {
+  ssMusicFile = null;
+  document.getElementById('ss-music-input').value = '';
+  document.getElementById('ss-music-label').innerHTML = 'Drop music file or <strong>click to browse</strong>';
+  document.getElementById('ss-volume-row').style.display = 'none';
+  document.getElementById('ss-music-clear-btn').style.display = 'none';
+}
+
+function ssSetStatus(type, msg) {
+  const box = document.getElementById('ss-status');
+  const text = document.getElementById('ss-status-text');
+  box.className = 'status-box show ' + type;
+  text.textContent = msg;
+}
+
+async function submitSplitScreen() {
+  const podcastFile = document.getElementById('ss-podcast-input').files[0];
+  const ugcFile     = document.getElementById('ss-ugc-input').files[0];
+  if (!podcastFile) return ssSetStatus('error', 'Please select a podcast video.');
+  if (!ugcFile)     return ssSetStatus('error', 'Please select a UGC video.');
+
+  const podcastOrientation = document.getElementById('ss-podcast-orientation').value;
+  const ugcOrientation     = document.getElementById('ss-ugc-orientation').value;
+  const musicVolume        = document.getElementById('ss-volume').value;
+
+  const btn     = document.getElementById('ss-submit-btn');
+  const spinner = document.getElementById('ss-spinner');
+  const btnText = document.getElementById('ss-btn-text');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Processing…';
+  ssSetStatus('loading', 'Uploading and compositing — this may take a while…');
+  document.getElementById('ss-result').classList.remove('show');
+
+  const fd = new FormData();
+  fd.append('podcast', podcastFile);
+  fd.append('ugc', ugcFile);
+  fd.append('podcastOrientation', podcastOrientation);
+  fd.append('ugcOrientation', ugcOrientation);
+  fd.append('musicVolume', musicVolume);
+  if (ssMusicFile) {
+    if (ssMusicFile.isUploadRef) fd.append('musicFileRef', ssMusicFile.serverPath);
+    else fd.append('music', ssMusicFile.file);
+  }
+
+  try {
+    const res  = await fetch('/api/splitscreen', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Server error');
+    ssSetStatus('success', 'Split screen created!');
+    const video = document.getElementById('ss-video');
+    const dl    = document.getElementById('ss-dl');
+    video.src = data.url;
+    dl.href   = data.url;
+    dl.download = data.filename;
+    document.getElementById('ss-result').classList.add('show');
+    video.play().catch(() => {});
+  } catch (err) {
+    ssSetStatus('error', 'Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '✂️ Create Split Screen';
+  }
 }
 
 // ══════ Start ══════

@@ -581,21 +581,29 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
 // Body (multipart): videoPath (server-side output/ path), musicFile or musicFileRef, volume (0-1)
 router.post('/api/add-music-to-video', uploadBridge.fields([
   { name: 'musicFile', maxCount: 1 },
+  { name: 'videoFile', maxCount: 1 },
 ]), async (req, res) => {
   const musicFile = req.files?.musicFile?.[0];
+  const videoFile = req.files?.videoFile?.[0];
   const musicFileRef = (req.body.musicFileRef || '').trim();
   const videoPath = (req.body.videoPath || '').trim();
   const volume = Math.min(1, Math.max(0.05, parseFloat(req.body.volume || '0.25')));
 
-  // Resolve video
-  if (!videoPath) return res.status(400).json({ error: 'videoPath is required.' });
-  const absVideoPath = path.normalize(path.resolve(videoPath));
-  const outputDir = path.normalize(path.resolve('output'));
-  if (!absVideoPath.startsWith(outputDir)) {
-    return res.status(400).json({ error: 'videoPath must be within the output directory.' });
-  }
-  try { await access(absVideoPath); } catch {
-    return res.status(400).json({ error: 'Video file not found on server.' });
+  // Resolve video — prefer uploaded file, fall back to server-side path
+  let absVideoPath;
+  if (videoFile) {
+    absVideoPath = path.resolve(videoFile.path);
+  } else if (videoPath) {
+    absVideoPath = path.normalize(path.resolve(videoPath));
+    const outputDir = path.normalize(path.resolve('output'));
+    if (!absVideoPath.startsWith(outputDir)) {
+      return res.status(400).json({ error: 'videoPath must be within the output directory.' });
+    }
+    try { await access(absVideoPath); } catch {
+      return res.status(400).json({ error: 'Video file not found on server.' });
+    }
+  } else {
+    return res.status(400).json({ error: 'A video file or videoPath is required.' });
   }
 
   // Resolve music
@@ -623,6 +631,7 @@ router.post('/api/add-music-to-video', uploadBridge.fields([
     res.status(500).json({ error: err.message });
   } finally {
     if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
+    if (videoFile?.path) await unlink(videoFile.path).catch(() => {});
   }
 });
 

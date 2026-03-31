@@ -44,7 +44,7 @@ const ENERGY_TONE = {
 
 // ── Content type tone rules ───────────────────────────────────────────────────
 const CONTENT_RULES = {
-  game:        'Write in energetic, punchy sentences. Use second-person perspective ("You\'re one move away..."). Build competitive excitement and urgency. Short, impactful lines.',
+  game:        'Write in energetic, punchy sentences. Use second-person perspective ("You\'re one move away..."). Build competitive excitement and urgency. Short, impactful lines. Focus on ONE feeling — never list features or game stats.',
   podcast:     'Write in a conversational, first-person style. Start with "Hey" or a relatable opener. Natural flow with personal tone, as if talking to a close friend.',
   ad:          'Structure: attention-grabbing hook → clear value proposition → strong call to action. Max 2 sentences per section. Be direct and persuasive.',
   educational: 'Be clear, friendly, and structured. Use signpost phrases ("First...", "Here\'s the thing...", "The key takeaway..."). Make complex ideas feel simple.',
@@ -92,6 +92,32 @@ async function fetchAllSharedVoices(gender) {
   return allVoices;
 }
 
+const VOICES_CACHE_DIR = path.join('output', 'voices_cache');
+const VOICES_CACHE_FILE = path.join(VOICES_CACHE_DIR, 'voices_en_young.json');
+const VOICES_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Download a voice preview to a local file and return the local URL
+async function cacheVoicePreview(voice) {
+  const safeName = voice.name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').toLowerCase();
+  const gender   = (voice.gender || 'unknown')[0]; // 'm' or 'f'
+  const accent   = (voice.description || voice.useCase || 'en').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
+  const filename = `${gender}_${safeName}_${accent}_${voice.voiceId.slice(0, 8)}.mp3`;
+  const localPath = path.join(VOICES_CACHE_DIR, filename);
+  const localUrl  = `/output/voices_cache/${filename}`;
+
+  if (existsSync(localPath)) return localUrl;
+
+  return new Promise((resolve) => {
+    const url = voice.previewUrl;
+    const proto = url.startsWith('https') ? https : http;
+    const file = createWriteStream(localPath);
+    proto.get(url, (resp) => {
+      if (resp.statusCode !== 200) { file.close(); resolve(voice.previewUrl); return; }
+      resp.pipe(file);
+      file.on('finish', () => { file.close(); resolve(localUrl); });
+    }).on('error', () => { file.close(); resolve(voice.previewUrl); });
+  });
+}
 
 // ── GET /api/elevenlabs/voices ────────────────────────────────────────────────
 router.get('/api/elevenlabs/voices', async (req, res) => {
@@ -255,6 +281,14 @@ ${contentRule}
 ENERGY & TONE:
 ${energyRule}
 ${gameContext ? `\n${gameContext}\n` : ''}${angleContext ? `\n${angleContext}\n` : ''}
+MESSAGE FOCUS (critical):
+- Pick ONE core idea (or at most TWO tightly related ideas) and build the entire script around it.
+- Do NOT list features, stats, or selling points. A focused emotional hook beats a feature checklist.
+- If a marketing angle has multiple creative directions, choose ONLY ONE as the narrative spine — never blend them.
+- Every sentence must reinforce the same single message. If a sentence introduces a new topic, cut it.
+- Example of BAD: "11 heroes, fast matches, competitive ranked." (3 separate ideas = noise)
+- Example of GOOD: "Three minutes. One winner. Can you handle the pressure?" (one idea: competitive speed)
+
 UNIVERSAL RULES:
 - No filler words: um, uh, well, so, basically, literally, actually, right
 - No speaker labels, no asterisks, no parenthetical directions
@@ -325,6 +359,7 @@ router.post('/api/elevenlabs/tts', async (req, res) => {
   const stability      = Math.min(Math.max(parseFloat(req.body.stability      ?? 0.5),  0), 1);
   const similarityBoost= Math.min(Math.max(parseFloat(req.body.similarityBoost?? 0.75), 0), 1);
   const style          = Math.min(Math.max(parseFloat(req.body.style          ?? 0.3),  0), 1);
+  const speed          = Math.min(Math.max(parseFloat(req.body.speed          ?? 1.0), 0.7), 1.2);
 
   if (!script) return res.status(400).json({ error: 'Script text is required.' });
   if (!voiceId) return res.status(400).json({ error: 'Voice ID is required.' });
@@ -337,6 +372,7 @@ router.post('/api/elevenlabs/tts', async (req, res) => {
     voice_settings: {
       stability,
       similarity_boost: similarityBoost,
+      speed,
       ...(apiVersion === 'v3' ? { style, use_speaker_boost: true } : {}),
     },
   };
@@ -345,7 +381,7 @@ router.post('/api/elevenlabs/tts', async (req, res) => {
   console.log(`[ElevenLabs]  Voice   : ${voiceId}`);
   console.log(`[ElevenLabs]  Model   : ${modelId}`);
   console.log(`[ElevenLabs]  Script  : ${script.slice(0, 80)}${script.length > 80 ? '…' : ''}`);
-  console.log(`[ElevenLabs]  Settings: stability=${stability} similarityBoost=${similarityBoost}${apiVersion === 'v3' ? ` style=${style}` : ''}`);
+  console.log(`[ElevenLabs]  Settings: stability=${stability} similarityBoost=${similarityBoost} speed=${speed}${apiVersion === 'v3' ? ` style=${style}` : ''}`);
 
   try {
     const response = await fetch(`${EL_BASE}/text-to-speech/${voiceId}`, {

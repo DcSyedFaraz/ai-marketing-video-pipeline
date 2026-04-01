@@ -2691,6 +2691,9 @@ function buildDetailConcat(entry) {
   if (idle && entry.status === 'paused') {
     footerBtns.push(makeResumeBtn(entry));
   }
+  if (idle && !entry.finalVideoUrl) {
+    footerBtns.push({ text: '🔄 Re-run Concat', cls: 'green', fn: () => { callApi(`/api/resubmit-concat/${entry.taskUUID}`, 'POST'); closeDetail(); } });
+  }
   if (idle && entry.scenes?.length) {
     footerBtns.push({ text: '🎬 Resubmit All Videos', fn: () => { callApi(`/api/resubmit-videos/${entry.taskUUID}`, 'POST'); closeDetail(); } });
   }
@@ -2795,6 +2798,9 @@ function buildDetailOutput(entry, idle) {
   }
   if (idle && entry.status === 'paused') {
     footerBtns.push(makeResumeBtn(entry));
+  }
+  if (idle && !done && entry.type !== 'podcast') {
+    footerBtns.push({ text: '🔄 Re-run Concat', cls: 'green', fn: () => { callApi(`/api/resubmit-concat/${entry.taskUUID}`, 'POST'); closeDetail(); } });
   }
   // Clone story with different model — available any time (even while generating)
   if (entry.type !== 'podcast') {

@@ -2252,6 +2252,41 @@ router.post('/api/resubmit-videos/:taskUUID', async (req, res) => {
   runPipeline(taskUUID, 'videos', firstPending);
 });
 
+// ── POST /api/resubmit-concat/:taskUUID ──────────────────────────────────────
+// Re-run the concat (+ optional music mix) phase. Useful when concat succeeded but
+// finalVideoUrl was never saved, or when the user wants to retry after a music issue.
+router.post('/api/resubmit-concat/:taskUUID', async (req, res) => {
+  const { taskUUID } = req.params;
+  const entry = loadStoryHistory().find(h => h.taskUUID === taskUUID);
+
+  if (!entry) return res.status(404).json({ error: 'Story not found.' });
+  if (entry.status === 'processing') return res.status(400).json({ error: 'Pipeline already running.' });
+
+  // Verify all scene videos exist before attempting concat
+  const dir = storyDir(taskUUID);
+  const missingVideos = (entry.scenes || []).filter(s => {
+    const vp = path.join(dir, `scene_${s.sceneNumber}_video.mp4`);
+    return !existsSync(vp);
+  });
+  if (missingVideos.length > 0) {
+    return res.status(400).json({ error: `Missing ${missingVideos.length} scene video(s) — generate all videos first.` });
+  }
+
+  console.log(`[Story] ── Resubmit Concat ──────────────────────────────────`);
+  console.log(`[Story]  taskUUID: ${taskUUID}`);
+
+  updateStoryEntry(taskUUID, {
+    status: 'processing',
+    currentPhase: 'concat',
+    finalVideoUrl: null,
+    error: null,
+  });
+
+  res.json({ success: true, message: 'Re-running concat phase…' });
+
+  runPipeline(taskUUID, 'concat', 0);
+});
+
 // ── POST /api/run-scene-only/:taskUUID/:sceneIndex ───────────────────────────
 // Runs ONLY a single scene node (image or video) then pauses with pauseReason:'manual'.
 // Used by manual-mode canvas to run nodes one-by-one.

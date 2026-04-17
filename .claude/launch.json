@@ -14,5 +14,6 @@
       "runtimeArgs": ["remotion", "studio"],
       "port": 3001
     }
-  ]
+  ],
+  "autoVerify": false
 }

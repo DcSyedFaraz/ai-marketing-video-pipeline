@@ -21,6 +21,8 @@ router.post('/api/combine', uploadBridge.fields([
   const upload2 = req.files?.upload2?.[0];
   const file1 = safe(req.body.video1);
   const file2 = safe(req.body.video2);
+  const orient = req.body.orient === 'landscape' ? 'landscape' : 'portrait';
+  const [outW, outH] = orient === 'landscape' ? [1920, 1080] : [1080, 1920];
 
   const v1path = upload1 ? upload1.path : (file1 ? path.join('output', file1) : null);
   const v2path = upload2 ? upload2.path : (file2 ? path.join('output', file2) : null);
@@ -38,7 +40,7 @@ router.post('/api/combine', uploadBridge.fields([
 
   console.log(`\n[Combine] ${v1label} + ${v2label} → ${outFilename}`);
   try {
-    await concatVideos(v1path, v2path, outPath);
+    await concatVideos(v1path, v2path, outPath, { width: outW, height: outH });
     console.log(`[Combine] ✅ Done: ${outFilename}`);
     res.json({ success: true, filename: outFilename, url: `/output/${outFilename}` });
   } catch (err) {

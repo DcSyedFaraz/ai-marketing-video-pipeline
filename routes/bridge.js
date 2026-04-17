@@ -39,6 +39,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   const model = req.body.model || 'google:3@2';
   const bridgeDuration = parseInt(req.body.duration || '7');
   const videoPath = (req.body.videoPath || '').trim(); // server-side path for podcast videos
+  const orient = req.body.orient === 'landscape' ? 'landscape' : 'portrait';
 
   // Resolve music: uploaded file or server-side ref
   let resolvedMusicPath = musicFile?.path || null;
@@ -242,7 +243,8 @@ router.post('/api/generate-bridge', uploadBridge.fields([
           }
 
           console.log(`[Bridge] Concatenating: ${resolvedVideoPath} + ${bridgeClipForConcat} → ${bridgeConcatted}`);
-          await concatVideos(resolvedVideoPath, bridgeClipForConcat, bridgeConcatted);
+          const [cW, cH] = orient === 'landscape' ? [1920, 1080] : [1080, 1920];
+          await concatVideos(resolvedVideoPath, bridgeClipForConcat, bridgeConcatted, { width: cW, height: cH });
           console.log(`[Bridge] ✅ Concatenation complete`);
 
           if (resolvedMusicPath && musicScope === 'full') {
@@ -311,6 +313,7 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
   const model = req.body.model || 'google:3@2';
   const bridgeDuration = parseInt(req.body.duration || '7');
   const videoPath = (req.body.videoPath || '').trim();
+  const orient = req.body.orient === 'landscape' ? 'landscape' : 'portrait';
 
   // Resolve music
   let resolvedMusicPath = musicFile?.path || null;
@@ -415,8 +418,8 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
         model: 'google:4@3',
         positivePrompt: 'Take the first reference image as the base photo. Overlay the exact logo and CTA button from the second reference image onto the base photo. Preserve the logo design, colors, and text exactly as shown in the second reference — do not alter, recreate, or replace the logo. Place the logo in the top or bottom area of the image. Maintain a professional marketing look.',
         inputs: { referenceImages: [lastFrameDataURI, refDataURI] },
-        width: 3072,
-        height: 5504,
+        width: orient === 'landscape' ? 5504 : 3072,
+        height: orient === 'landscape' ? 3072 : 5504,
         numberResults: 1,
         includeCost: true,
         outputType: ['URL'],
@@ -523,7 +526,8 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
           await downloadVideo(result.videoURL, bridgeGenerated);
 
           console.log(`[Bridge-Auto] Concatenating: original + bridge → ${bridgeConcatted}`);
-          await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted);
+          const [cW, cH] = orient === 'landscape' ? [1920, 1080] : [1080, 1920];
+          await concatVideos(resolvedVideoPath, bridgeGenerated, bridgeConcatted, { width: cW, height: cH });
           console.log(`[Bridge-Auto] ✅ Concatenation complete`);
 
           if (resolvedMusicPath) {

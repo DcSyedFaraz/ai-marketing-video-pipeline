@@ -488,6 +488,7 @@
     <button class="nav-tab" onclick="showPage('story')">📖 Story</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
     <button class="nav-tab" onclick="showPage('splitscreen')">✂️ Split Screen</button>
+    <button class="nav-tab" onclick="showPage('quickvid')">⚡ Quick Video</button>
     <button class="nav-tab" onclick="openCanvas()" title="Open node-based pipeline canvas in new tab">🎨 Canvas</button>
   </div>
 
@@ -1203,6 +1204,19 @@
           <textarea id="bridge-prompt" placeholder="e.g. Smooth cinematic zoom-out transition, warm lighting..."></textarea>
         </div>
 
+        <!-- Orientation -->
+        <div class="fg">
+          <label>Video Orientation</label>
+          <div style="display:flex;gap:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:7px 14px;border:1px solid var(--border);border-radius:6px;flex:1;justify-content:center" id="bridge-orient-portrait-lbl">
+              <input type="radio" name="bridge-orient" value="portrait" style="accent-color:var(--accent)" onchange="bridgeOrientChange()" checked> 📱 Portrait 9:16
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:7px 14px;border:1px solid var(--border);border-radius:6px;flex:1;justify-content:center" id="bridge-orient-landscape-lbl">
+              <input type="radio" name="bridge-orient" value="landscape" style="accent-color:var(--accent)" onchange="bridgeOrientChange()"> 🖥 Landscape 16:9
+            </label>
+          </div>
+        </div>
+
         <!-- Bridge duration -->
         <div class="fg">
           <label>Bridge Video Duration</label>
@@ -1393,6 +1407,19 @@
           <input type="file" id="combine-upload2" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;color:var(--text);font-size:12px" onchange="if(this.value) document.getElementById('combine-v2').value=''">
         </div>
 
+        <!-- Orientation -->
+        <div class="fg" style="margin-bottom:12px">
+          <label>Output Orientation</label>
+          <div style="display:flex;gap:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:7px 14px;border:1px solid var(--border);border-radius:6px;flex:1;justify-content:center" id="combine-orient-portrait-lbl">
+              <input type="radio" name="combine-orient" value="portrait" style="accent-color:var(--accent)" onchange="combineOrientChange()" checked> 📱 Portrait 9:16
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:7px 14px;border:1px solid var(--border);border-radius:6px;flex:1;justify-content:center" id="combine-orient-landscape-lbl">
+              <input type="radio" name="combine-orient" value="landscape" style="accent-color:var(--accent)" onchange="combineOrientChange()"> 🖥 Landscape 16:9
+            </label>
+          </div>
+        </div>
+
         <button class="btn" id="combine-btn" onclick="submitCombine()" style="margin-top:4px">⛓ Combine Videos</button>
         <div id="combine-status" style="margin-top:12px;font-size:13px"></div>
         <div class="result-wrap" id="combine-result" style="margin-top:16px">
@@ -1407,7 +1434,7 @@
         <ul>
           <li>Select from generated output <strong>or</strong> upload any video file</li>
           <li>Upload takes priority if both are provided for a slot</li>
-          <li>Both are re-encoded to 1280×720 H.264 for compatibility</li>
+          <li>Both are re-encoded to H.264 — portrait 1080×1920 or landscape 1920×1080</li>
           <li>First video plays first, second video plays second</li>
           <li>Result saved as <code>combined_*.mp4</code> in output folder</li>
           <li>Use this to re-combine if a bridge run succeeded but concat failed</li>
@@ -2408,6 +2435,7 @@ function showPage(name) {
   if (name === 'story') loadStoryHistoryList();
   if (name === 'bridge') loadBridgePodcastVideos();
   if (name === 'splitscreen') { /* nothing to preload */ }
+  if (name === 'quickvid') loadQuickVidHeroes();
 }
 
 function openCanvas() {
@@ -2892,6 +2920,14 @@ async function submitLipSync() {
 // ══════ Bridge submit ══════
 let bridgeSelectedPodcastPath = null; // server-side path of selected podcast video
 
+function bridgeOrientChange() {
+  const val = document.querySelector('input[name="bridge-orient"]:checked')?.value || 'portrait';
+  document.getElementById('bridge-orient-portrait-lbl').style.borderColor = val === 'portrait' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('bridge-orient-landscape-lbl').style.borderColor = val === 'landscape' ? 'var(--accent)' : 'var(--border)';
+}
+// Init highlight
+document.addEventListener('DOMContentLoaded', bridgeOrientChange);
+
 async function loadBridgePodcastVideos() {
   const sel = document.getElementById('bridge-podcast-pick');
   if (!sel) return;
@@ -3032,6 +3068,7 @@ async function submitBridge() {
     fd.append('ctaImage', cta);
     fd.append('model', selectedBridgeModel);
     fd.append('duration', duration);
+    fd.append('orient', document.querySelector('input[name="bridge-orient"]:checked')?.value || 'portrait');
     if (prompt) fd.append('prompt', prompt);
     if (bridgeMusicFile) {
       if (bridgeMusicFile.isUploadRef) fd.append('musicFileRef', bridgeMusicFile.serverPath);
@@ -3066,6 +3103,7 @@ async function submitBridge() {
     else fd.append('videoPath', bridgeSelectedPodcastPath);
     fd.append('model', selectedBridgeModel);
     fd.append('duration', duration);
+    fd.append('orient', document.querySelector('input[name="bridge-orient"]:checked')?.value || 'portrait');
     if (prompt) fd.append('prompt', prompt);
     if (bridgeMusicFile) {
       if (bridgeMusicFile.isUploadRef) fd.append('musicFileRef', bridgeMusicFile.serverPath);
@@ -3437,6 +3475,13 @@ function showPage2(name) {
 }
 
 // ══════ Combine ══════
+function combineOrientChange() {
+  const val = document.querySelector('input[name="combine-orient"]:checked')?.value || 'portrait';
+  document.getElementById('combine-orient-portrait-lbl').style.borderColor = val === 'portrait' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('combine-orient-landscape-lbl').style.borderColor = val === 'landscape' ? 'var(--accent)' : 'var(--border)';
+}
+document.addEventListener('DOMContentLoaded', combineOrientChange);
+
 async function loadCombineVideos() {
   try {
     const res = await fetch('/api/videos');
@@ -3561,6 +3606,7 @@ async function submitCombine() {
     else fd.append('video1', v1);
     if (upload2) fd.append('upload2', upload2);
     else fd.append('video2', v2);
+    fd.append('orient', document.querySelector('input[name="combine-orient"]:checked')?.value || 'portrait');
 
     const res = await fetch('/api/combine', { method: 'POST', body: fd });
     const data = await res.json();
@@ -4947,6 +4993,376 @@ init();
 
   // Expose addLine so the SSE init (above) can call it
   window.__logPanelReady = addLine;
+})();
+</script>
+
+<!-- ═══ QUICK VIDEO PAGE ═══ -->
+<div id="page-quickvid" class="page">
+  <div class="grid2">
+
+    <!-- LEFT: Controls -->
+    <div class="card">
+      <div class="card-title">⚡ Quick Video — Seedance 2.0</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Generate a video directly from a script prompt. No first-frame image, no AI planning. Seedance 2.0 only.</p>
+
+      <!-- Script / Prompt -->
+      <div class="fg" style="margin-bottom:14px">
+        <label>Script / Prompt <span class="req">*</span></label>
+        <textarea id="qv-prompt" rows="5" placeholder="Describe the scene or paste your script here. Seedance will auto-generate audio from the text."
+          style="width:100%;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box"
+          oninput="document.getElementById('qv-char-count').textContent=this.value.length"></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;text-align:right">
+          <span id="qv-char-count">0</span> / 2500 chars
+        </div>
+      </div>
+
+      <!-- Negative Prompt -->
+      <div class="fg" style="margin-bottom:14px">
+        <label>Negative Prompt <span style="font-size:10px;color:var(--muted)">(optional — things to avoid)</span></label>
+        <textarea id="qv-negative-prompt" rows="3" placeholder="e.g. blurry, watermark, distorted, low quality"
+          style="width:100%;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box"
+          oninput="document.getElementById('qv-neg-char-count').textContent=this.value.length"></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;text-align:right">
+          <span id="qv-neg-char-count">0</span> / 2500 chars
+        </div>
+      </div>
+
+      <!-- Duration chips -->
+      <div class="fg" style="margin-bottom:14px">
+        <label>Duration <span style="font-size:10px;color:var(--muted)">(4–15 seconds)</span></label>
+        <div class="el-chips" id="qv-duration-chips">
+          <div class="el-chip" onclick="qvSetDuration(4,this)">4s</div>
+          <div class="el-chip" onclick="qvSetDuration(5,this)">5s</div>
+          <div class="el-chip" onclick="qvSetDuration(6,this)">6s</div>
+          <div class="el-chip" onclick="qvSetDuration(7,this)">7s</div>
+          <div class="el-chip selected" onclick="qvSetDuration(8,this)">8s</div>
+          <div class="el-chip" onclick="qvSetDuration(9,this)">9s</div>
+          <div class="el-chip" onclick="qvSetDuration(10,this)">10s</div>
+          <div class="el-chip" onclick="qvSetDuration(11,this)">11s</div>
+          <div class="el-chip" onclick="qvSetDuration(12,this)">12s</div>
+          <div class="el-chip" onclick="qvSetDuration(13,this)">13s</div>
+          <div class="el-chip" onclick="qvSetDuration(14,this)">14s</div>
+          <div class="el-chip" onclick="qvSetDuration(15,this)">15s</div>
+        </div>
+      </div>
+
+      <!-- Hero selector -->
+      <div class="fg" style="margin-bottom:16px">
+        <label>Hero References <span style="font-size:10px;color:var(--muted)">(optional — up to 9 ref images injected)</span></label>
+        <div id="qv-hero-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:6px">
+          <div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">Loading heroes…</div>
+        </div>
+      </div>
+
+      <!-- Orientation -->
+      <div class="fg" style="margin-bottom:14px">
+        <label>Orientation</label>
+        <div class="el-chips" id="qv-orient-chips">
+          <div class="el-chip" onclick="qvSetOrient('portrait',this)">📱 Portrait 9:16</div>
+          <div class="el-chip selected" onclick="qvSetOrient('landscape',this)">🖥 Landscape 16:9</div>
+        </div>
+      </div>
+
+      <!-- Extra reference images -->
+      <div class="fg" style="margin-bottom:16px">
+        <label>Extra Reference Images <span style="font-size:10px;color:var(--muted)">(optional · up to 8, appended to hero refs)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label class="btn-sm" style="cursor:pointer">📁 Upload
+            <input type="file" id="qv-extra-refs-input" accept="image/*" multiple style="display:none" onchange="qvAddExtraRefs()" />
+          </label>
+          <span id="qv-extra-refs-count" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div id="qv-extra-refs-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+
+      <!-- Generate button -->
+      <button class="btn btn-purple" id="qv-submit-btn" onclick="submitQuickVid()" style="width:100%">
+        <span class="spinner" id="qv-spinner"></span>
+        <span id="qv-btn-text">⚡ Generate Video</span>
+      </button>
+
+      <!-- Status -->
+      <div id="qv-status-box" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-size:13px"></div>
+
+      <!-- Result -->
+      <div id="qv-result" style="display:none;margin-top:16px">
+        <!-- Portrait 9:16 video wrapper — centers the narrow video -->
+        <div style="display:flex;justify-content:center">
+          <video id="qv-video" controls playsinline style="max-height:500px;width:auto;border-radius:8px;background:#000;display:block"></video>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:center">
+          <a id="qv-download" class="btn-sm green" href="#" download>⬇ Download</a>
+          <span id="qv-cost-badge" style="font-size:11px;color:var(--muted);line-height:1;align-self:center"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Tips -->
+    <div class="card" style="align-self:start">
+      <div class="card-title">ℹ️ How it works</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6">
+        <p><strong style="color:var(--text)">Model:</strong> Seedance 2.0 by ByteDance — multi-shot, up to 15s, with native synchronized audio.</p>
+        <p><strong style="color:var(--text)">Audio:</strong> Seedance will auto-generate synchronized audio from your script — voices, sound effects, and ambient sound included.</p>
+        <p><strong style="color:var(--text)">Hero refs:</strong> Select a hero to inject their reference images into the generation for visual consistency. No hero selected = generic Seedance generation.</p>
+        <p><strong style="color:var(--text)">Dialogue:</strong> Include dialogue in your prompt with quotes — Seedance will voice it. Example: <code>The hero shouts: "For victory!"</code></p>
+        <p><strong style="color:var(--text)">Duration:</strong> 4–15 seconds. Pick any integer — all values available.</p>
+        <p><strong style="color:var(--text)">Output:</strong> Portrait 720p (9:16) — 720×1280. Saved to <em>History</em>.</p>
+      </div>
+    </div>
+
+  </div>
+</div><!-- end page-quickvid -->
+
+<script>
+// ══════ Quick Video Tab ══════
+let _qvDuration = 8;
+let _qvHeroes = [];        // all heroes from catalog
+let _qvSelectedHeroes = new Set();
+let _qvPendingTaskUUID = null;
+let _qvPollTimer = null;
+let _qvExtraRefs = [];     // { file, name, thumbUrl }
+let _qvOrient = 'landscape'; // 'portrait' | 'landscape'
+
+function qvSetDuration(val, btn) {
+  _qvDuration = val;
+  document.querySelectorAll('#qv-duration-chips .el-chip').forEach(c => c.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+async function loadQuickVidHeroes() {
+  if (_qvHeroes.length > 0) return; // already loaded
+  const grid = document.getElementById('qv-hero-grid');
+  try {
+    const res = await fetch('/api/hero-catalog');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    _qvHeroes = data.heroes || [];
+    renderQvHeroGrid();
+  } catch (e) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">Could not load heroes: ${e.message}</div>`;
+  }
+}
+
+function renderQvHeroGrid() {
+  const grid = document.getElementById('qv-hero-grid');
+  if (!_qvHeroes.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px;grid-column:1/-1">No heroes in catalog.</div>';
+    return;
+  }
+  grid.innerHTML = _qvHeroes.map(h => {
+    const sel = _qvSelectedHeroes.has(h.name);
+    const hasImages = h.images?.length > 0;
+    const imgPreview = hasImages
+      ? `<img src="${h.images[0]}" style="width:100%;height:60px;object-fit:cover;border-radius:4px;margin-bottom:4px;display:block" loading="lazy">`
+      : `<div style="width:100%;height:60px;background:var(--border);border-radius:4px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;font-size:18px">🦸</div>`;
+    const noImgNote = !hasImages ? `<div style="font-size:9px;color:var(--yellow);margin-top:2px">No ref images</div>` : '';
+    return `<div class="hero-catalog-item${sel ? ' selected' : ''}" onclick="qvToggleHero('${h.name.replace(/'/g,"\\'")}', this)" style="padding:8px">
+      ${imgPreview}
+      <div class="hc-name">${h.name}</div>
+      <div class="hc-class">${h.class}</div>
+      ${noImgNote}
+    </div>`;
+  }).join('');
+}
+
+function qvToggleHero(name, el) {
+  if (_qvSelectedHeroes.has(name)) {
+    _qvSelectedHeroes.delete(name);
+    el.classList.remove('selected');
+  } else {
+    _qvSelectedHeroes.add(name);
+    el.classList.add('selected');
+  }
+}
+
+function qvSetStatus(type, msg) {
+  const box = document.getElementById('qv-status-box');
+  box.style.display = 'block';
+  box.style.background = type === 'error' ? 'rgba(239,68,68,0.15)'
+    : type === 'success' ? 'rgba(34,197,94,0.15)'
+    : 'rgba(124,58,237,0.12)';
+  box.style.color = type === 'error' ? 'var(--red)' : type === 'success' ? 'var(--green)' : 'var(--text)';
+  box.style.border = `1px solid ${type === 'error' ? 'var(--red)' : type === 'success' ? 'var(--green)' : 'var(--accent)'}`;
+  box.textContent = msg;
+}
+
+function qvClearStatus() {
+  const box = document.getElementById('qv-status-box');
+  box.style.display = 'none';
+  box.textContent = '';
+}
+
+function qvSetOrient(val, btn) {
+  _qvOrient = val;
+  document.querySelectorAll('#qv-orient-chips .el-chip').forEach(c => c.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function qvAddExtraRefs() {
+  const input = document.getElementById('qv-extra-refs-input');
+  for (const f of input.files) {
+    if (_qvExtraRefs.length >= 8) break;
+    _qvExtraRefs.push({ file: f, name: f.name, thumbUrl: URL.createObjectURL(f) });
+  }
+  input.value = '';
+  qvRenderExtraRefPills();
+}
+
+function qvRenderExtraRefPills() {
+  const container = document.getElementById('qv-extra-refs-pills');
+  const countEl = document.getElementById('qv-extra-refs-count');
+  container.innerHTML = '';
+  _qvExtraRefs.forEach((r, idx) => {
+    const pill = document.createElement('div');
+    pill.style.cssText = 'display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 8px 3px 4px;font-size:11px';
+    pill.innerHTML = `<img src="${r.thumbUrl}" style="width:28px;height:28px;object-fit:cover;border-radius:5px" /><span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name.replace(/</g,'&lt;')}</span><span style="cursor:pointer;color:var(--muted);font-size:10px;margin-left:2px" onclick="qvRemoveExtraRef(${idx})">✕</span>`;
+    container.appendChild(pill);
+  });
+  countEl.textContent = _qvExtraRefs.length ? `${_qvExtraRefs.length} image${_qvExtraRefs.length > 1 ? 's' : ''} selected` : '';
+}
+
+function qvRemoveExtraRef(idx) {
+  _qvExtraRefs.splice(idx, 1);
+  qvRenderExtraRefPills();
+}
+
+async function submitQuickVid() {
+  const prompt = document.getElementById('qv-prompt').value.trim();
+  if (!prompt) { qvSetStatus('error', '⚠ Please enter a script or prompt.'); return; }
+
+  const btn = document.getElementById('qv-submit-btn');
+  const spinner = document.getElementById('qv-spinner');
+  const btnText = document.getElementById('qv-btn-text');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Submitting…';
+  document.getElementById('qv-result').style.display = 'none';
+  qvSetStatus('info', '⏳ Submitting to Seedance 2.0…');
+
+  const heroes = Array.from(_qvSelectedHeroes);
+
+  try {
+    const fd = new FormData();
+    const negPrompt = document.getElementById('qv-negative-prompt').value.trim();
+    fd.append('prompt', prompt);
+    fd.append('duration', String(_qvDuration));
+    fd.append('heroes', JSON.stringify(heroes));
+    fd.append('orient', _qvOrient);
+    if (negPrompt) fd.append('negativePrompt', negPrompt);
+    for (const ref of _qvExtraRefs) fd.append('extraRefImages', ref.file);
+
+    const res = await fetch('/api/quickvid', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+
+    _qvPendingTaskUUID = data.taskUUID;
+    btnText.textContent = 'Generating…';
+    qvSetStatus('info', '⏳ Generating video… this usually takes 30–90 seconds. You can switch tabs — we\'ll update when done.');
+
+    // Start polling for completion
+    qvStartPolling(data.taskUUID);
+
+  } catch (err) {
+    qvSetStatus('error', `❌ ${err.message}`);
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '⚡ Generate Video';
+  }
+}
+
+function qvStartPolling(taskUUID) {
+  if (_qvPollTimer) clearInterval(_qvPollTimer);
+  let attempts = 0;
+  const MAX_ATTEMPTS = 120; // 10 min (120 × 5s)
+
+  _qvPollTimer = setInterval(async () => {
+    attempts++;
+    if (attempts > MAX_ATTEMPTS) {
+      clearInterval(_qvPollTimer);
+      _qvPollTimer = null;
+      qvSetStatus('error', '❌ Timed out after 10 minutes. Check History tab for status.');
+      qvResetBtn();
+      return;
+    }
+    try {
+      const res = await fetch('/api/history');
+      if (!res.ok) return;
+      const { history } = await res.json();
+      const entry = history.find(e => e.taskUUID === taskUUID);
+      if (!entry) return;
+
+      if (entry.status === 'completed') {
+        clearInterval(_qvPollTimer);
+        _qvPollTimer = null;
+        qvShowResult(entry);
+        qvResetBtn();
+      } else if (entry.status === 'failed') {
+        clearInterval(_qvPollTimer);
+        _qvPollTimer = null;
+        qvSetStatus('error', `❌ Generation failed: ${entry.error || 'Unknown error'}`);
+        qvResetBtn();
+      }
+      // still pending/processing — keep polling
+    } catch (e) { /* network blip — retry next tick */ }
+  }, 5000);
+}
+
+function qvShowResult(entry) {
+  const video = document.getElementById('qv-video');
+  const dl = document.getElementById('qv-download');
+  const costBadge = document.getElementById('qv-cost-badge');
+  const result = document.getElementById('qv-result');
+
+  video.src = entry.videoUrl;
+  dl.href = entry.videoUrl;
+  dl.download = entry.filename || 'quickvid.mp4';
+  costBadge.textContent = entry.cost != null ? `Cost: $${parseFloat(entry.cost).toFixed(4)}` : '';
+  result.style.display = 'block';
+  qvSetStatus('success', '✅ Video ready!');
+  video.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function qvResetBtn() {
+  const btn = document.getElementById('qv-submit-btn');
+  const spinner = document.getElementById('qv-spinner');
+  const btnText = document.getElementById('qv-btn-text');
+  btn.disabled = false;
+  spinner.style.display = 'none';
+  btnText.textContent = '⚡ Generate Video';
+}
+
+
+// React to SSE task-complete for quickvid tasks even when on another tab
+(function () {
+  const origSSE = window.__sseInstance;
+  // Hook into the existing SSE handler after it initialises (sse is set up before this script)
+  // We listen on the already-initialised EventSource
+  function hookSSE() {
+    const sse = window.__sseInstance;
+    if (!sse) return;
+    sse.addEventListener('task-complete', (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        if (payload.type === 'quickvid' && payload.taskUUID === _qvPendingTaskUUID) {
+          if (_qvPollTimer) { clearInterval(_qvPollTimer); _qvPollTimer = null; }
+          if (payload.status === 'completed' && payload.entry) {
+            qvShowResult(payload.entry);
+          } else if (payload.status === 'failed') {
+            qvSetStatus('error', `❌ ${payload.error || 'Generation failed'}`);
+          }
+          qvResetBtn();
+        }
+      } catch {}
+    });
+  }
+  // Run after page load so window.__sseInstance is set
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hookSSE);
+  } else {
+    hookSSE();
+  }
 })();
 </script>
 </body>

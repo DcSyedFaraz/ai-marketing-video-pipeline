@@ -709,6 +709,18 @@
         <div id="ns-named-heroes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
       </div>
 
+      <!-- Extra Reference Images (fast-paced only) -->
+      <div class="ns-fg" id="ns-extra-refs-section" style="display:none">
+        <label>Extra Reference Images <span style="color:var(--muted);font-size:10px;font-weight:400">(optional · appended to every scene)</span></label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <label class="ns-file-btn">📁 Upload
+            <input type="file" id="ns-extra-refs-input" accept="image/*" multiple style="display:none" onchange="nsAddExtraRefs()" />
+          </label>
+          <span id="ns-extra-refs-count" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div id="ns-extra-refs-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      </div>
+
       <!-- BG Image -->
       <div class="ns-fg">
         <label>Background Reference Image</label>
@@ -3365,6 +3377,7 @@ let nsHeroFiles = [];       // { file, serverPath, isUploadRef, name, thumbUrl }
 let nsBgFile = null;        // { file, serverPath, isUploadRef, name, thumbUrl }
 let nsMusicFile = null;     // { file, serverPath, isUploadRef, name }
 let nsNamedHeroes = [];     // string[] — selected from catalog
+let nsExtraRefs = [];       // { file, name, thumbUrl } — manual extra reference images
 let nsPickerTarget = null;  // 'hero' | 'bg' | 'music'
 let _nsCatalogData = [];
 let _nsAngles = [];
@@ -3518,6 +3531,8 @@ function nsHighlightTransition() {
 function nsToggleMusicSection() {
   const fp = document.querySelector('input[name="ns-mode"]:checked')?.value === 'fast-paced';
   document.getElementById('ns-music-section').style.display = fp ? 'block' : 'none';
+  document.getElementById('ns-extra-refs-section').style.display = fp ? 'block' : 'none';
+  if (!fp) { nsExtraRefs = []; nsRenderExtraRefPills(); }
 }
 
 function nsTogglePlanJson() {
@@ -3542,6 +3557,35 @@ function nsValidatePlanJson() {
     status.textContent = '❌ ' + e.message;
     status.style.color = 'var(--red)';
   }
+}
+
+// ── Extra Reference Images ───────────────────────────────────────
+function nsAddExtraRefs() {
+  const input = document.getElementById('ns-extra-refs-input');
+  for (const f of input.files) {
+    if (nsExtraRefs.length >= 8) break;
+    nsExtraRefs.push({ file: f, name: f.name, thumbUrl: URL.createObjectURL(f) });
+  }
+  input.value = '';
+  nsRenderExtraRefPills();
+}
+
+function nsRenderExtraRefPills() {
+  const container = document.getElementById('ns-extra-refs-pills');
+  const countEl = document.getElementById('ns-extra-refs-count');
+  container.innerHTML = '';
+  nsExtraRefs.forEach((r, idx) => {
+    const pill = document.createElement('div');
+    pill.style.cssText = 'display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 8px 3px 4px;font-size:11px';
+    pill.innerHTML = `<img src="${r.thumbUrl}" style="width:28px;height:28px;object-fit:cover;border-radius:5px" /><span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.name)}</span><span style="cursor:pointer;color:var(--muted);font-size:10px;margin-left:2px" onclick="nsRemoveExtraRef(${idx})">✕</span>`;
+    container.appendChild(pill);
+  });
+  countEl.textContent = nsExtraRefs.length ? `${nsExtraRefs.length} image${nsExtraRefs.length > 1 ? 's' : ''} selected` : '';
+}
+
+function nsRemoveExtraRef(idx) {
+  nsExtraRefs.splice(idx, 1);
+  nsRenderExtraRefPills();
 }
 
 // ── Hero images ──────────────────────────────────────────────────
@@ -3869,6 +3913,11 @@ async function submitNewStory() {
       }
     }
 
+    // Extra manual reference images
+    for (const ref of nsExtraRefs) {
+      if (ref.file) fd.append('extraRefImages', ref.file);
+    }
+
     // BG image
     if (nsBgFile) {
       if (nsBgFile.isUploadRef) fd.append('bgImageRef', nsBgFile.serverPath);
@@ -3896,7 +3945,7 @@ async function submitNewStory() {
     if (!res.ok) { alert('Error: ' + (data.error || 'Failed to create story')); return; }
 
     // Reset state
-    nsBgFile = null; nsMusicFile = null; nsNamedHeroes = [];
+    nsBgFile = null; nsMusicFile = null; nsNamedHeroes = []; nsExtraRefs = [];
 
     closeNewStoryModal();
     await loadStoryList();

@@ -117,8 +117,10 @@ function initSceneProgress(geminiScenes, pipelineMode = 'standard') {
       duration: s.duration,
       useHeroRef: s.useHeroRef || false,
       useBgRef: s.useBgRef || false,
-      // Standard last scene: imageStatus skipped (no imagePrompt). Fast-paced last scene: pending (has imagePrompt)
-      imageStatus: (isLastScene && !isFastPaced) ? 'skipped' : 'pending',
+      sequenceGroup: s.sequenceGroup || null,
+      // Standard last scene: imageStatus skipped (no imagePrompt) — UNLESS it's the only scene (single-scene mode)
+      // Fast-paced last scene: pending (has imagePrompt)
+      imageStatus: (isLastScene && !isFastPaced && !isFirstScene) ? 'skipped' : (s.imagePrompt ? 'pending' : 'skipped'),
       imageUrl: null,
       imageError: null,
       imageCost: null,
@@ -198,6 +200,50 @@ function loadSceneHeroRefDataURIs(sceneHeroes, allNamedHeroes, maxRefs) {
 // ─── Helper: build video request payload for Kling or Google ─────────────────
 function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, { negativePrompt, heroRefDataURIs } = {}) {
   const isKling3 = videoModel.includes('kling-video@3');
+  const isSeedance = videoModel === 'bytedance:seedance@2.0';
+
+  if (isSeedance) {
+    const inputs = {};
+    // Frame images for first/last frame anchoring
+    const frames = [];
+    if (firstFrameDataURI) frames.push({ image: firstFrameDataURI, frame: 'first' });
+    if (lastFrameDataURI) frames.push({ image: lastFrameDataURI, frame: 'last' });
+    if (frames.length) {
+      inputs.frameImages = frames;
+      // NOTE: frameImages cannot coexist with referenceImages/referenceVideos/referenceAudios per Seedance API docs
+    } else {
+      // No frame constraints — use hero refs for visual consistency
+      const validRefs = (heroRefDataURIs || []).filter(Boolean).slice(0, 9);
+      if (validRefs.length) {
+        inputs.referenceImages = validRefs;
+        console.log(`[Video] Seedance: attaching ${validRefs.length} hero ref(s) as referenceImages`);
+      }
+    }
+    // Seedance duration must be integer 4–15 (API rejects 'auto')
+    const dur = Math.max(4, Math.min(15, Math.round(scene.duration || 10)));
+    // Strip the voice-over prefix ("He says in the voice of...": "dialogue") from Seedance prompts.
+    // ByteDance's content filter flags synthesized dialogue audio as potential copyright violation.
+    // The visual/action description after the voice line is what matters for video generation.
+    const rawPrompt = scene.videoPrompt || '';
+    // Match pattern: <voice desc>: "<dialogue>" followed by the visual description
+    const voiceStripMatch = rawPrompt.match(/^.*?:\s*"[^"]*"\s*(.*)/s);
+    const seedancePrompt = (voiceStripMatch?.[1]?.trim()) || rawPrompt;
+    console.log(`[Video] Seedance prompt (voice stripped): ${seedancePrompt.slice(0, 120)}...`);
+    const payload = {
+      taskUUID: videoTaskUUID,
+      model: videoModel,
+      positivePrompt: seedancePrompt,
+      duration: dur,
+      outputFormat: 'mp4',
+      numberResults: 1,
+      settings: { audio: false },
+    };
+    // Attach inputs only if non-empty
+    if (Object.keys(inputs).length > 0) payload.inputs = inputs;
+    // When using frameImages, resolution is derived from input; otherwise set default
+    if (!frames.length) payload.resolution = '720p';
+    return payload;
+  }
 
   if (isKling) {
     // Kling 3.0 uses { image, frame: "first" } format; O3 Pro uses { image } only
@@ -244,6 +290,42 @@ function buildVideoPayload(isKling, videoModel, scene, videoTaskUUID, firstFrame
     // negativePrompt not supported by Google/o3 models — omit entirely
     return payload;
   }
+}
+
+// ─── Build video execution units for Seedance sequence grouping ──────────────
+// For Seedance: consecutive scenes with the same sequenceGroup are merged into one unit.
+// For all other models: each scene is its own unit (no grouping).
+// Returns array of: { scenes, isGroup, groupId, duration, videoPrompt }
+function buildVideoUnits(scenes, isSeedance) {
+  if (!isSeedance) {
+    return scenes.map(s => ({
+      scenes: [s],
+      isGroup: false,
+      groupId: null,
+      duration: s.duration,
+      videoPrompt: s.videoPrompt,
+    }));
+  }
+
+  const units = [];
+  let i = 0;
+  while (i < scenes.length) {
+    const groupId = scenes[i].sequenceGroup;
+    if (groupId) {
+      const group = [];
+      while (i < scenes.length && scenes[i].sequenceGroup === groupId) {
+        group.push(scenes[i]);
+        i++;
+      }
+      const totalDur = Math.min(group.reduce((sum, sc) => sum + (sc.duration || 0), 0), 15);
+      const combinedPrompt = group.map(sc => sc.videoPrompt).join(' ').slice(0, 3000);
+      units.push({ scenes: group, isGroup: true, groupId, duration: totalDur, videoPrompt: combinedPrompt });
+    } else {
+      units.push({ scenes: [scenes[i]], isGroup: false, groupId: null, duration: scenes[i].duration, videoPrompt: scenes[i].videoPrompt });
+      i++;
+    }
+  }
+  return units;
 }
 
 // ─── Fast-Paced video phase: generate ALL scene videos in parallel ────────────
@@ -384,6 +466,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
             entry.pipelineMode || 'standard',
             HEROES_DATA,
             entry.namedHeroes || [],
+            entry.videoModel || '',
           );
         }
 
@@ -464,6 +547,8 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
           if (isFirst) {
             if (s.imageStatus !== 'completed') return true;
             if (s.imageBPrompt && s.imageBStatus !== 'completed') return true;
+            // Single-scene (first AND last): also check CTA
+            if (isLast && s.ctaImagePrompt && s.ctaImageStatus !== 'completed') return true;
             return false;
           }
           // Last scene: pending only if CTA not done (no imagePrompt for last scene)
@@ -502,6 +587,14 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
         }
         const ctaRefPath = path.join('public', 'reference.jpg');
         const ctaDataURI = existsSync(ctaRefPath) ? fileToDataURI(ctaRefPath, 'image/jpeg') : null;
+
+        // Extra manual reference images (appended to every scene)
+        const extraRefDataURIs = (current.extraRefImagePaths || [])
+          .filter(p => p && existsSync(p))
+          .map(p => fileToDataURI(p, getMimeType(p)));
+        if (extraRefDataURIs.length > 0) {
+          console.log(`[Story] Loaded ${extraRefDataURIs.length} extra manual ref image(s)`);
+        }
 
         if (heroDataURIs.length > 0) {
           console.log(`[Story] Loaded ${heroDataURIs.length} hero ref image(s) for this run`);
@@ -545,6 +638,11 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
             referenceImages.push(bgDataURI);
             console.log(`[Story] Scene ${scene.sceneNumber}: will attach bg ref`);
           }
+          // Always append extra manual refs
+          if (extraRefDataURIs.length > 0) {
+            referenceImages.push(...extraRefDataURIs);
+            console.log(`[Story] Scene ${scene.sceneNumber}: appending ${extraRefDataURIs.length} extra manual ref(s)`);
+          }
 
           if (isFastPaced) {
             // ── Fast-Paced: ALL scenes get imagePrompt (opening frame) ──
@@ -583,58 +681,58 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
             }
           } else {
             // ── Standard: last scene = CTA only; scene 1 = imageA + imageB; middle = imageA ──
-            if (isLast) {
-              // Last scene: only CTA image
-              if (scene.ctaImagePrompt && scene.ctaImageStatus !== 'completed') {
-                const ctaTaskUUID = randomUUID();
-                const ctaRefs = [...referenceImages];
-                if (ctaDataURI) {
-                  ctaRefs.push(ctaDataURI);
-                  console.log(`[Story] Scene ${scene.sceneNumber} (CTA): will attach reference.jpg`);
-                }
-                const ctaPayload = {
-                  taskUUID: ctaTaskUUID,
-                  model: 'google:4@3',
-                  positivePrompt: scene.ctaImagePrompt,
-                  width: 3072, height: 5504,
-                  numberResults: 1, includeCost: true, outputType: ['URL'],
-                };
-                if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
-                if (storyNegPrompt) ctaPayload.negativePrompt = storyNegPrompt;
-                allImageJobs.push({ i, type: 'cta', task: { payload: ctaPayload, taskUUID: ctaTaskUUID } });
-                console.log(`[Story] Scene ${scene.sceneNumber}: will generate CTA frame image`);
-              }
-            } else {
-              // Scene 1 or middle scene: generate imagePrompt (frame A for scene 1, end frame for middle)
-              if (scene.imageStatus !== 'completed' && scene.imagePrompt) {
-                const imgTaskUUID = randomUUID();
-                const imgPayload = {
-                  taskUUID: imgTaskUUID,
-                  model: 'google:4@3',
-                  positivePrompt: scene.imagePrompt,
-                  width: 3072, height: 5504,
-                  numberResults: 1, includeCost: true, outputType: ['URL'],
-                };
-                if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
-                if (storyNegPrompt) imgPayload.negativePrompt = storyNegPrompt;
-                allImageJobs.push({ i, type: 'scene', task: { payload: imgPayload, taskUUID: imgTaskUUID } });
-              }
+            // Special case: single-scene (first AND last) → generate imageA + CTA (no imageB)
 
-              // Scene 1 only: also generate imageBPrompt (frame B / end frame)
-              if (isFirst && scene.imageBPrompt && scene.imageBStatus !== 'completed') {
-                const imgBTaskUUID = randomUUID();
-                const imgBPayload = {
-                  taskUUID: imgBTaskUUID,
-                  model: 'google:4@3',
-                  positivePrompt: scene.imageBPrompt,
-                  width: 3072, height: 5504,
-                  numberResults: 1, includeCost: true, outputType: ['URL'],
-                };
-                if (referenceImages.length > 0) imgBPayload.inputs = { referenceImages };
-                if (storyNegPrompt) imgBPayload.negativePrompt = storyNegPrompt;
-                allImageJobs.push({ i, type: 'imageB', task: { payload: imgBPayload, taskUUID: imgBTaskUUID } });
-                console.log(`[Story] Scene ${scene.sceneNumber}: will also generate frame B image`);
+            // Generate opening image (imageA) for scene 1 or middle scenes, and also single-scene
+            if ((!isLast || isFirst) && scene.imageStatus !== 'completed' && scene.imagePrompt) {
+              const imgTaskUUID = randomUUID();
+              const imgPayload = {
+                taskUUID: imgTaskUUID,
+                model: 'google:4@3',
+                positivePrompt: scene.imagePrompt,
+                width: 3072, height: 5504,
+                numberResults: 1, includeCost: true, outputType: ['URL'],
+              };
+              if (referenceImages.length > 0) imgPayload.inputs = { referenceImages };
+              if (storyNegPrompt) imgPayload.negativePrompt = storyNegPrompt;
+              allImageJobs.push({ i, type: 'scene', task: { payload: imgPayload, taskUUID: imgTaskUUID } });
+            }
+
+            // Scene 1 only (multi-scene): also generate imageBPrompt (frame B / end frame)
+            if (isFirst && !isLast && scene.imageBPrompt && scene.imageBStatus !== 'completed') {
+              const imgBTaskUUID = randomUUID();
+              const imgBPayload = {
+                taskUUID: imgBTaskUUID,
+                model: 'google:4@3',
+                positivePrompt: scene.imageBPrompt,
+                width: 3072, height: 5504,
+                numberResults: 1, includeCost: true, outputType: ['URL'],
+              };
+              if (referenceImages.length > 0) imgBPayload.inputs = { referenceImages };
+              if (storyNegPrompt) imgBPayload.negativePrompt = storyNegPrompt;
+              allImageJobs.push({ i, type: 'imageB', task: { payload: imgBPayload, taskUUID: imgBTaskUUID } });
+              console.log(`[Story] Scene ${scene.sceneNumber}: will also generate frame B image`);
+            }
+
+            // Last scene (including single-scene): generate CTA image
+            if (isLast && scene.ctaImagePrompt && scene.ctaImageStatus !== 'completed') {
+              const ctaTaskUUID = randomUUID();
+              const ctaRefs = [...referenceImages];
+              if (ctaDataURI) {
+                ctaRefs.push(ctaDataURI);
+                console.log(`[Story] Scene ${scene.sceneNumber} (CTA): will attach reference.jpg`);
               }
+              const ctaPayload = {
+                taskUUID: ctaTaskUUID,
+                model: 'google:4@3',
+                positivePrompt: scene.ctaImagePrompt,
+                width: 3072, height: 5504,
+                numberResults: 1, includeCost: true, outputType: ['URL'],
+              };
+              if (ctaRefs.length > 0) ctaPayload.inputs = { referenceImages: ctaRefs };
+              if (storyNegPrompt) ctaPayload.negativePrompt = storyNegPrompt;
+              allImageJobs.push({ i, type: 'cta', task: { payload: ctaPayload, taskUUID: ctaTaskUUID } });
+              console.log(`[Story] Scene ${scene.sceneNumber}: will generate CTA frame image`);
             }
           }
         }
@@ -821,6 +919,7 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
       console.log(`[Story] Video model ${current.videoModel}: maxRefImages=${maxVideoRefs}`);
 
       const isFastPacedVid = (current.pipelineMode === 'fast-paced');
+      const isSeedanceModel = current.videoModel === 'bytedance:seedance@2.0';
 
       if (isFastPacedVid) {
         // ── Fast-Paced: parallel video generation ──
@@ -828,79 +927,102 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
         if (anyVidFailed) return;
       } else {
         // ── Standard: sequential video generation with frame extraction ──
-        // Flow:
-        //   Scene 1: firstFrame = imageA, lastFrame = imageB → generate video → extract last frame
-        //   Scene 2..N-1: firstFrame = extracted last frame from prev video, lastFrame = this scene's image
-        //   Scene N (last): firstFrame = extracted last frame from prev video, lastFrame = CTA image
         const lastIdx = current.scenes.length - 1;
         const isKling = current.videoModel.startsWith('klingai:');
         const tempFrames = []; // track temp extracted frame files for cleanup
 
-        // Find starting index — skip completed scenes
-        let videoStartIdx = startSceneIdx;
-        while (videoStartIdx <= lastIdx && current.scenes[videoStartIdx].videoStatus === 'completed') {
-          videoStartIdx++;
+        // Build video units (groups consecutive Seedance scenes by sequenceGroup)
+        const allVideoUnits = buildVideoUnits(current.scenes, isSeedanceModel);
+
+        // Find starting unit index — skip units where all scenes are completed
+        let unitStartIdx = 0;
+        while (unitStartIdx < allVideoUnits.length && allVideoUnits[unitStartIdx].scenes.every(s => s.videoStatus === 'completed')) {
+          unitStartIdx++;
         }
 
-        if (videoStartIdx > lastIdx) {
+        // Apply endSceneIdx limit: find the unit that contains endSceneIdx
+        let unitEndIdx = allVideoUnits.length - 1;
+        if (endSceneIdx !== null) {
+          unitEndIdx = allVideoUnits.findIndex(u => u.scenes.some((s, _) => current.scenes.indexOf(s) >= endSceneIdx));
+          if (unitEndIdx < 0) unitEndIdx = allVideoUnits.length - 1;
+        }
+
+        if (unitStartIdx >= allVideoUnits.length) {
           console.log(`[Story] All videos already completed, skipping video phase.`);
         } else {
-          console.log(`[Story] ── Starting SEQUENTIAL video generation from scene ${videoStartIdx + 1} ──`);
+          console.log(`[Story] ── Starting SEQUENTIAL video generation from unit ${unitStartIdx + 1} (${isSeedanceModel ? 'Seedance w/ grouping' : 'standard'}) ──`);
 
           let anyVidFailed = false;
 
-          for (let i = videoStartIdx; i <= (endSceneIdx !== null ? Math.min(endSceneIdx, lastIdx) : lastIdx); i++) {
+          // Track the last scene index that produced a video (for frame extraction)
+          // We need to know the actual prev video file regardless of grouping
+          let prevVideoSceneNumber = null; // sceneNumber whose video file to extract frame from
+
+          for (let ui = unitStartIdx; ui <= unitEndIdx; ui++) {
+            const unit = allVideoUnits[ui];
+            const firstSceneInUnit = unit.scenes[0];
+            const lastSceneInUnit = unit.scenes[unit.scenes.length - 1];
+            const sceneIdxOfFirst = current.scenes.findIndex(s => s.sceneNumber === firstSceneInUnit.sceneNumber);
+            const sceneIdxOfLast = current.scenes.findIndex(s => s.sceneNumber === lastSceneInUnit.sceneNumber);
+
             // Reload to get latest state
             current = loadStoryHistory().find(h => h.taskUUID === taskUUID);
-            const scene = current.scenes[i];
+            // Re-map scenes for this unit with fresh data
+            const freshFirstScene = current.scenes[sceneIdxOfFirst];
+            const freshLastScene = current.scenes[sceneIdxOfLast];
 
-            // Skip already completed
-            if (scene.videoStatus === 'completed') {
-              console.log(`[Story] Scene ${scene.sceneNumber} video already completed, skipping.`);
+            // Skip if all scenes in unit are completed
+            if (unit.scenes.every((_, idx) => current.scenes[sceneIdxOfFirst + idx]?.videoStatus === 'completed')) {
+              console.log(`[Story] Unit ${ui + 1} (scene(s) ${unit.scenes.map(s => s.sceneNumber).join(',')}) already completed, skipping.`);
+              prevVideoSceneNumber = lastSceneInUnit.sceneNumber;
               continue;
             }
 
-            const isFirst = (i === 0);
-            const isLast = (i === lastIdx);
+            const isFirstUnit = (ui === 0);
+            const isLastUnit = (ui === allVideoUnits.length - 1);
 
             // ── Determine first frame ──
             let firstFrameDataURI;
-            if (isFirst) {
-              // Scene 1: first frame = image A
-              const imgAPath = path.join(dir, `scene_${scene.sceneNumber}_image.jpg`);
+            if (isFirstUnit) {
+              // First unit: first frame = image A of first scene
+              const imgAPath = path.join(dir, `scene_${freshFirstScene.sceneNumber}_image.jpg`);
               if (!existsSync(imgAPath)) {
-                console.error(`[Story] ❌ Scene ${scene.sceneNumber} image A not found — aborting video phase`);
-                updateSceneInStory(taskUUID, i, { videoStatus: 'failed', videoError: 'Image A file not found on disk' });
-                updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: i, error: `Scene ${scene.sceneNumber}: Image A not found` });
+                console.error(`[Story] ❌ Scene ${freshFirstScene.sceneNumber} image A not found — aborting video phase`);
+                for (let si = sceneIdxOfFirst; si <= sceneIdxOfLast; si++) {
+                  updateSceneInStory(taskUUID, si, { videoStatus: 'failed', videoError: 'Image A file not found on disk' });
+                }
+                updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: sceneIdxOfFirst, error: `Scene ${freshFirstScene.sceneNumber}: Image A not found` });
                 anyVidFailed = true;
                 break;
               }
               firstFrameDataURI = fileToDataURI(imgAPath, 'image/jpeg');
-              console.log(`[Story] Scene ${scene.sceneNumber}: first frame = image A`);
+              console.log(`[Story] Unit ${ui + 1}: first frame = image A of scene ${freshFirstScene.sceneNumber}`);
             } else {
-              // Scene 2+: extract last frame from previous scene's video
-              const prevScene = current.scenes[i - 1];
-              const prevVideoPath = path.join(dir, `scene_${prevScene.sceneNumber}_video.mp4`);
+              // Subsequent units: extract last frame from the previous unit's video
+              const prevVideoPath = path.join(dir, `scene_${prevVideoSceneNumber}_video.mp4`);
               if (!existsSync(prevVideoPath)) {
-                console.error(`[Story] ❌ Scene ${scene.sceneNumber}: previous video (scene ${prevScene.sceneNumber}) not found — aborting`);
-                updateSceneInStory(taskUUID, i, { videoStatus: 'failed', videoError: `Previous video (scene ${prevScene.sceneNumber}) not found` });
-                updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: i, error: `Scene ${scene.sceneNumber}: previous video not found` });
+                console.error(`[Story] ❌ Unit ${ui + 1}: previous video (scene ${prevVideoSceneNumber}) not found — aborting`);
+                for (let si = sceneIdxOfFirst; si <= sceneIdxOfLast; si++) {
+                  updateSceneInStory(taskUUID, si, { videoStatus: 'failed', videoError: `Previous video (scene ${prevVideoSceneNumber}) not found` });
+                }
+                updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: sceneIdxOfFirst, error: `Unit ${ui + 1}: previous video not found` });
                 anyVidFailed = true;
                 break;
               }
-
-              const extractedFramePath = path.join(dir, `frame_after_scene_${prevScene.sceneNumber}.jpg`);
+              const extractedFramePath = path.join(dir, `frame_after_scene_${prevVideoSceneNumber}.jpg`);
               try {
-                console.log(`[Story] Scene ${scene.sceneNumber}: extracting last frame from scene ${prevScene.sceneNumber} video...`);
+                console.log(`[Story] Unit ${ui + 1}: extracting last frame from scene ${prevVideoSceneNumber} video...`);
                 await extractLastFrame(prevVideoPath, extractedFramePath);
                 tempFrames.push(extractedFramePath);
                 firstFrameDataURI = fileToDataURI(extractedFramePath, 'image/jpeg');
-                console.log(`[Story] Scene ${scene.sceneNumber}: first frame = extracted from scene ${prevScene.sceneNumber} video ✅`);
+                console.log(`[Story] Unit ${ui + 1}: first frame = extracted from scene ${prevVideoSceneNumber} video ✅`);
               } catch (extractErr) {
                 const errMsg = extractErr?.message || String(extractErr);
-                console.error(`[Story] ❌ Scene ${scene.sceneNumber}: failed to extract frame from scene ${prevScene.sceneNumber}: ${errMsg}`);
-                updateSceneInStory(taskUUID, i, { videoStatus: 'failed', videoError: `Frame extraction failed: ${errMsg}` });
-                updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: i, error: `Scene ${scene.sceneNumber}: frame extraction failed` });
+                console.error(`[Story] ❌ Unit ${ui + 1}: frame extraction from scene ${prevVideoSceneNumber} failed: ${errMsg}`);
+                for (let si = sceneIdxOfFirst; si <= sceneIdxOfLast; si++) {
+                  updateSceneInStory(taskUUID, si, { videoStatus: 'failed', videoError: `Frame extraction failed: ${errMsg}` });
+                }
+                updateStoryEntry(taskUUID, { status: 'paused', currentPhase: 'videos', currentSceneIndex: sceneIdxOfFirst, error: `Unit ${ui + 1}: frame extraction failed` });
                 anyVidFailed = true;
                 break;
               }
@@ -908,43 +1030,52 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
 
             // ── Determine last frame ──
             let lastFrameDataURI = null;
-            if (isFirst) {
-              // Scene 1: last frame = image B
-              const imgBPath = path.join(dir, `scene_${scene.sceneNumber}_imageB.jpg`);
+            if (isFirstUnit && !unit.isGroup) {
+              // Single-scene first unit: last frame = image B
+              const imgBPath = path.join(dir, `scene_${freshFirstScene.sceneNumber}_imageB.jpg`);
               if (existsSync(imgBPath)) {
                 lastFrameDataURI = fileToDataURI(imgBPath, 'image/jpeg');
-                console.log(`[Story] Scene ${scene.sceneNumber}: last frame = image B`);
+                console.log(`[Story] Unit ${ui + 1}: last frame = image B of scene ${freshFirstScene.sceneNumber}`);
               }
-            } else if (isLast) {
-              // Last scene: last frame = CTA image
-              const ctaImgPath = path.join(dir, `scene_${scene.sceneNumber}_cta_image.jpg`);
+            } else if (isLastUnit) {
+              // Last unit: last frame = CTA image of last scene
+              const ctaImgPath = path.join(dir, `scene_${freshLastScene.sceneNumber}_cta_image.jpg`);
               if (existsSync(ctaImgPath)) {
                 lastFrameDataURI = fileToDataURI(ctaImgPath, 'image/jpeg');
-                console.log(`[Story] Scene ${scene.sceneNumber} (last): last frame = CTA image`);
+                console.log(`[Story] Unit ${ui + 1} (last): last frame = CTA image`);
               }
             } else {
-              // Middle scene: last frame = this scene's image (end frame)
-              const imgPath = path.join(dir, `scene_${scene.sceneNumber}_image.jpg`);
+              // Middle unit: last frame = last scene's image (end frame)
+              const imgPath = path.join(dir, `scene_${freshLastScene.sceneNumber}_image.jpg`);
               if (existsSync(imgPath)) {
                 lastFrameDataURI = fileToDataURI(imgPath, 'image/jpeg');
-                console.log(`[Story] Scene ${scene.sceneNumber}: last frame = scene image (end frame)`);
+                console.log(`[Story] Unit ${ui + 1}: last frame = scene ${freshLastScene.sceneNumber} image`);
               }
             }
 
             // ── Build video payload ──
+            // For grouped units: use combined prompt + summed duration; save as first scene's video file
             const videoTaskUUID = randomUUID();
-            const heroRefDataURIs = loadSceneHeroRefDataURIs(scene.heroes, current.namedHeroes, maxVideoRefs);
-            const requestPayload = buildVideoPayload(isKling, current.videoModel, scene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
-              negativePrompt: scene.negativePrompt || current.negativePrompt,
+            const heroRefDataURIs = loadSceneHeroRefDataURIs(freshFirstScene.heroes, current.namedHeroes, maxVideoRefs);
+            const unitScene = unit.isGroup
+              ? { videoPrompt: unit.videoPrompt, duration: unit.duration, negativePrompt: freshFirstScene.negativePrompt || current.negativePrompt }
+              : freshFirstScene;
+            const requestPayload = buildVideoPayload(isKling, current.videoModel, unitScene, videoTaskUUID, firstFrameDataURI, lastFrameDataURI, {
+              negativePrompt: freshFirstScene.negativePrompt || current.negativePrompt,
               heroRefDataURIs,
             });
 
-            // ── Submit and poll ──
-            updateSceneInStory(taskUUID, i, { videoStatus: 'generating', videoError: null, videoTaskUUID });
-            updateStoryEntry(taskUUID, { currentSceneIndex: i });
+            // Mark all scenes in unit as generating
+            for (let si = sceneIdxOfFirst; si <= sceneIdxOfLast; si++) {
+              updateSceneInStory(taskUUID, si, { videoStatus: 'generating', videoError: null, videoTaskUUID: si === sceneIdxOfFirst ? videoTaskUUID : null });
+            }
+            updateStoryEntry(taskUUID, { currentSceneIndex: sceneIdxOfFirst });
 
-            const label = `Story-Scene${scene.sceneNumber}-Vid`;
-            console.log(`[Story] Scene ${scene.sceneNumber} video submit | ${isKling ? 'KlingAI' : 'Google'} | taskUUID: ${videoTaskUUID}`);
+            const unitLabel = unit.isGroup
+              ? `Story-Group[${unit.scenes.map(s => s.sceneNumber).join(',')}]-Vid`
+              : `Story-Scene${freshFirstScene.sceneNumber}-Vid`;
+            const modelLabel = isSeedanceModel ? 'Seedance' : (isKling ? 'KlingAI' : 'Google');
+            console.log(`[Story] ${unitLabel} submit | ${modelLabel}${unit.isGroup ? ` (grouped: ${unit.scenes.length} scenes, ${unit.duration}s)` : ''} | taskUUID: ${videoTaskUUID}`);
 
             try {
               const vidPoller = await getStoryPoller();
@@ -952,36 +1083,49 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
               const vidResult = await new Promise((resolve, reject) => {
                 vidPoller.register(videoTaskUUID, {
                   type: 'video',
-                  label,
+                  label: unitLabel,
                   onComplete: async (r) => { resolve(r); },
-                  onError: async (e) => { reject(e); },
+                  onError: async (e) => {
+                    console.error(`[Story] ${unitLabel} onError raw:`, JSON.stringify(e)?.slice(0, 500));
+                    reject(e instanceof Error ? e : new Error(e?.message || e?.error || JSON.stringify(e)?.slice(0, 300)));
+                  },
                 });
               });
 
               if (!vidResult.videoURL) throw new Error(`No videoURL in response. Raw: ${JSON.stringify(vidResult)?.slice(0, 300)}`);
 
-              const videoFilename = `scene_${scene.sceneNumber}_video.mp4`;
+              // Save video as the first scene's file; all scenes in the group share this video
+              const videoFilename = `scene_${freshFirstScene.sceneNumber}_video.mp4`;
               const videoPath = path.join(dir, videoFilename);
-              console.log(`[Story] Downloading Scene ${scene.sceneNumber} video from: ${vidResult.videoURL.slice(0, 80)}...`);
+              console.log(`[Story] Downloading ${unitLabel} video from: ${vidResult.videoURL.slice(0, 80)}...`);
               await downloadVideo(vidResult.videoURL, videoPath);
-              const videoThumbFilename = `scene_${scene.sceneNumber}_video_thumb.jpg`;
+              const videoThumbFilename = `scene_${freshFirstScene.sceneNumber}_video_thumb.jpg`;
               await generateVideoThumb(videoPath, path.join(dir, videoThumbFilename));
 
               const cost = vidResult.cost ?? null;
-              updateSceneInStory(taskUUID, i, {
-                videoStatus: 'completed',
-                videoUrl: `/output/stories/${taskUUID}/${videoFilename}`,
-                videoThumbUrl: `/output/stories/${taskUUID}/${videoThumbFilename}`,
-                videoCost: cost,
-              });
-              console.log(`[Story] ✅ Scene ${scene.sceneNumber} video saved | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
+              const sharedVideoUrl = `/output/stories/${taskUUID}/${videoFilename}`;
+              const sharedThumbUrl = `/output/stories/${taskUUID}/${videoThumbFilename}`;
+
+              // Mark all scenes in unit as completed (grouped scenes share the video)
+              for (let si = sceneIdxOfFirst; si <= sceneIdxOfLast; si++) {
+                updateSceneInStory(taskUUID, si, {
+                  videoStatus: 'completed',
+                  videoUrl: sharedVideoUrl,
+                  videoThumbUrl: sharedThumbUrl,
+                  videoCost: si === sceneIdxOfFirst ? cost : null,
+                });
+              }
+              prevVideoSceneNumber = freshFirstScene.sceneNumber; // next unit extracts frame from this video
+              console.log(`[Story] ✅ ${unitLabel} video saved | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
             } catch (vidErr) {
               const errMsg = vidErr?.message || String(vidErr);
-              console.error(`[Story] ❌ Scene ${scene.sceneNumber} video failed: ${errMsg}`);
-              updateSceneInStory(taskUUID, i, { videoStatus: 'failed', videoError: errMsg });
+              console.error(`[Story] ❌ ${unitLabel} video failed: ${errMsg}`);
+              for (let si = sceneIdxOfFirst; si <= sceneIdxOfLast; si++) {
+                updateSceneInStory(taskUUID, si, { videoStatus: 'failed', videoError: errMsg });
+              }
               updateStoryEntry(taskUUID, {
-                status: 'paused', currentPhase: 'videos', currentSceneIndex: i,
-                error: `Scene ${scene.sceneNumber} video failed: ${errMsg}`,
+                status: 'paused', currentPhase: 'videos', currentSceneIndex: sceneIdxOfFirst,
+                error: `${unitLabel} video failed: ${errMsg}`,
               });
               anyVidFailed = true;
               break;
@@ -1029,9 +1173,17 @@ async function runPipeline(taskUUID, startPhase, startSceneIdx, endSceneIdx = nu
       console.log(`[Story] Concatenating ${current.scenes.length} scene videos...`);
 
       try {
-        const videoPaths = current.scenes.map(
-          s => path.join(dir, `scene_${s.sceneNumber}_video.mp4`)
-        );
+        // Build unique ordered list of video paths.
+        // Grouped Seedance scenes share the same video file (stored under the first scene's number).
+        // Deduplicate by videoUrl so we don't pass the same file twice to ffmpeg.
+        const seenVideoUrls = new Set();
+        const videoPaths = [];
+        for (const s of current.scenes) {
+          const vUrl = s.videoUrl;
+          if (vUrl && seenVideoUrls.has(vUrl)) continue; // skip duplicate (grouped scene)
+          if (vUrl) seenVideoUrls.add(vUrl);
+          videoPaths.push(path.join(dir, `scene_${s.sceneNumber}_video.mp4`));
+        }
 
         // Verify all videos exist
         for (const vp of videoPaths) {
@@ -1263,6 +1415,7 @@ const storyUpload = uploadStory.fields([
   { name: 'heroImages', maxCount: 6 },
   { name: 'bgImage', maxCount: 1 },
   { name: 'musicFile', maxCount: 1 },
+  { name: 'extraRefImages', maxCount: 8 },
 ]);
 
 router.post('/api/generate-story', storyUpload, async (req, res) => {
@@ -1299,9 +1452,12 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
   // Background image: uploaded file OR server-path ref
   const bgImagePath = req.files?.bgImage?.[0]?.path || uploadRefToDiskPath(req.body.bgImageRef) || null;
 
-  // Compress any oversized hero/bg images in-place before storing paths
+  // Extra manual reference images — uploaded alongside hero images, appended to every scene
+  const extraRefImagePaths = (req.files?.extraRefImages || []).map(f => f.path);
+
+  // Compress any oversized hero/bg/extra images in-place before storing paths
   const MAX_BYTES = 5 * 1024 * 1024;
-  for (const imgPath of [...heroImagePaths, ...(bgImagePath ? [bgImagePath] : [])]) {
+  for (const imgPath of [...heroImagePaths, ...extraRefImagePaths, ...(bgImagePath ? [bgImagePath] : [])]) {
     if (!imgPath || !existsSync(imgPath)) continue;
     const stat = statSync(imgPath);
     if (stat.size > MAX_BYTES) {
@@ -1341,6 +1497,7 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
   console.log(`[Story]  Mode        : ${mode}`);
   console.log(`[Story]  Model       : ${model}`);
   console.log(`[Story]  HeroImages  : ${heroImagePaths.length > 0 ? heroImagePaths.join(', ') : 'none'}`);
+  console.log(`[Story]  ExtraRefs   : ${extraRefImagePaths.length > 0 ? extraRefImagePaths.join(', ') : 'none'}`);
   console.log(`[Story]  NamedHeroes : ${namedHeroes.length > 0 ? namedHeroes.join(', ') : 'none'}`);
   console.log(`[Story]  BgImg       : ${bgImagePath || 'none'}`);
   console.log(`[Story]  Music       : ${musicFilePath || 'none'}`);
@@ -1367,6 +1524,7 @@ router.post('/api/generate-story', storyUpload, async (req, res) => {
     voiceOverCharacteristics: null, // Claude will populate this during planning
     heroImagePath: heroImagePaths[0] || null,   // backward compat — first hero image path
     heroImagePaths,   // full array of hero image paths
+    extraRefImagePaths,  // manually uploaded extra reference images (appended to every scene)
     namedHeroes,      // hero names from catalog (no image)
     bgImagePath,      // saved for resume — Claude + Nano Bana 2 reference
     musicFilePath,    // saved for resume — mixed into final video at low volume
@@ -1944,8 +2102,13 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
   const ctaRefPath = path.join('public', 'reference.jpg');
   const ctaDataURI = existsSync(ctaRefPath) ? fileToDataURI(ctaRefPath, 'image/jpeg') : null;
 
+  const extraRefDataURIs = (freshEntry.extraRefImagePaths || [])
+    .filter(p => p && existsSync(p))
+    .map(p => fileToDataURI(p, getMimeType(p)));
+
   const referenceImages = [...heroDataURIs];
   if (freshScene.useBgRef && bgDataURI) referenceImages.push(bgDataURI);
+  if (extraRefDataURIs.length > 0) referenceImages.push(...extraRefDataURIs);
 
   if (needsVideo) {
     // ── Run video for this scene ──
@@ -1973,7 +2136,8 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
         heroRefDataURIs,
       });
       const label = `Story-Scene${s.sceneNumber}-Vid-Solo`;
-      console.log(`[Story] Scene ${s.sceneNumber}: run-single video | taskUUID: ${videoTaskUUID}`);
+      console.log(`[Story] Scene ${s.sceneNumber}: run-single video | taskUUID: ${videoTaskUUID} | model: ${freshEntry.videoModel}`);
+      console.log(`[Story] Solo video payload (no data URIs):`, JSON.stringify({ ...payload, inputs: payload.inputs ? { ...payload.inputs, frameImages: payload.inputs.frameImages ? `[${payload.inputs.frameImages.length} frames]` : undefined, referenceImages: payload.inputs.referenceImages ? `[${payload.inputs.referenceImages.length} refs]` : undefined } : undefined }));
       const soloPoller = await getStoryPoller();
       await soloPoller.getConnection().videoInference({ ...payload, includeCost: true, skipResponse: true });
       const vid = await new Promise((resolve, reject) => {
@@ -1981,7 +2145,10 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
           type: 'video',
           label,
           onComplete: async (r) => { resolve(r); },
-          onError: async (e) => { reject(e); },
+          onError: async (e) => {
+            console.error(`[Story] Solo video onError raw:`, JSON.stringify(e)?.slice(0, 500));
+            reject(e instanceof Error ? e : new Error(e?.message || e?.error || JSON.stringify(e)?.slice(0, 300)));
+          },
         });
       });
       const vidURL = vid?.videoURL || vid?.url;
@@ -1998,7 +2165,7 @@ router.post('/api/run-single-scene/:taskUUID/:sceneIndex', async (req, res) => {
       });
       console.log(`[Story] ✅ Scene ${s.sceneNumber} solo video done | cost: ${cost !== null ? '$' + cost : 'N/A'}`);
     } catch (err) {
-      const msg = err?.message || String(err);
+      const msg = err?.message || (typeof err === 'object' ? JSON.stringify(err)?.slice(0, 300) : String(err));
       console.error(`[Story] ❌ Scene ${idx + 1} solo video failed: ${msg}`);
       updateSceneInStory(taskUUID, idx, { videoStatus: 'failed', videoError: msg });
     }

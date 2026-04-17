@@ -38,6 +38,7 @@ import storyRouter       from './routes/story.js';
 import podcastRouter     from './routes/podcast.js';
 import elevenLabsRouter   from './routes/elevenlabs.js';
 import splitscreenRouter  from './routes/splitscreen.js';
+import quickvidRouter     from './routes/quickvid.js';
 
 const API_KEY = process.env.RUNWARE_API_KEY;
 const PORT = process.env.PORT || 3000;
@@ -112,6 +113,7 @@ app.use(storyRouter);
 app.use(podcastRouter);
 app.use(elevenLabsRouter);
 app.use(splitscreenRouter);
+app.use(quickvidRouter);
 
 app.listen(PORT, async () => {
   console.log('\n╔══════════════════════════════════════════╗');

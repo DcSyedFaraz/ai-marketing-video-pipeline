@@ -13,6 +13,7 @@ import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
 import { globalPoller, sseEmitter } from '../lib/globalPoller.js';
 import { uploadQuickVid } from '../lib/multer.js';
 import { unlink } from 'fs/promises';
+import { generateQuickVideoScript, generateQuickVideoStoryScript } from '../lib/claude.js';
 
 const router = Router();
 
@@ -205,6 +206,72 @@ router.post('/api/quickvid', quickVidUpload, async (req, res) => {
       sseEmitter.emit('task-complete', { taskUUID, type: 'quickvid', status: 'failed', error: msg });
     },
   });
+});
+
+// ── POST /api/quickvid/generate-script ────────────────────────────────────────
+// Generate a ready-to-submit Seedance video prompt using Claude, tailored to a
+// target audience and a product point (USP/feature) from game-context.txt.
+router.post('/api/quickvid/generate-script', async (req, res) => {
+  try {
+    const audience = (req.body.audience || '').trim();
+    const productPoint = req.body.productPoint && req.body.productPoint !== 'auto'
+      ? String(req.body.productPoint).trim()
+      : null;
+    const duration = parseInt(req.body.duration) || 8;
+    const showMobileScreen = req.body.showMobileScreen !== false; // default true
+
+    if (!audience) return res.status(400).json({ error: 'Audience is required.' });
+
+    let gameContext = '';
+    try {
+      gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8');
+    } catch {
+      gameContext = '';
+    }
+
+    console.log(`[QuickVid/Script]  audience="${audience.slice(0, 60)}" point="${productPoint || 'auto'}" dur=${duration}s showMobile=${showMobileScreen}`);
+    const { script, suggestedDuration } = await generateQuickVideoScript({ audience, productPoint, duration, gameContext, showMobileScreen });
+    console.log(`[QuickVid/Script]  ✅ done | suggestedDuration=${suggestedDuration}s`);
+    res.json({ script, suggestedDuration });
+  } catch (err) {
+    console.error('[QuickVid/Script] ❌ failed:', err?.message || err);
+    res.status(500).json({ error: err?.message || 'Script generation failed' });
+  }
+});
+
+// ── POST /api/quickvid/generate-story-script ─────────────────────────────────
+// Generate a story/angle-driven Seedance video prompt using a marketing angle.
+router.post('/api/quickvid/generate-story-script', async (req, res) => {
+  try {
+    const angleId = parseInt(req.body.angleId);
+    const audience = (req.body.audience || '').trim();
+    const duration = parseInt(req.body.duration) || 8;
+    const showMobileScreen = req.body.showMobileScreen !== false;
+
+    if (!angleId) return res.status(400).json({ error: 'angleId is required.' });
+    if (!audience) return res.status(400).json({ error: 'Audience is required.' });
+
+    // Load marketing angles
+    let angle;
+    try {
+      const anglesData = JSON.parse(readFileSync(path.resolve('public', 'marketing_angles.json'), 'utf-8'));
+      angle = (anglesData.marketing_angles || []).find(a => a.id === angleId);
+    } catch {
+      return res.status(500).json({ error: 'Could not load marketing angles.' });
+    }
+    if (!angle) return res.status(400).json({ error: `Angle ${angleId} not found.` });
+
+    let gameContext = '';
+    try { gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8'); } catch { gameContext = ''; }
+
+    console.log(`[QuickVid/Story]  angle="${angle.name}" audience="${audience.slice(0, 50)}" dur=${duration}s showMobile=${showMobileScreen}`);
+    const { script, suggestedDuration } = await generateQuickVideoStoryScript({ angle, audience, duration, gameContext, showMobileScreen });
+    console.log(`[QuickVid/Story]  ✅ done | suggestedDuration=${suggestedDuration}s`);
+    res.json({ script, suggestedDuration });
+  } catch (err) {
+    console.error('[QuickVid/Story] ❌ failed:', err?.message || err);
+    res.status(500).json({ error: err?.message || 'Story script generation failed' });
+  }
 });
 
 export default router;

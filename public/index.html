@@ -5007,7 +5007,101 @@ init();
 
       <!-- Script / Prompt -->
       <div class="fg" style="margin-bottom:14px">
-        <label>Script / Prompt <span class="req">*</span></label>
+        <label style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+          <span>Script / Prompt <span class="req">*</span></span>
+          <button type="button" class="btn-sm btn-purple" onclick="qvToggleScriptPanel()" style="font-size:11px;padding:4px 10px;width:auto">✨ Generate Script</button>
+        </label>
+
+        <!-- Generate Script panel (collapsible) -->
+        <div id="qv-script-panel" style="display:none;margin:8px 0;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+
+          <!-- Script type toggle -->
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            <button type="button" id="qv-stype-ua" onclick="qvSetScriptType('ua')"
+              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--accent);background:rgba(124,58,237,0.15);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">
+              ⚡ UA Shot
+            </button>
+            <button type="button" id="qv-stype-story" onclick="qvSetScriptType('story')"
+              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">
+              🎬 Story / Angle
+            </button>
+          </div>
+
+          <!-- UA mode fields -->
+          <div id="qv-ua-fields">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET AUDIENCE</div>
+            <div id="qv-audience-chips" class="el-chips" style="margin-bottom:8px"></div>
+            <input id="qv-audience-input" type="text" placeholder="Describe the target viewer (or tap a chip above)"
+              style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);box-sizing:border-box;margin-bottom:12px;font-family:inherit">
+
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">PRODUCT POINT</div>
+            <select id="qv-product-point" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);margin-bottom:12px;font-family:inherit">
+              <option value="auto">✨ Auto — let Claude pick the best point</option>
+            </select>
+          </div>
+
+          <!-- Story / Angle mode fields -->
+          <div id="qv-story-fields" style="display:none">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;letter-spacing:0.03em">MARKETING ANGLE</div>
+            <div id="qv-angle-grid" class="angle-grid" style="margin-bottom:12px">
+              <div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading angles…</div>
+            </div>
+
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET AUDIENCE</div>
+            <div id="qv-story-audience-chips" class="el-chips" style="margin-bottom:8px"></div>
+            <input id="qv-story-audience-input" type="text" placeholder="Describe the target viewer (or tap a chip above)"
+              style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);box-sizing:border-box;margin-bottom:12px;font-family:inherit">
+          </div>
+
+          <!-- Target duration for script (shared) -->
+          <div style="margin-bottom:12px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET DURATION FOR SCRIPT</div>
+            <div class="el-chips" id="qv-script-dur-chips">
+              <div class="el-chip" onclick="qvSetScriptDur(4,this)">4s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(5,this)">5s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(6,this)">6s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(7,this)">7s</div>
+              <div class="el-chip selected" onclick="qvSetScriptDur(8,this)">8s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(9,this)">9s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(10,this)">10s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(11,this)">11s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(12,this)">12s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(13,this)">13s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(14,this)">14s</div>
+              <div class="el-chip" onclick="qvSetScriptDur(15,this)">15s</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Script will be written for this length. Suggested duration banner below will show what Claude recommends.</div>
+          </div>
+
+          <!-- Show mobile screen toggle (shared) -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">
+            <label class="toggle" style="margin:0;flex-shrink:0">
+              <input type="checkbox" id="qv-show-mobile" checked onchange="qvUpdateMobileLabel()">
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text)" id="qv-mobile-label">Show mobile screen</div>
+              <div style="font-size:10px;color:var(--muted)" id="qv-mobile-hint">Phone held landscape while playing — screen visible</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn-sm btn-purple" onclick="qvGenerateScript()" id="qv-gen-script-btn" style="width:auto">Generate</button>
+            <button type="button" class="btn-sm" onclick="qvToggleScriptPanel()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);width:auto">Cancel</button>
+            <span id="qv-gen-script-status" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
+          </div>
+        </div>
+
+        <!-- Suggested duration banner (shown after script generation) -->
+        <div id="qv-suggested-dur-banner" style="display:none;margin:8px 0;padding:8px 12px;background:rgba(124,58,237,0.12);border:1px solid var(--accent);border-radius:6px;align-items:center;gap:10px">
+          <span style="font-size:18px">⏱</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600;color:var(--accent)">Suggested duration: <span id="qv-suggested-dur-value">—</span>s</div>
+            <div style="font-size:10px;color:var(--muted)">Based on script pacing — click the chip above to apply</div>
+          </div>
+          <button type="button" class="btn-sm" onclick="qvApplySuggestedDuration()" style="width:auto;border-color:var(--accent);color:var(--accent);flex-shrink:0;font-size:11px">Apply</button>
+        </div>
+
         <textarea id="qv-prompt" rows="5" placeholder="Describe the scene or paste your script here. Seedance will auto-generate audio from the text."
           style="width:100%;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box"
           oninput="document.getElementById('qv-char-count').textContent=this.value.length"></textarea>
@@ -5121,6 +5215,250 @@ let _qvSelectedHeroes = new Set();
 let _qvPendingTaskUUID = null;
 let _qvPollTimer = null;
 let _qvExtraRefs = [];     // { file, name, thumbUrl }
+let _qvScriptPanelOpen = false;
+let _qvScriptType = 'ua'; // 'ua' | 'story'
+let _qvAngles = [];       // cached marketing angles
+let _qvSelectedAngleId = null;
+let _qvScriptDur = 8;     // target duration chosen inside the Generate Script panel
+
+function qvSetScriptDur(val, el) {
+  _qvScriptDur = val;
+  document.querySelectorAll('#qv-script-dur-chips .el-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+const QV_AUDIENCE_PRESETS = [
+  "Gamer mom with a toddler on her lap",
+  "Grandma excitedly showing her son's game to her friends",
+  "Dad sneaking game sessions between work calls",
+  "Teen streamer in her neon-lit bedroom",
+  "Office worker playing on lunch break",
+  "Retired man who loves strategy games",
+  "Fitness influencer gaming between reps",
+  "College student in a dorm room at 2am"
+];
+
+// Parse Key Features + USPs out of game-context.txt
+function qvParseGameContextPoints(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim());
+  const out = [];
+  let section = null;
+  for (const ln of lines) {
+    if (/^key features:/i.test(ln)) { section = 'kf';  continue; }
+    if (/^usps?:/i.test(ln))         { section = 'usp'; continue; }
+    if (!ln)                         { section = null; continue; }
+    if (!section)                    continue;
+    if (/^[A-Z][A-Za-z ]+:$/.test(ln)) { section = null; continue; }
+    out.push({ section, text: ln.replace(/^[-•*]\s*/, '') });
+  }
+  return out;
+}
+
+async function qvToggleScriptPanel() {
+  const panel = document.getElementById('qv-script-panel');
+  _qvScriptPanelOpen = !_qvScriptPanelOpen;
+  panel.style.display = _qvScriptPanelOpen ? 'block' : 'none';
+  if (!_qvScriptPanelOpen) return;
+
+  // Build UA audience preset chips once
+  const chipsEl = document.getElementById('qv-audience-chips');
+  if (!chipsEl.dataset.built) {
+    chipsEl.innerHTML = QV_AUDIENCE_PRESETS.map(p =>
+      `<span class="el-chip" onclick="qvPickAudiencePreset(this,'ua')">${p}</span>`).join('');
+    chipsEl.dataset.built = '1';
+  }
+
+  // Build Story audience preset chips once
+  const storyChipsEl = document.getElementById('qv-story-audience-chips');
+  if (!storyChipsEl.dataset.built) {
+    storyChipsEl.innerHTML = QV_AUDIENCE_PRESETS.map(p =>
+      `<span class="el-chip" onclick="qvPickAudiencePreset(this,'story')">${p}</span>`).join('');
+    storyChipsEl.dataset.built = '1';
+  }
+
+  // Populate product-point dropdown (once per session)
+  const sel = document.getElementById('qv-product-point');
+  if (sel.options.length <= 1) {
+    try {
+      const res = await fetch('/game-context.txt');
+      const txt = await res.text();
+      for (const p of qvParseGameContextPoints(txt)) {
+        const opt = document.createElement('option');
+        opt.value = p.text;
+        opt.textContent = (p.section === 'usp' ? 'USP — ' : 'Feature — ') + p.text;
+        sel.appendChild(opt);
+      }
+    } catch (e) { /* Auto-only fallback */ }
+  }
+
+  // Load angles for story mode (once per session)
+  if (_qvAngles.length === 0) await qvLoadAngles();
+}
+
+function qvSetScriptType(type) {
+  _qvScriptType = type;
+  // Toggle button styles
+  const uaBtn = document.getElementById('qv-stype-ua');
+  const storyBtn = document.getElementById('qv-stype-story');
+  if (type === 'ua') {
+    uaBtn.style.borderColor = 'var(--accent)';
+    uaBtn.style.background = 'rgba(124,58,237,0.15)';
+    uaBtn.style.color = 'var(--accent)';
+    storyBtn.style.borderColor = 'var(--border)';
+    storyBtn.style.background = 'var(--surface)';
+    storyBtn.style.color = 'var(--muted)';
+  } else {
+    storyBtn.style.borderColor = 'var(--accent)';
+    storyBtn.style.background = 'rgba(124,58,237,0.15)';
+    storyBtn.style.color = 'var(--accent)';
+    uaBtn.style.borderColor = 'var(--border)';
+    uaBtn.style.background = 'var(--surface)';
+    uaBtn.style.color = 'var(--muted)';
+  }
+  // Show/hide field groups
+  document.getElementById('qv-ua-fields').style.display = type === 'ua' ? 'block' : 'none';
+  document.getElementById('qv-story-fields').style.display = type === 'story' ? 'block' : 'none';
+  // Load angles if not yet loaded
+  if (type === 'story' && _qvAngles.length === 0) qvLoadAngles();
+}
+
+async function qvLoadAngles() {
+  const grid = document.getElementById('qv-angle-grid');
+  try {
+    const res = await fetch('/api/marketing-angles');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    _qvAngles = data.angles || [];
+    qvRenderAngleGrid();
+  } catch (e) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:12px;grid-column:1/-1">Could not load angles: ${e.message}</div>`;
+  }
+}
+
+function qvRenderAngleGrid() {
+  const grid = document.getElementById('qv-angle-grid');
+  if (!_qvAngles.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No angles found.</div>';
+    return;
+  }
+  grid.innerHTML = _qvAngles.map(a => {
+    const statusClass = a.status === 'in_pipeline' ? 'in-pipeline' : a.status === 'untested_gap' ? 'untested-gap' : 'untested';
+    const statusLabel = a.status === 'in_pipeline' ? '▶ In Pipeline' : a.status === 'untested_gap' ? `★ Gap (Priority ${a.test_priority})` : '○ Untested';
+    return `<div class="angle-card" id="qv-angle-card-${a.id}" onclick="qvSelectAngle(${a.id})">
+      <div class="angle-card-name">${a.name}</div>
+      <div class="angle-card-msg">${a.core_message}</div>
+      <div class="angle-card-status ${statusClass}">${statusLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+function qvSelectAngle(id) {
+  _qvSelectedAngleId = id;
+  document.querySelectorAll('#qv-angle-grid .angle-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`qv-angle-card-${id}`);
+  if (card) card.classList.add('selected');
+}
+
+function qvPickAudiencePreset(el, mode) {
+  const inputId = mode === 'story' ? 'qv-story-audience-input' : 'qv-audience-input';
+  const chipsId = mode === 'story' ? '#qv-story-audience-chips .el-chip' : '#qv-audience-chips .el-chip';
+  document.getElementById(inputId).value = el.textContent;
+  document.querySelectorAll(chipsId).forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function qvUpdateMobileLabel() {
+  const checked = document.getElementById('qv-show-mobile').checked;
+  document.getElementById('qv-mobile-label').textContent = checked ? 'Show mobile screen' : 'No mobile screen';
+  document.getElementById('qv-mobile-hint').textContent = checked
+    ? 'Phone held landscape while playing — screen visible'
+    : 'No device in shot — character talks about game without phone';
+}
+
+let _qvSuggestedDuration = null;
+
+async function qvGenerateScript() {
+  const statusEl = document.getElementById('qv-gen-script-status');
+  const btn = document.getElementById('qv-gen-script-btn');
+  const showMobileScreen = document.getElementById('qv-show-mobile').checked;
+
+  // Validate + build body based on mode
+  let endpoint, body;
+  if (_qvScriptType === 'story') {
+    const audience = document.getElementById('qv-story-audience-input').value.trim();
+    if (!_qvSelectedAngleId) {
+      statusEl.textContent = '⚠ Select a marketing angle';
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
+    if (!audience) {
+      statusEl.textContent = '⚠ Audience is required';
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
+    endpoint = '/api/quickvid/generate-story-script';
+    body = { angleId: _qvSelectedAngleId, audience, duration: _qvScriptDur || 8, showMobileScreen };
+  } else {
+    const audience = document.getElementById('qv-audience-input').value.trim();
+    const productPoint = document.getElementById('qv-product-point').value;
+    if (!audience) {
+      statusEl.textContent = '⚠ Audience is required';
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
+    endpoint = '/api/quickvid/generate-script';
+    body = { audience, productPoint, duration: _qvScriptDur || 8, showMobileScreen };
+  }
+
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = '⏳ Generating…';
+  btn.disabled = true;
+  document.getElementById('qv-suggested-dur-banner').style.display = 'none';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+
+    const ta = document.getElementById('qv-prompt');
+    ta.value = data.script;
+    document.getElementById('qv-char-count').textContent = data.script.length;
+
+    // Always show suggested duration when Claude returns one
+    if (data.suggestedDuration) {
+      _qvSuggestedDuration = data.suggestedDuration;
+      document.getElementById('qv-suggested-dur-value').textContent = data.suggestedDuration;
+      document.getElementById('qv-suggested-dur-banner').style.display = 'flex';
+    }
+
+    statusEl.textContent = '✅ Done';
+    statusEl.style.color = 'var(--green)';
+    setTimeout(() => { qvToggleScriptPanel(); }, 400);
+  } catch (e) {
+    statusEl.textContent = '❌ ' + (e.message || 'Failed');
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function qvApplySuggestedDuration() {
+  if (!_qvSuggestedDuration) return;
+  // Find the chip for this duration and click it
+  const chips = document.querySelectorAll('#qv-duration-chips .el-chip');
+  for (const chip of chips) {
+    if (parseInt(chip.textContent) === _qvSuggestedDuration) {
+      qvSetDuration(_qvSuggestedDuration, chip);
+      break;
+    }
+  }
+  // Hide the banner
+  document.getElementById('qv-suggested-dur-banner').style.display = 'none';
+  _qvSuggestedDuration = null;
+}
 let _qvOrient = 'landscape'; // 'portrait' | 'landscape'
 
 function qvSetDuration(val, btn) {

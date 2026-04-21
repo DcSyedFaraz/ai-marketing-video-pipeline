@@ -478,7 +478,7 @@
 
   <!-- Nav -->
   <div class="nav-tabs">
-    <button class="nav-tab active" onclick="showPage('avatar')">🧑‍💼 Avatar</button>
+    <button class="nav-tab" onclick="showPage('avatar')">🧑‍💼 Avatar</button>
     <button class="nav-tab" onclick="showPage('veo')">🎥 Text-to-Video</button>
     <button class="nav-tab" onclick="showPage('history')">📋 History <span id="pending-badge" style="display:none;background:var(--yellow);color:#000;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:3px"></span></button>
     <button class="nav-tab" onclick="showPage('lipsync')">👄 LipSync</button>
@@ -488,12 +488,12 @@
     <button class="nav-tab" onclick="showPage('story')">📖 Story</button>
     <button class="nav-tab" onclick="showPage('gallery')">🗂 Gallery</button>
     <button class="nav-tab" onclick="showPage('splitscreen')">✂️ Split Screen</button>
-    <button class="nav-tab" onclick="showPage('quickvid')">⚡ Quick Video</button>
+    <button class="nav-tab active" onclick="showPage('quickvid')">⚡ Quick Video</button>
     <button class="nav-tab" onclick="openCanvas()" title="Open node-based pipeline canvas in new tab">🎨 Canvas</button>
   </div>
 
   <!-- ═══ AVATAR PAGE ═══ -->
-  <div id="page-avatar" class="page active">
+  <div id="page-avatar" class="page">
     <div class="grid2">
 
       <div class="card">
@@ -4997,10 +4997,9 @@ init();
 </script>
 
 <!-- ═══ QUICK VIDEO PAGE ═══ -->
-<div id="page-quickvid" class="page">
-  <div class="grid2">
+<div id="page-quickvid" class="page active">
+  <div style="max-width:780px;margin:0 auto">
 
-    <!-- LEFT: Controls -->
     <div class="card">
       <div class="card-title">⚡ Quick Video — Seedance 2.0</div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Generate a video directly from a script prompt. No first-frame image, no AI planning. Seedance 2.0 only.</p>
@@ -5018,20 +5017,24 @@ init();
           <!-- Script type toggle -->
           <div style="display:flex;gap:6px;margin-bottom:14px">
             <button type="button" id="qv-stype-ua" onclick="qvSetScriptType('ua')"
-              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--accent);background:rgba(124,58,237,0.15);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">
+              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--accent);background:rgba(124,58,237,0.15);color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">
               ⚡ UA Shot
             </button>
             <button type="button" id="qv-stype-story" onclick="qvSetScriptType('story')"
-              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s">
-              🎬 Story / Angle
+              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">
+              🎬 Angle
+            </button>
+            <button type="button" id="qv-stype-narrative" onclick="qvSetScriptType('narrative')"
+              style="flex:1;padding:7px 10px;border-radius:6px;border:2px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">
+              🎭 Narrative
             </button>
           </div>
 
           <!-- UA mode fields -->
           <div id="qv-ua-fields">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET AUDIENCE</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET AUDIENCE <span style="font-weight:400;font-size:10px">(optional — Claude picks a scenario if left blank)</span></div>
             <div id="qv-audience-chips" class="el-chips" style="margin-bottom:8px"></div>
-            <input id="qv-audience-input" type="text" placeholder="Describe the target viewer (or tap a chip above)"
+            <input id="qv-audience-input" type="text" placeholder="Leave blank to let Claude pick — or describe the target viewer"
               style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);box-sizing:border-box;margin-bottom:12px;font-family:inherit">
 
             <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">PRODUCT POINT</div>
@@ -5047,10 +5050,22 @@ init();
               <div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading angles…</div>
             </div>
 
-            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET AUDIENCE</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">TARGET AUDIENCE <span style="font-weight:400;font-size:10px">(optional — Claude picks a scenario if left blank)</span></div>
             <div id="qv-story-audience-chips" class="el-chips" style="margin-bottom:8px"></div>
-            <input id="qv-story-audience-input" type="text" placeholder="Describe the target viewer (or tap a chip above)"
+            <input id="qv-story-audience-input" type="text" placeholder="Leave blank to let Claude pick — or describe the target viewer"
               style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);box-sizing:border-box;margin-bottom:12px;font-family:inherit">
+          </div>
+
+          <!-- Narrative mode fields -->
+          <div id="qv-narrative-fields" style="display:none">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">STORY PREMISE <span style="font-weight:400;font-size:10px">(optional — leave blank and Claude invents the story)</span></div>
+            <textarea id="qv-narrative-premise" rows="3"
+              placeholder="Leave blank to let Claude invent a story — or write your own, e.g. A guy rage-quits a console game, discovers Blitz of Battle on his phone, finally wins."
+              style="width:100%;resize:vertical;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);font-family:inherit;box-sizing:border-box;margin-bottom:12px"></textarea>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.03em">MARKETING ANGLE <span style="font-weight:400;font-size:10px">(optional — which angle should the story land on?)</span></div>
+            <div id="qv-narrative-angle-grid" class="angle-grid" style="margin-bottom:12px">
+              <div style="color:var(--muted);font-size:12px;grid-column:1/-1">Loading…</div>
+            </div>
           </div>
 
           <!-- Target duration for script (shared) -->
@@ -5152,8 +5167,8 @@ init();
       <div class="fg" style="margin-bottom:14px">
         <label>Orientation</label>
         <div class="el-chips" id="qv-orient-chips">
-          <div class="el-chip" onclick="qvSetOrient('portrait',this)">📱 Portrait 9:16</div>
-          <div class="el-chip selected" onclick="qvSetOrient('landscape',this)">🖥 Landscape 16:9</div>
+          <div class="el-chip selected" onclick="qvSetOrient('portrait',this)">📱 Portrait 9:16</div>
+          <div class="el-chip" onclick="qvSetOrient('landscape',this)">🖥 Landscape 16:9</div>
         </div>
       </div>
 
@@ -5188,19 +5203,6 @@ init();
           <a id="qv-download" class="btn-sm green" href="#" download>⬇ Download</a>
           <span id="qv-cost-badge" style="font-size:11px;color:var(--muted);line-height:1;align-self:center"></span>
         </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: Tips -->
-    <div class="card" style="align-self:start">
-      <div class="card-title">ℹ️ How it works</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6">
-        <p><strong style="color:var(--text)">Model:</strong> Seedance 2.0 by ByteDance — multi-shot, up to 15s, with native synchronized audio.</p>
-        <p><strong style="color:var(--text)">Audio:</strong> Seedance will auto-generate synchronized audio from your script — voices, sound effects, and ambient sound included.</p>
-        <p><strong style="color:var(--text)">Hero refs:</strong> Select a hero to inject their reference images into the generation for visual consistency. No hero selected = generic Seedance generation.</p>
-        <p><strong style="color:var(--text)">Dialogue:</strong> Include dialogue in your prompt with quotes — Seedance will voice it. Example: <code>The hero shouts: "For victory!"</code></p>
-        <p><strong style="color:var(--text)">Duration:</strong> 4–15 seconds. Pick any integer — all values available.</p>
-        <p><strong style="color:var(--text)">Output:</strong> Portrait 720p (9:16) — 720×1280. Saved to <em>History</em>.</p>
       </div>
     </div>
 
@@ -5296,29 +5298,61 @@ async function qvToggleScriptPanel() {
 
 function qvSetScriptType(type) {
   _qvScriptType = type;
-  // Toggle button styles
-  const uaBtn = document.getElementById('qv-stype-ua');
-  const storyBtn = document.getElementById('qv-stype-story');
-  if (type === 'ua') {
-    uaBtn.style.borderColor = 'var(--accent)';
-    uaBtn.style.background = 'rgba(124,58,237,0.15)';
-    uaBtn.style.color = 'var(--accent)';
-    storyBtn.style.borderColor = 'var(--border)';
-    storyBtn.style.background = 'var(--surface)';
-    storyBtn.style.color = 'var(--muted)';
-  } else {
-    storyBtn.style.borderColor = 'var(--accent)';
-    storyBtn.style.background = 'rgba(124,58,237,0.15)';
-    storyBtn.style.color = 'var(--accent)';
-    uaBtn.style.borderColor = 'var(--border)';
-    uaBtn.style.background = 'var(--surface)';
-    uaBtn.style.color = 'var(--muted)';
+  const btns = { ua: 'qv-stype-ua', story: 'qv-stype-story', narrative: 'qv-stype-narrative' };
+  for (const [t, id] of Object.entries(btns)) {
+    const el = document.getElementById(id);
+    if (t === type) {
+      el.style.borderColor = 'var(--accent)';
+      el.style.background = 'rgba(124,58,237,0.15)';
+      el.style.color = 'var(--accent)';
+    } else {
+      el.style.borderColor = 'var(--border)';
+      el.style.background = 'var(--surface)';
+      el.style.color = 'var(--muted)';
+    }
   }
-  // Show/hide field groups
   document.getElementById('qv-ua-fields').style.display = type === 'ua' ? 'block' : 'none';
   document.getElementById('qv-story-fields').style.display = type === 'story' ? 'block' : 'none';
-  // Load angles if not yet loaded
-  if (type === 'story' && _qvAngles.length === 0) qvLoadAngles();
+  document.getElementById('qv-narrative-fields').style.display = type === 'narrative' ? 'block' : 'none';
+  if ((type === 'story') && _qvAngles.length === 0) qvLoadAngles();
+  if (type === 'narrative' && _qvAngles.length === 0) qvLoadNarrativeAngles();
+  else if (type === 'narrative' && _qvAngles.length > 0) qvRenderNarrativeAngleGrid();
+}
+
+async function qvLoadNarrativeAngles() {
+  const grid = document.getElementById('qv-narrative-angle-grid');
+  if (_qvAngles.length > 0) { qvRenderNarrativeAngleGrid(); return; }
+  try {
+    const res = await fetch('/api/marketing-angles');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    _qvAngles = data.angles || [];
+    qvRenderNarrativeAngleGrid();
+  } catch (e) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:12px;grid-column:1/-1">Could not load angles</div>`;
+  }
+}
+
+function qvRenderNarrativeAngleGrid() {
+  const grid = document.getElementById('qv-narrative-angle-grid');
+  if (!_qvAngles.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No angles</div>'; return; }
+  grid.innerHTML = _qvAngles.map(a => {
+    const statusClass = a.status === 'in_pipeline' ? 'in-pipeline' : a.status === 'untested_gap' ? 'untested-gap' : 'untested';
+    const statusLabel = a.status === 'in_pipeline' ? '▶ In Pipeline' : a.status === 'untested_gap' ? `★ Gap (Priority ${a.test_priority})` : '○ Untested';
+    return `<div class="angle-card" id="qv-nangle-card-${a.id}" onclick="qvSelectNarrativeAngle(${a.id})">
+      <div class="angle-card-name">${a.name}</div>
+      <div class="angle-card-msg">${a.core_message}</div>
+      <div class="angle-card-status ${statusClass}">${statusLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+let _qvSelectedNarrativeAngleId = null;
+function qvSelectNarrativeAngle(id) {
+  _qvSelectedNarrativeAngleId = id;
+  document.querySelectorAll('#qv-narrative-angle-grid .angle-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`qv-nangle-card-${id}`);
+  if (card) card.classList.add('selected');
 }
 
 async function qvLoadAngles() {
@@ -5390,23 +5424,17 @@ async function qvGenerateScript() {
       statusEl.style.color = 'var(--red)';
       return;
     }
-    if (!audience) {
-      statusEl.textContent = '⚠ Audience is required';
-      statusEl.style.color = 'var(--red)';
-      return;
-    }
     endpoint = '/api/quickvid/generate-story-script';
-    body = { angleId: _qvSelectedAngleId, audience, duration: _qvScriptDur || 8, showMobileScreen };
+    body = { angleId: _qvSelectedAngleId, audience: audience || '', duration: _qvScriptDur || 8, showMobileScreen };
+  } else if (_qvScriptType === 'narrative') {
+    const premise = document.getElementById('qv-narrative-premise').value.trim();
+    endpoint = '/api/quickvid/generate-narrative-script';
+    body = { premise: premise || '', angleId: _qvSelectedNarrativeAngleId || null, duration: _qvScriptDur || 15, showMobileScreen };
   } else {
     const audience = document.getElementById('qv-audience-input').value.trim();
     const productPoint = document.getElementById('qv-product-point').value;
-    if (!audience) {
-      statusEl.textContent = '⚠ Audience is required';
-      statusEl.style.color = 'var(--red)';
-      return;
-    }
     endpoint = '/api/quickvid/generate-script';
-    body = { audience, productPoint, duration: _qvScriptDur || 8, showMobileScreen };
+    body = { audience: audience || '', productPoint, duration: _qvScriptDur || 8, showMobileScreen };
   }
 
   statusEl.style.color = 'var(--muted)';
@@ -5459,7 +5487,7 @@ function qvApplySuggestedDuration() {
   document.getElementById('qv-suggested-dur-banner').style.display = 'none';
   _qvSuggestedDuration = null;
 }
-let _qvOrient = 'landscape'; // 'portrait' | 'landscape'
+let _qvOrient = 'portrait'; // 'portrait' | 'landscape'
 
 function qvSetDuration(val, btn) {
   _qvDuration = val;
@@ -5671,6 +5699,20 @@ function qvResetBtn() {
   btnText.textContent = '⚡ Generate Video';
 }
 
+
+// Load heroes + angles on startup since Quick Video is the default page
+document.addEventListener('DOMContentLoaded', () => {
+  loadQuickVidHeroes();
+  // Pre-load angles so they're ready when the Generate Script panel opens
+  fetch('/api/marketing-angles').then(r => r.ok ? r.json() : null).then(data => {
+    if (data?.angles?.length) {
+      _qvAngles = data.angles;
+      // If angle grids are already visible, render them
+      if (document.getElementById('qv-angle-grid')) qvRenderAngleGrid();
+      if (document.getElementById('qv-narrative-angle-grid')) qvRenderNarrativeAngleGrid();
+    }
+  }).catch(() => {});
+});
 
 // React to SSE task-complete for quickvid tasks even when on another tab
 (function () {

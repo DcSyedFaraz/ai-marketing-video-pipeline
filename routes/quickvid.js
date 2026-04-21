@@ -13,7 +13,7 @@ import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
 import { globalPoller, sseEmitter } from '../lib/globalPoller.js';
 import { uploadQuickVid } from '../lib/multer.js';
 import { unlink } from 'fs/promises';
-import { generateQuickVideoScript, generateQuickVideoStoryScript } from '../lib/claude.js';
+import { generateQuickVideoScript, generateQuickVideoStoryScript, generateQuickVideoNarrativeScript } from '../lib/claude.js';
 
 const router = Router();
 
@@ -220,8 +220,6 @@ router.post('/api/quickvid/generate-script', async (req, res) => {
     const duration = parseInt(req.body.duration) || 8;
     const showMobileScreen = req.body.showMobileScreen !== false; // default true
 
-    if (!audience) return res.status(400).json({ error: 'Audience is required.' });
-
     let gameContext = '';
     try {
       gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8');
@@ -229,7 +227,7 @@ router.post('/api/quickvid/generate-script', async (req, res) => {
       gameContext = '';
     }
 
-    console.log(`[QuickVid/Script]  audience="${audience.slice(0, 60)}" point="${productPoint || 'auto'}" dur=${duration}s showMobile=${showMobileScreen}`);
+    console.log(`[QuickVid/Script]  audience="${audience.slice(0, 60) || '(auto)'}" point="${productPoint || 'auto'}" dur=${duration}s showMobile=${showMobileScreen}`);
     const { script, suggestedDuration } = await generateQuickVideoScript({ audience, productPoint, duration, gameContext, showMobileScreen });
     console.log(`[QuickVid/Script]  ✅ done | suggestedDuration=${suggestedDuration}s`);
     res.json({ script, suggestedDuration });
@@ -249,7 +247,6 @@ router.post('/api/quickvid/generate-story-script', async (req, res) => {
     const showMobileScreen = req.body.showMobileScreen !== false;
 
     if (!angleId) return res.status(400).json({ error: 'angleId is required.' });
-    if (!audience) return res.status(400).json({ error: 'Audience is required.' });
 
     // Load marketing angles
     let angle;
@@ -264,13 +261,43 @@ router.post('/api/quickvid/generate-story-script', async (req, res) => {
     let gameContext = '';
     try { gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8'); } catch { gameContext = ''; }
 
-    console.log(`[QuickVid/Story]  angle="${angle.name}" audience="${audience.slice(0, 50)}" dur=${duration}s showMobile=${showMobileScreen}`);
+    console.log(`[QuickVid/Story]  angle="${angle.name}" audience="${audience.slice(0, 50) || '(auto)'}" dur=${duration}s showMobile=${showMobileScreen}`);
     const { script, suggestedDuration } = await generateQuickVideoStoryScript({ angle, audience, duration, gameContext, showMobileScreen });
     console.log(`[QuickVid/Story]  ✅ done | suggestedDuration=${suggestedDuration}s`);
     res.json({ script, suggestedDuration });
   } catch (err) {
     console.error('[QuickVid/Story] ❌ failed:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Story script generation failed' });
+  }
+});
+
+// ── POST /api/quickvid/generate-narrative-script ──────────────────────────────
+router.post('/api/quickvid/generate-narrative-script', async (req, res) => {
+  try {
+    const premise = (req.body.premise || '').trim();
+    const angleId = req.body.angleId ? parseInt(req.body.angleId) : null;
+    const duration = parseInt(req.body.duration) || 15;
+    const showMobileScreen = req.body.showMobileScreen !== false;
+
+    // Load angle if provided
+    let angle = null;
+    if (angleId) {
+      try {
+        const anglesData = JSON.parse(readFileSync(path.resolve('public', 'marketing_angles.json'), 'utf-8'));
+        angle = (anglesData.marketing_angles || []).find(a => a.id === angleId) || null;
+      } catch { /* angle stays null */ }
+    }
+
+    let gameContext = '';
+    try { gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8'); } catch { gameContext = ''; }
+
+    console.log(`[QuickVid/Narrative]  premise="${premise.slice(0, 80) || '(auto)'}" angle="${angle?.name || 'none'}" dur=${duration}s`);
+    const { script, suggestedDuration } = await generateQuickVideoNarrativeScript({ premise, angle, duration, gameContext, showMobileScreen });
+    console.log(`[QuickVid/Narrative]  ✅ done | suggestedDuration=${suggestedDuration}s`);
+    res.json({ script, suggestedDuration });
+  } catch (err) {
+    console.error('[QuickVid/Narrative] ❌ failed:', err?.message || err);
+    res.status(500).json({ error: err?.message || 'Narrative script generation failed' });
   }
 });
 

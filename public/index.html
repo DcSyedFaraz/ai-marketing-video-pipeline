@@ -1115,15 +1115,15 @@
         <div class="fg">
           <label>Mode</label>
           <div style="display:flex;gap:8px">
-            <label id="bridge-mode-auto-opt" style="display:flex;align-items:center;gap:7px;flex:1;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
-              <input type="radio" name="bridge-mode" value="auto" checked onchange="bridgeToggleMode()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <label id="bridge-mode-auto-opt" style="display:flex;align-items:center;gap:7px;flex:1;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+              <input type="radio" name="bridge-mode" value="auto" onchange="bridgeToggleMode()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
               <div>
                 <div style="font-size:12px;font-weight:600">✨ Auto</div>
                 <div style="font-size:10px;color:var(--muted);margin-top:1px">Video only — AI generates CTA image</div>
               </div>
             </label>
-            <label id="bridge-mode-manual-opt" style="display:flex;align-items:center;gap:7px;flex:1;background:var(--surface2);border:2px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
-              <input type="radio" name="bridge-mode" value="manual" onchange="bridgeToggleMode()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
+            <label id="bridge-mode-manual-opt" style="display:flex;align-items:center;gap:7px;flex:1;background:var(--surface2);border:2px solid var(--accent);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:border-color .15s">
+              <input type="radio" name="bridge-mode" value="manual" checked onchange="bridgeToggleMode()" style="flex-shrink:0;width:auto;accent-color:var(--accent)" />
               <div>
                 <div style="font-size:12px;font-weight:600">📁 Manual</div>
                 <div style="font-size:10px;color:var(--muted);margin-top:1px">Upload your own CTA image</div>
@@ -1182,6 +1182,14 @@
         <!-- CTA image (manual mode only) -->
         <div class="fg" id="bridge-cta-section">
           <label>CTA Frame Image <span class="req">*</span> <small style="font-weight:400">(your call-to-action last frame)</small></label>
+
+          <!-- Preset CTA image picker -->
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Pick from CTA library <span id="bcta-folder-count" style="opacity:.6"></span></div>
+            <div id="bcta-folder-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding:2px"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-align:center">— or upload your own —</div>
+
           <div class="dropzone" id="bcta-dz">
             <input type="file" id="bcta-input" accept=".jpg,.jpeg,.png,.webp" />
             <div class="dz-icon">🖼️</div>
@@ -1974,7 +1982,7 @@
 <script>
 // ══════ State ══════
 let selectedModel = 'heygen:avatar@4';
-let selectedBridgeModel = 'google:3@2';
+let selectedBridgeModel = 'google:3@3';
 let bridgeMusicFile = null; // { file } or { isUploadRef, serverPath, name } or null
 let selectedLipSyncModel = 'pixverse:lipsync@1';
 let selectedStoryModel = 'google:3@2';
@@ -1990,6 +1998,7 @@ let storyModels = [];
 const BRIDGE_MODELS = [
   { id: 'google:3@2',                    label: 'Google Veo 3.1',         provider: 'Google',  description: 'Best quality, cinematic transitions', cost: '~$0.20/sec',  badge: 'BEST',     allowedDurations: [4, 6, 8] },
   { id: 'google:3@3',                    label: 'Google Veo 3.1 Fast',    provider: 'Google',  description: 'Faster, slightly lower quality',       cost: '~$0.15/sec',  badge: null,       allowedDurations: [4, 6, 8] },
+  { id: 'google:veo@3.1-lite',           label: 'Google Veo 3.1 Lite',    provider: 'Google',  description: 'Cost-effective, native audio, 4–8s',   cost: '$0.05–0.08/sec', badge: 'LITE',  allowedDurations: [4, 6, 8] },
   { id: 'klingai:kling-video@3-pro',     label: 'Kling 3.0 Pro',          provider: 'KlingAI', description: 'Top-tier quality, up to 15s',          cost: '$0.168/sec',  badge: 'PRO',      allowedDurations: [4, 6, 8, 10, 15] },
   { id: 'klingai:kling-video@3-standard',label: 'Kling 3.0 Standard',     provider: 'KlingAI', description: 'High quality, cost-effective, up to 15s', cost: '$0.126/sec', badge: 'NEW',    allowedDurations: [4, 6, 8, 10, 15] },
   { id: 'klingai:avatar@2.0-pro',        label: 'KlingAI 2.0 Pro',        provider: 'KlingAI', description: 'Smooth motion, high fidelity',          cost: '$0.087/sec',  badge: null,       allowedDurations: [4, 6, 8] },
@@ -2043,7 +2052,7 @@ async function init() {
   loadMarketingAngles(); // non-blocking — populates angle cards
   // Initialize pipeline mode selection visual state
   onPipelineModeChange('standard');
-  // Initialize bridge mode (auto by default — hide CTA image section)
+  // Initialize bridge mode (manual by default — show CTA image section)
   bridgeToggleMode();
   loadBridgePodcastVideos();
 }
@@ -3041,7 +3050,56 @@ function bridgeToggleMode() {
     if (ctaSection) ctaSection.style.display = '';
     if (autoOpt) autoOpt.style.borderColor = 'var(--border)';
     if (manualOpt) manualOpt.style.borderColor = 'var(--accent)';
+    if (typeof loadBridgeCtaFolder === 'function') loadBridgeCtaFolder();
   }
+}
+
+// ── CTA Folder Picker ─────────────────────────────────────────────────────────
+let _bctaFolderUrl = null; // selected preset CTA image URL (e.g. /cta/foo.png)
+
+async function loadBridgeCtaFolder() {
+  const grid = document.getElementById('bcta-folder-grid');
+  if (!grid || grid.dataset.loaded) return;
+  try {
+    const res = await fetch('/api/cta-images');
+    const data = await res.json();
+    const images = data.images || [];
+    document.getElementById('bcta-folder-count').textContent = images.length ? `(${images.length})` : '';
+    if (!images.length) {
+      grid.innerHTML = '<span style="font-size:11px;color:var(--muted)">No images found in cta/ folder</span>';
+    } else {
+      grid.innerHTML = images.map(img => `
+        <div class="bcta-folder-item" data-url="${img.url}" data-name="${img.name}"
+          onclick="bctaSelectFolder(this)"
+          title="${img.name}"
+          style="cursor:pointer;border:2px solid var(--border);border-radius:5px;overflow:hidden;aspect-ratio:9/16;position:relative">
+          <img src="${img.url}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" />
+        </div>`).join('');
+    }
+    grid.dataset.loaded = '1';
+  } catch (e) {
+    grid.innerHTML = '<span style="font-size:11px;color:var(--muted)">Could not load CTA images</span>';
+  }
+}
+
+function bctaSelectFolder(el) {
+  // Deselect all
+  document.querySelectorAll('.bcta-folder-item').forEach(i => {
+    i.style.borderColor = 'var(--border)';
+    i.style.boxShadow = '';
+  });
+  if (_bctaFolderUrl === el.dataset.url) {
+    // Toggle off
+    _bctaFolderUrl = null;
+    return;
+  }
+  _bctaFolderUrl = el.dataset.url;
+  el.style.borderColor = 'var(--accent)';
+  el.style.boxShadow = '0 0 0 2px var(--accent)';
+  // Clear the file input since folder image is selected
+  const inp = document.getElementById('bcta-input');
+  if (inp) inp.value = '';
+  document.getElementById('bcta-pill').style.display = 'none';
 }
 
 async function submitBridge() {
@@ -3056,7 +3114,7 @@ async function submitBridge() {
 
   if (mode === 'manual') {
     const cta = document.getElementById('bcta-input').files[0];
-    if (!cta) { setStatus('bridge','error','⚠ Please select a CTA image or switch to Auto mode.'); return; }
+    if (!cta && !_bctaFolderUrl) { setStatus('bridge','error','⚠ Please select a CTA image from the library or upload one.'); return; }
 
     setBtnLoading('bridge', true);
     setStatus('bridge','loading','⏳ Submitting...');
@@ -3065,7 +3123,8 @@ async function submitBridge() {
     const fd = new FormData();
     if (vid) fd.append('video', vid);
     else fd.append('videoPath', bridgeSelectedPodcastPath);
-    fd.append('ctaImage', cta);
+    if (cta) fd.append('ctaImage', cta);
+    else fd.append('ctaImagePath', _bctaFolderUrl.replace(/^\/cta\//, ''));
     fd.append('model', selectedBridgeModel);
     fd.append('duration', duration);
     fd.append('orient', document.querySelector('input[name="bridge-orient"]:checked')?.value || 'portrait');
@@ -4915,6 +4974,16 @@ setupDropzone('img-input','img-dz','img-pill','img-name','img-size','img-thumb',
 setupDropzone('aud-input','aud-dz','aud-pill','aud-name','aud-size',null,'audio');
 setupDropzone('bvid-input','bvid-dz','bvid-pill','bvid-name','bvid-size',null,'video');
 setupDropzone('bcta-input','bcta-dz','bcta-pill','bcta-name','bcta-size','bcta-thumb','image');
+// Clear folder selection when user uploads a CTA file
+document.getElementById('bcta-input').addEventListener('change', () => {
+  if (document.getElementById('bcta-input').files[0]) {
+    _bctaFolderUrl = null;
+    document.querySelectorAll('.bcta-folder-item').forEach(i => {
+      i.style.borderColor = 'var(--border)';
+      i.style.boxShadow = '';
+    });
+  }
+});
 setupDropzone('ls-vid-input','ls-vid-dz','ls-vid-pill','ls-vid-name','ls-vid-size',null,'video');
 setupDropzone('ls-aud-input','ls-aud-dz','ls-aud-pill','ls-aud-name','ls-aud-size',null,'audio');
 init();
@@ -5703,6 +5772,8 @@ function qvResetBtn() {
 // Load heroes + angles on startup since Quick Video is the default page
 document.addEventListener('DOMContentLoaded', () => {
   loadQuickVidHeroes();
+  // Load CTA folder images since Manual is now the default bridge mode
+  loadBridgeCtaFolder();
   // Pre-load angles so they're ready when the Generate Script panel opens
   fetch('/api/marketing-angles').then(r => r.ok ? r.json() : null).then(data => {
     if (data?.angles?.length) {

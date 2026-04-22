@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { unlink, mkdir, access } from 'fs/promises';
-import { readFileSync, createWriteStream } from 'fs';
+import { readFileSync, createWriteStream, existsSync, readdirSync } from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
@@ -25,6 +25,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 const API_KEY = process.env.RUNWARE_API_KEY;
 
+// ── GET /api/cta-images ───────────────────────────────────────────────────────
+// Returns list of images from public/cta/ as { name, url } objects.
+router.get('/api/cta-images', (req, res) => {
+  const ctaDir = path.resolve('public', 'cta');
+  if (!existsSync(ctaDir)) return res.json({ images: [] });
+  const files = readdirSync(ctaDir)
+    .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .sort()
+    .map(f => ({ name: f, url: `/cta/${f}` }));
+  res.json({ images: files });
+});
+
 router.post('/api/generate-bridge', uploadBridge.fields([
   { name: 'video', maxCount: 1 },
   { name: 'ctaImage', maxCount: 1 },
@@ -40,6 +52,18 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   const bridgeDuration = parseInt(req.body.duration || '7');
   const videoPath = (req.body.videoPath || '').trim(); // server-side path for podcast videos
   const orient = req.body.orient === 'landscape' ? 'landscape' : 'portrait';
+  const ctaImagePath = (req.body.ctaImagePath || '').trim(); // server-side path for preset CTA images
+
+  // Resolve CTA image: uploaded file OR server-side preset from public/cta/
+  let resolvedCtaFile = ctaFile || null;
+  if (!resolvedCtaFile && ctaImagePath) {
+    const safeName = path.basename(ctaImagePath); // strip any path traversal
+    const absCtaPath = path.resolve('public', 'cta', safeName);
+    const ctaDir = path.resolve('public', 'cta');
+    if (absCtaPath.startsWith(ctaDir) && existsSync(absCtaPath)) {
+      resolvedCtaFile = { path: absCtaPath, originalname: safeName, size: 0 };
+    }
+  }
 
   // Resolve music: uploaded file or server-side ref
   let resolvedMusicPath = musicFile?.path || null;
@@ -51,7 +75,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   }
 
   const modelInfo = AVATAR_MODELS.find(m => m.id === model);
-  const modelLabel = modelInfo?.label || (model.includes('veo') ? (model.includes('fast') ? 'Google Veo 3.1 Fast' : 'Google Veo 3.1') : model);
+  const modelLabel = modelInfo?.label || (model.includes('veo') || model.includes('google:3') ? (model.includes('fast') || model.includes('@3') ? 'Google Veo 3.1 Fast' : model.includes('lite') ? 'Google Veo 3.1 Lite' : 'Google Veo 3.1') : model);
   const provider = modelInfo?.provider || (model.includes('google') ? 'Google' : 'Unknown');
 
   // Resolve video source: uploaded file OR server-side path
@@ -73,14 +97,14 @@ router.post('/api/generate-bridge', uploadBridge.fields([
     resolvedVideoPath = absPath;
   }
 
-  if (!resolvedVideoPath || !ctaFile) {
+  if (!resolvedVideoPath || !resolvedCtaFile) {
     return res.status(400).json({ error: 'Both a video source (file or videoPath) and CTA image are required.' });
   }
 
   console.log(`\n[Bridge] ── New Request ──────────────────────`);
   console.log(`[Bridge]  Model    : ${model}`);
   console.log(`[Bridge]  Video    : ${resolvedVideoName}${resolvedVideoSize ? ` (${(resolvedVideoSize / 1024 / 1024).toFixed(1)} MB)` : ' (server path)'}`);
-  console.log(`[Bridge]  CTA Image: ${ctaFile.originalname} (${(ctaFile.size / 1024).toFixed(1)} KB)`);
+  console.log(`[Bridge]  CTA Image: ${resolvedCtaFile.originalname}${resolvedCtaFile.size ? ` (${(resolvedCtaFile.size / 1024).toFixed(1)} KB)` : ' (preset)'}`);
   console.log(`[Bridge]  Prompt   : ${prompt || '(none)'}`);
   console.log(`[Bridge]  Duration : ${bridgeDuration}s`);
 
@@ -90,7 +114,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
   // Build a readable name: <source-video-stem>_bridge_<model-short>[_music]_<ts>
   const srcStem = path.basename(resolvedVideoName, path.extname(resolvedVideoName))
     .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 40);
-  const modelShort = model.includes('fast') ? 'veo31fast' : model.includes('veo') || model.includes('google') ? 'veo31' : model.replace(/[^a-z0-9]/gi, '').slice(0, 12);
+  const modelShort = model.includes('fast') || model.includes('@3') ? 'veo31fast' : model.includes('lite') ? 'veo31lite' : model.includes('veo') || model.includes('google') ? 'veo31' : model.replace(/[^a-z0-9]/gi, '').slice(0, 12);
   const musicTag = resolvedMusicPath ? '_music' : '';
   const bridgeBase = `${srcStem}_bridge_${modelShort}${musicTag}_${ts}`;
 
@@ -113,7 +137,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
     provider,
     prompt: prompt || null,
     videoName: resolvedVideoName,
-    ctaImageName: ctaFile.originalname,
+    ctaImageName: resolvedCtaFile.originalname,
     status: 'pending',
     submittedAt: new Date().toISOString(),
     completedAt: null,
@@ -147,7 +171,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       console.log(`[Bridge] Last frame extracted → ${frameJpg}`);
 
       const firstFrameDataURI = fileToDataURI(frameJpg, 'image/jpeg');
-      const ctaDataURI = fileToDataURI(ctaFile.path, getMimeType(ctaFile.path));
+      const ctaDataURI = fileToDataURI(resolvedCtaFile.path, getMimeType(resolvedCtaFile.path));
       console.log(`[Bridge] First frame: ${(firstFrameDataURI.length / 1024).toFixed(1)} KB | CTA: ${(ctaDataURI.length / 1024).toFixed(1)} KB`);
 
       const BASE_BRIDGE_PROMPT = 'Smooth transition. The character gently closes their mouth, lips fully shut with zero lip movement, teeth hidden, mouth completely closed and still. No talking, no speaking, no lip sync, no facial animation. Calm gentle slow crossfade transition from the first frame to the last frame. No person talking, no lip movement, no mouth movement, no human speech, no exaggerated expressions, no body movement. The person in frame must remain completely still and frozen like a photograph. Only a very slow subtle camera push-in or gentle zoom toward the final CTA frame. Minimal motion, no dramatic effects.';
@@ -218,7 +242,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
       updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
       sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
       if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
-      await unlink(ctaFile.path).catch(() => {});
+      if (ctaFile?.path) await unlink(ctaFile.path).catch(() => {});
       if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
       await unlink(frameJpg).catch(() => {});
       return;
@@ -277,7 +301,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
           });
         } finally {
           if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
-          await unlink(ctaFile.path).catch(() => {});
+          if (ctaFile?.path) await unlink(ctaFile.path).catch(() => {});
           if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
           await unlink(frameJpg).catch(() => {});
           await unlink(bridgeGenerated).catch(() => {});
@@ -290,7 +314,7 @@ router.post('/api/generate-bridge', uploadBridge.fields([
         updateHistoryEntry(taskUUID, { status: 'failed', error: errMsg, completedAt: new Date().toISOString() });
         sseEmitter.emit('task-complete', { taskUUID, type: 'bridge', status: 'failed', error: errMsg });
         if (!isServerPath && videoFile?.path) await unlink(videoFile.path).catch(() => {});
-        await unlink(ctaFile.path).catch(() => {});
+        if (ctaFile?.path) await unlink(ctaFile.path).catch(() => {});
         if (musicFile?.path) await unlink(musicFile.path).catch(() => {});
         await unlink(frameJpg).catch(() => {});
         await unlink(bridgeGenerated).catch(() => {});
@@ -382,7 +406,7 @@ router.post('/api/generate-bridge-auto', uploadBridge.fields([
     const ts2 = Date.now();
     const srcStem2 = path.basename(resolvedVideoName, path.extname(resolvedVideoName))
       .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 40);
-    const modelShort2 = model.includes('fast') ? 'veo31fast' : model.includes('veo') || model.includes('google') ? 'veo31' : model.replace(/[^a-z0-9]/gi, '').slice(0, 12);
+    const modelShort2 = model.includes('fast') || model.includes('@3') ? 'veo31fast' : model.includes('lite') ? 'veo31lite' : model.includes('veo') || model.includes('google') ? 'veo31' : model.replace(/[^a-z0-9]/gi, '').slice(0, 12);
     const musicTag2 = resolvedMusicPath ? '_music' : '';
     const bridgeBase2 = `${srcStem2}_bridge_${modelShort2}${musicTag2}_${ts2}`;
 

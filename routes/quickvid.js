@@ -292,9 +292,9 @@ router.post('/api/quickvid/generate-narrative-script', async (req, res) => {
     try { gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8'); } catch { gameContext = ''; }
 
     console.log(`[QuickVid/Narrative]  premise="${premise.slice(0, 80) || '(auto)'}" angle="${angle?.name || 'none'}" dur=${duration}s`);
-    const { script, suggestedDuration } = await generateQuickVideoNarrativeScript({ premise, angle, duration, gameContext, showMobileScreen });
-    console.log(`[QuickVid/Narrative]  ✅ done | suggestedDuration=${suggestedDuration}s`);
-    res.json({ script, suggestedDuration });
+    const { script, suggestedDuration, refHint } = await generateQuickVideoNarrativeScript({ premise, angle, duration, gameContext, showMobileScreen });
+    console.log(`[QuickVid/Narrative]  ✅ done | suggestedDuration=${suggestedDuration}s | refHint=${!!refHint}`);
+    res.json({ script, suggestedDuration, refHint: refHint || null });
   } catch (err) {
     console.error('[QuickVid/Narrative] ❌ failed:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Narrative script generation failed' });

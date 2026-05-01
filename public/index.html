@@ -5163,6 +5163,13 @@ init();
         <button type="button" class="btn-sm" onclick="qvApplySuggestedDuration()" style="width:auto;border-color:var(--accent);color:var(--accent);font-size:10px;padding:3px 8px">Apply</button>
       </div>
 
+      <!-- Ref hint banner (narrative mode — shown when generated script needs gameplay refs) -->
+      <div id="qv-ref-hint-banner" style="display:none;margin-bottom:6px;padding:7px 10px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.4);border-radius:6px;align-items:flex-start;gap:8px">
+        <span style="font-size:13px;flex-shrink:0">📎</span>
+        <div style="flex:1;font-size:11px;color:#d97706;line-height:1.4"><span id="qv-ref-hint-text"></span></div>
+        <button type="button" onclick="document.getElementById('qv-ref-hint-banner').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0;flex-shrink:0">✕</button>
+      </div>
+
       <!-- Prompt textarea -->
       <textarea id="qv-prompt" rows="4" placeholder="Paste or type your Seedance prompt here…"
         style="width:100%;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box"
@@ -5494,6 +5501,18 @@ async function qvGenerateScript() {
       _qvSuggestedDuration = data.suggestedDuration;
       document.getElementById('qv-suggested-dur-value').textContent = data.suggestedDuration;
       document.getElementById('qv-suggested-dur-banner').style.display = 'flex';
+    }
+
+    // Show ref hint for narrative mode when phone/gameplay is in the script
+    const refBanner = document.getElementById('qv-ref-hint-banner');
+    const refText = document.getElementById('qv-ref-hint-text');
+    if (refBanner && refText) {
+      if (data.refHint) {
+        refText.textContent = data.refHint;
+        refBanner.style.display = 'flex';
+      } else {
+        refBanner.style.display = 'none';
+      }
     }
 
     statusEl.textContent = '✅ Done';

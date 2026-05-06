@@ -850,6 +850,21 @@
                   ✓ Use This Audio for Avatar
                 </button>
               </div>
+
+              <!-- Speed Enhancement (shown after audio is generated) -->
+              <div id="el-speed-enhance-wrap" style="display:none;margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🎚 Voice Speed Enhancement (FFmpeg)</div>
+                <div class="el-chips" id="el-speed-chips">
+                  <div class="el-chip selected" data-val="1.0"  onclick="elSelectSpeedChip(this)">🚶 Normal (1×)</div>
+                  <div class="el-chip"          data-val="1.25" onclick="elSelectSpeedChip(this)">⚡ Fast (1.25×)</div>
+                  <div class="el-chip"          data-val="1.5"  onclick="elSelectSpeedChip(this)">🚀 Faster (1.5×)</div>
+                </div>
+                <button class="btn-sm" id="el-apply-speed-btn" onclick="elApplySpeed()" style="margin-top:8px">
+                  <span class="spinner" id="el-speed-spinner" style="display:none"></span>
+                  Apply Speed
+                </button>
+                <div id="el-speed-status" style="font-size:11px;color:var(--muted);margin-top:4px;display:none"></div>
+              </div>
             </div>
 
             <!-- Confirmed audio pill (shown after "Use This Audio") -->
@@ -2498,6 +2513,7 @@ let elCurrentPreviewAudio = null; // playing preview Audio object
 let elChipState = { type: 'game', dur: '30', pace: 'natural', energy: 'moderate' };
 let elSelectedAngleId = null;       // number | null
 let _elMarketingAngles = [];        // cached angle list for EL panel
+let elSpeedMultiplier = 1.0;        // FFmpeg post-processing speed (1×, 1.25×, 1.5×)
 
 function elToggleAudioSource(source) {
   document.getElementById('el-tab-upload').classList.toggle('active', source === 'upload');
@@ -2790,7 +2806,13 @@ async function elGenerateAudio() {
     preview.src = data.audioPath;
     preview.classList.add('show');
     document.getElementById('el-use-audio-wrap').style.display = 'block';
+    document.getElementById('el-speed-enhance-wrap').style.display = 'block';
     document.getElementById('el-step3-num').classList.add('done');
+    // Reset speed chip to Normal on each new generation
+    document.querySelectorAll('#el-speed-chips .el-chip').forEach(c => c.classList.remove('selected'));
+    document.querySelector('#el-speed-chips .el-chip[data-val="1.0"]')?.classList.add('selected');
+    elSpeedMultiplier = 1.0;
+    document.getElementById('el-speed-status').style.display = 'none';
   } catch (err) {
     alert(`Audio generation failed: ${err.message}`);
   } finally {
@@ -2813,7 +2835,63 @@ function elClearGeneratedAudio() {
   document.getElementById('el-audio-confirmed').classList.remove('show');
   document.getElementById('el-audio-preview').classList.remove('show');
   document.getElementById('el-use-audio-wrap').style.display = 'none';
+  document.getElementById('el-speed-enhance-wrap').style.display = 'none';
   document.getElementById('el-step3-num').classList.remove('done');
+  // Reset speed chip to Normal
+  document.querySelectorAll('#el-speed-chips .el-chip').forEach(c => c.classList.remove('selected'));
+  document.querySelector('#el-speed-chips .el-chip[data-val="1.0"]')?.classList.add('selected');
+  elSpeedMultiplier = 1.0;
+}
+
+function elSelectSpeedChip(el) {
+  document.querySelectorAll('#el-speed-chips .el-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  elSpeedMultiplier = parseFloat(el.dataset.val);
+  document.getElementById('el-speed-status').style.display = 'none';
+}
+
+async function elApplySpeed() {
+  if (!elGeneratedAudioPath) return;
+
+  const btn     = document.getElementById('el-apply-speed-btn');
+  const spinner = document.getElementById('el-speed-spinner');
+  const status  = document.getElementById('el-speed-status');
+
+  if (Math.abs(elSpeedMultiplier - 1.0) < 0.001) {
+    status.textContent = 'Already at 1× — no change needed.';
+    status.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  status.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/elevenlabs/speed-enhance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audioPath: elGeneratedAudioPath, speed: elSpeedMultiplier }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Speed enhancement failed');
+
+    elGeneratedAudioPath = data.audioPath;
+    const preview = document.getElementById('el-audio-preview');
+    preview.src = data.audioPath + '?t=' + Date.now();
+    preview.load();
+
+    status.textContent = `✅ Applied ${elSpeedMultiplier}× speed — preview updated.`;
+    status.style.color = 'var(--green)';
+    status.style.display = 'block';
+  } catch (err) {
+    status.textContent = `⚠ ${err.message}`;
+    status.style.color = 'var(--red)';
+    status.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
 }
 
 // ══════ Avatar submit ══════

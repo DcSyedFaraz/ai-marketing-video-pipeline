@@ -11,6 +11,7 @@ import path from 'path';
 import https from 'https';
 import http from 'http';
 import Anthropic from '@anthropic-ai/sdk';
+import { changeAudioSpeed } from '../lib/ffmpeg.js';
 
 const router = Router();
 
@@ -415,6 +416,48 @@ router.post('/api/elevenlabs/tts', async (req, res) => {
   } catch (err) {
     console.error(`[ElevenLabs] TTS error: ${err.message}`);
     res.status(500).json({ error: `TTS generation failed: ${err.message}` });
+  }
+});
+
+// ── POST /api/elevenlabs/speed-enhance ───────────────────────────────────────
+// Apply FFmpeg atempo speed change to a previously generated audio file.
+// Body: { audioPath: '/uploads/el_xxx.mp3', speed: 1.25 }
+router.post('/api/elevenlabs/speed-enhance', async (req, res) => {
+  const audioPath  = (req.body.audioPath || '').trim();
+  const speed      = parseFloat(req.body.speed);
+
+  if (!audioPath) return res.status(400).json({ error: 'audioPath is required.' });
+  if (isNaN(speed) || speed <= 0) return res.status(400).json({ error: 'Invalid speed value.' });
+
+  // Return original path unchanged for 1× (no processing)
+  if (Math.abs(speed - 1.0) < 0.001) {
+    return res.json({ audioPath, filename: path.basename(audioPath) });
+  }
+
+  // Security: resolve and ensure path is inside uploads/
+  const cleanPath  = audioPath.replace(/^[/\\]+/, '');
+  const absPath    = path.normalize(path.resolve(cleanPath));
+  const uploadsDir = path.normalize(path.resolve('uploads'));
+  if (!absPath.startsWith(uploadsDir + path.sep) && absPath !== uploadsDir) {
+    return res.status(400).json({ error: 'Invalid audio path.' });
+  }
+  if (!existsSync(absPath)) {
+    return res.status(404).json({ error: 'Audio file not found on server.' });
+  }
+
+  try {
+    const speedTag  = speed.toFixed(2).replace('.', 'p');
+    const filename  = `el_spd${speedTag}_${Date.now()}-${randomUUID().slice(0, 8)}.mp3`;
+    const outPath   = path.join('uploads', filename);
+
+    console.log(`[ElevenLabs] Speed-enhance: ${speed}× on ${absPath}`);
+    await changeAudioSpeed(absPath, outPath, speed);
+    console.log(`[ElevenLabs] ✅ Speed-enhanced audio: ${outPath}`);
+
+    res.json({ audioPath: `/uploads/${filename}`, filename });
+  } catch (err) {
+    console.error(`[ElevenLabs] Speed-enhance error: ${err.message}`);
+    res.status(500).json({ error: `Speed enhancement failed: ${err.message}` });
   }
 });
 

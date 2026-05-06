@@ -9,8 +9,9 @@
     "extend": "node extend.js",
     "full": "node full-pipeline.js",
     "avatar": "node kling-avatar.js",
-    "gui": "node server.js",
-    "start": "node server.js"
+    "gui": "node watcher.js",
+    "start": "node watcher.js",
+    "server": "node server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

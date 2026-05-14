@@ -3475,9 +3475,15 @@ function renderHistory(history) {
           <div><strong>UUID:</strong> <span style="font-family:monospace;font-size:10px">${h.taskUUID}</span></div>
         </div>
         ${h.error ? `<div class="hist-error">❌ ${h.error}</div>` : ''}
-        <div class="hist-actions" style="margin-top:8px">
+        <div class="pending-actions" style="margin-top:8px">
+          <button class="btn-sm green" onclick="manualCheck('${h.taskUUID}', this)">🔍 Check Now</button>
           <button class="btn-sm red" onclick="deleteHistory('${h.taskUUID}')">🗑 Remove</button>
-        </div>`;
+          <span class="checking-indicator" id="checking-${h.taskUUID}" style="display:none">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);animation:pulse 1s infinite"></span>
+            Checking...
+          </span>
+        </div>
+        <div class="check-logs" id="check-logs-${h.taskUUID}"></div>`;
     }
 
     return `
@@ -3523,14 +3529,11 @@ async function manualCheck(taskUUID, btn) {
       await loadHistory();
       await loadGallery();
       updatePendingBadge(await (await fetch('/api/history')).json().then(d => d.history));
-    } else if (data.status === 'failed') {
-      if (logBox) logBox.textContent = '❌ Task failed on server.';
-      await loadHistory();
-    } else if (data.status === 'checking') {
-      // Registered with global poller — SSE will fire on completion
+    } else if (data.status === 'checking' || data.status === 'rechecking') {
       if (indicator) indicator.style.display = 'none';
       if (btn) { btn.disabled = false; btn.textContent = '👁 Watching…'; }
       if (logBox) logBox.textContent = data.message || 'Registered with global poller. Completion will appear automatically via SSE.';
+      if (data.status === 'rechecking') await loadHistory();
     }
   } catch (err) {
     if (indicator) indicator.style.display = 'none';

@@ -9,7 +9,7 @@ import { Router } from 'express';
 import { readdir, unlink } from 'fs/promises';
 import path from 'path';
 
-import { loadHistory, saveHistory } from '../lib/history.js';
+import { loadHistory, saveHistory, updateHistoryEntry } from '../lib/history.js';
 import { globalPoller, makeVideoCompleteHandler, makeErrorHandler } from '../lib/globalPoller.js';
 
 const router = Router();
@@ -22,11 +22,16 @@ router.post('/api/check/:taskUUID', async (req, res) => {
 
   if (!entry) return res.status(404).json({ error: 'Task not found in history.' });
   if (entry.status === 'completed') return res.json({ status: 'completed', entry });
-  if (entry.status === 'failed') return res.json({ status: 'failed', entry });
 
   // Already registered — avoid duplicate
   if (globalPoller.has(taskUUID)) {
     return res.json({ status: 'checking', message: 'Already being polled by global poller. Watch SSE for completion.' });
+  }
+
+  // If task previously failed, reset to pending so poller re-checks it
+  const wasRetried = entry.status === 'failed';
+  if (wasRetried) {
+    updateHistoryEntry(taskUUID, { status: 'pending', error: null });
   }
 
   // Register with global poller — completion fires SSE event
@@ -37,7 +42,10 @@ router.post('/api/check/:taskUUID', async (req, res) => {
     onError: makeErrorHandler(taskUUID, entry.type),
   });
 
-  res.json({ status: 'checking', message: 'Task registered with global poller. Watch SSE /api/events for completion.' });
+  const status = wasRetried ? 'rechecking' : 'checking';
+  res.json({ status, message: wasRetried
+    ? 'Failed task re-registered with global poller. Watch SSE for completion.'
+    : 'Task registered with global poller. Watch SSE /api/events for completion.' });
 });
 
 // Get full history

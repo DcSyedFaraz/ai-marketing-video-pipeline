@@ -25,6 +25,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { mkdir } from 'fs/promises';
+import compression from 'compression';
 import { initGlobalPoller, restorePendingTasks, sseEmitter } from './lib/globalPoller.js';
 
 import avatarRouter      from './routes/avatar.js';
@@ -55,6 +56,7 @@ await mkdir('uploads', { recursive: true });
 await mkdir('public', { recursive: true });
 
 const app = express();
+app.use(compression());
 app.use(express.json());
 
 // ── SSE endpoint for real-time task completion notifications ─────────────────
@@ -97,7 +99,7 @@ console.log   = (...a) => { _log(...a);   broadcastLog('log',   a); };
 console.warn  = (...a) => { _warn(...a);  broadcastLog('warn',  a); };
 console.error = (...a) => { _error(...a); broadcastLog('error', a); };
 
-app.use(express.static('public'));
+app.use(express.static('public', { maxAge: '1h' }));
 app.use('/output', express.static('output'));
 app.use('/uploads', express.static('uploads'));
 

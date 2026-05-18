@@ -13,7 +13,7 @@ import { addHistoryEntry, updateHistoryEntry } from '../lib/history.js';
 import { globalPoller, sseEmitter } from '../lib/globalPoller.js';
 import { uploadQuickVid } from '../lib/multer.js';
 import { unlink } from 'fs/promises';
-import { generateQuickVideoScript, generateQuickVideoStoryScript, generateQuickVideoNarrativeScript } from '../lib/claude.js';
+import { generateQuickVideoScript, generateQuickVideoStoryScript, generateQuickVideoNarrativeScript, generateQuickVideoStreetInterviewScript } from '../lib/claude.js';
 
 const router = Router();
 
@@ -298,6 +298,26 @@ router.post('/api/quickvid/generate-narrative-script', async (req, res) => {
   } catch (err) {
     console.error('[QuickVid/Narrative] ❌ failed:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Narrative script generation failed' });
+  }
+});
+
+// ── POST /api/quickvid/generate-streetinterview-script ──────────────────────────
+router.post('/api/quickvid/generate-streetinterview-script', async (req, res) => {
+  try {
+    const hook = (req.body.hook || '').trim();
+    const location = (req.body.location || '').trim();
+    const duration = parseInt(req.body.duration) || 12;
+
+    let gameContext = '';
+    try { gameContext = readFileSync(path.resolve('public', 'game-context.txt'), 'utf-8'); } catch { gameContext = ''; }
+
+    console.log(`[QuickVid/StreetInterview]  hook="${hook.slice(0, 60) || '(auto)'}" location="${location || 'auto'}" dur=${duration}s`);
+    const { script, suggestedDuration, refHint } = await generateQuickVideoStreetInterviewScript({ hook, location, duration, gameContext });
+    console.log(`[QuickVid/StreetInterview]  done | suggestedDuration=${suggestedDuration}s`);
+    res.json({ script, suggestedDuration, refHint: refHint || null });
+  } catch (err) {
+    console.error('[QuickVid/StreetInterview] failed:', err?.message || err);
+    res.status(500).json({ error: err?.message || 'Street interview script generation failed' });
   }
 });
 
